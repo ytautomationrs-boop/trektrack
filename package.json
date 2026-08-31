@@ -1,0 +1,15 @@
+{
+  "name": "streak",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Streak — fixed-prize races/leagues plus StreakPot pooled challenges. Backend serves the web pilot; mobile/ also builds native.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:deps": "npm ci --prefix mobile && npm ci --prefix backend",
+    "build": "bash scripts/build-web.sh",
+    "db:migrate:deploy": "npm --prefix backend exec -- prisma migrate deploy --schema backend/prisma/schema.prisma",
+    "start": "npm run db:migrate:deploy && node backend/dist/server.js"
+  }
+}

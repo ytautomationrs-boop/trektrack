@@ -1,0 +1,59 @@
+{
+  "name": "streak-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "cron:withdrawal-poll": "tsx src/jobs/withdrawalPolling.ts",
+    "test": "vitest run",
+    "smoke:races": "tsx scripts/smoke-races.ts",
+    "smoke:clean": "tsx scripts/cleanup-smoke.ts",
+    "db:backup": "tsx scripts/backup-db.ts",
+    "cron:deposit-reconcile": "tsx src/jobs/depositReconciliation.ts",
+    "test:parser": "tsx scripts/test-workout-parser.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^8.0.1",
+    "@fastify/multipart": "^8.3.1",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/static": "^7.0.4",
+    "@garmin/fitsdk": "^21.214.0",
+    "@prisma/client": "^5.19.1",
+    "date-fns": "^3.6.0",
+    "date-fns-tz": "^3.1.3",
+    "dotenv": "^16.4.5",
+    "expo-server-sdk": "^7.2.0",
+    "fast-xml-parser": "^5.11.1",
+    "fastify": "^4.28.1",
+    "node-cron": "^3.0.3",
+    "pino": "^9.4.0",
+    "prisma": "^5.19.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.15",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "msgpackr-extract@3.0.4": true,
+    "prisma@5.22.0": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  }
+}

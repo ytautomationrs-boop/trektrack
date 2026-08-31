@@ -1,0 +1,1429 @@
+// Streak — data model
+//
+// TWO competition models, deliberately coexisting rather than merged into
+// one, because they answer different questions and mixing their rules would
+// corrupt both:
+//
+// RACE/LEAGUE — fixed-prize races organised into points-based leagues (see
+// src/modules/races/README.md). A race has an EXACT required headcount and
+// a prize schedule fixed in advance; it does not exist until that headcount
+// is reached, and if it never fills, every entry fee is refunded in full.
+// Entrants are ranked on cumulative total for a single metric over the race
+// window — no daily target, no pass/fail, no elimination. Finishing
+// position awards permanent league points. This is the real-money
+// competitive product, and it keeps its existing fixed entry-fee structure.
+//
+// COMPLIANCE NOTE (race/league only): prizes are fixed and pre-announced,
+// independent of how many people enter and of what those entries brought
+// in. That is the property that distinguishes this from a
+// pooled/totalisator structure. Any change that makes a prize a function of
+// entries collected undoes it.
+//
+// STREAKPOT — the original pooled-stakes model (Challenge and everything
+// under it below), reintroduced as a free, zero-commission engagement
+// layer alongside races. A challenge pools every participant's stake and
+// pays it out — in full, no platform cut taken anywhere — to whoever meets
+// the daily target on every required day. This IS a pot/totalisator
+// structure by design (the payout is literally a function of who stays in),
+// which is exactly why it stays fully separate from the race/league model's
+// fixed-prize guarantees rather than sharing any of that machinery.
+//
+// Payments run on Paystack/PayPal TEST/sandbox only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Identity
+// ─────────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  displayName  String
+  avatarUrl    String?
+  timezone     String  @default("UTC") // IANA tz; updated on each app foreground
+
+  // Pilot-only content-creation gate: regular users cannot create races or
+  // challenges while the app is invite-only (see routes' requireAdmin
+  // check). Everyone still enters/joins normally — this only gates the
+  // CREATE side. Intended to be dropped once public creation reopens.
+  isAdmin Boolean @default(false)
+
+  // Real money only ever touches this balance at two points: DEPOSIT
+  // (Paystack) and WITHDRAWAL (Paystack Transfer / PayPal Payout). Every
+  // other movement — race entry fees, prizes, refunds, StreakPot stakes and
+  // pool payouts — is a pure internal transfer recorded in LedgerEntry.
+  // 1 token = 1 cent.
+  walletBalanceCents Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  devices                Device[]
+  healthConnections      HealthConnection[]
+  stravaConnection       StravaConnection?
+  pushTokens             PushToken[]
+  notificationLogs       NotificationLog[]
+  ledgerEntries          LedgerEntry[]
+  // Ledger entries THIS user performed as an admin (currently only
+  // sponsorship grants) — distinct from ledgerEntries above, which is every
+  // entry belonging TO this user's own wallet.
+  ledgerEntriesPerformed LedgerEntry[]          @relation("LedgerEntryPerformedBy")
+  withdrawals            Withdrawal[]
+  depositIntents         DepositIntent[]
+  inviteCodesCreated     InviteCode[]           @relation("InviteCodeCreatedBy")
+  raceFlagsReviewed      RaceAnomalyFlag[]      @relation("RaceAnomalyFlagReviewedBy")
+  challengeFlagsReviewed ChallengeAnomalyFlag[] @relation("ChallengeAnomalyFlagReviewedBy")
+  reportsMade            Report[]               @relation("Reporter")
+  reportsReceived        Report[]               @relation("Reported")
+
+  raceEntries      RaceEntry[]
+  createdRaces     Race[]            @relation("RaceCreator")
+  captainedSquads  RaceSquad[]       @relation("RaceSquadCaptain")
+  // One per metric — four independent progressions, not one.
+  leagueStates     UserLeagueState[]
+  racePointEntries RacePointEntry[]
+
+  // StreakPot — pooled-stake challenges, fully separate from the above.
+  createdChallenges       Challenge[]            @relation("ChallengeCreator")
+  challengeInvitesSent    ChallengeInvite[]      @relation("ChallengeInviter")
+  challengeParticipations ChallengeParticipant[]
+  badges                  UserBadge[]
+
+  @@index([email])
+}
+
+// Pilot invite gate. There is no public sign-up route while this exists —
+// account creation only succeeds against a valid, unused code. One row per
+// invited person (not a single shared password) so a specific invite can be
+// revoked and so signup traces back to who actually sent it.
+model InviteCode {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  label         String? // e.g. "Jane — sent via email 2026-08-26", for our own tracking
+  maxUses       Int       @default(1)
+  useCount      Int       @default(0)
+  // Which accounts redeemed this code, in redemption order. A simple array
+  // is enough at pilot scale (~100 users, maxUses is almost always 1) —
+  // not worth a join table for this.
+  usedByUserIds String[]  @default([])
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+
+  // Nullable: a smoke-test fixture or an early hand-inserted code has no
+  // admin behind it. onDelete: SetNull for the same reason as
+  // LedgerEntry.performedByUserId — deleting an admin account should not
+  // rewrite who-invited-whom history.
+  createdByUserId String?
+  createdBy       User?   @relation("InviteCodeCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@index([createdByUserId])
+}
+
+// One row per physical device the user has authorized. Used for App Attest /
+// Play Integrity checks at data-submission time.
+model Device {
+  id                   String              @id @default(cuid())
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform             Platform
+  deviceModel          String
+  osVersion            String
+  attestationProvider  AttestationProvider
+  attestationStatus    AttestationStatus   @default(UNVERIFIED)
+  lastAttestedAt       DateTime?
+  isEmulatorSuspected  Boolean             @default(false)
+  isJailbrokenOrRooted Boolean             @default(false)
+  createdAt            DateTime            @default(now())
+
+  raceSamples      RaceHealthSample[]
+  challengeSamples ChallengeHealthSample[]
+
+  @@index([userId])
+}
+
+// A granted health-data connection (HealthKit / Health Connect).
+model HealthConnection {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      HealthProvider
+  grantedScopes String[] // e.g. ["STEPS", "CYCLING_WORKOUT"]
+  status        ConnectionStatus @default(ACTIVE)
+  connectedAt   DateTime         @default(now())
+  revokedAt     DateTime?
+
+  @@unique([userId, provider])
+}
+
+// Optional, opt-in Strava OAuth connection. Holds real tokens because Strava
+// is a cloud API the backend calls directly during a race.
+model StravaConnection {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stravaAthleteId String
+  accessToken     String
+  refreshToken    String
+  expiresAt       DateTime // short-lived (~6h); refreshed lazily before each use
+  scope           String
+  status          ConnectionStatus @default(ACTIVE)
+  connectedAt     DateTime         @default(now())
+  revokedAt       DateTime?
+}
+
+model PushToken {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // An Expo push token ("ExponentPushToken[...]"). Unique because Expo
+  // issues one per install — re-registering the same device must update the
+  // owning user rather than accumulate rows, or a shared/handed-on device
+  // would keep delivering the previous owner's notifications.
+  token     String       @unique
+  platform  PushPlatform
+  createdAt DateTime     @default(now())
+
+  @@index([userId])
+}
+
+// Append-only record of notifications actually sent, used purely for
+// deduplication.
+//
+// Most sends don't need it: they fire inside a claimed state transition
+// (the conditional updateMany in the lifecycle jobs), which by construction
+// happens once. The exceptions are the ones driven by a periodic SCAN
+// rather than a transition — the daily StreakPot check-in reminder above
+// all, which would otherwise re-send on every 5-minute tick.
+//
+// dedupeKey is caller-defined and scoped by kind, e.g. "<challengeId>:2026-08-27".
+model NotificationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  dedupeKey String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, kind, dedupeKey])
+  @@index([userId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Metric registry
+//
+// Adding a metric is a row here plus a validator/anomaly rule registration —
+// not a schema change. One registry shared by both models: "steps" is one
+// canonical metric whether it's being raced or pooled.
+//
+// minTarget / maxTarget / defaultTarget / stepSize / beginnerTarget /
+// advancedTarget / supportsPaceTarget / vizType exist to configure a DAILY
+// TARGET and a progress visualisation — meaningless to races (which have no
+// daily target, just a cumulative total and a standings position) but
+// required by StreakPot's challenge-creation flow. Race code simply never
+// reads them; sleep (SLEEP / HOURS below) is the clearest example of a
+// metric that is StreakPot-only; races never accept it as their metricKey.
+// ─────────────────────────────────────────────────────────────────────────
+
+model MetricTypeDefinition {
+  key                String             @id // "steps" | "running" | "cycling" | "swimming" | "sleep"
+  displayName        String
+  // Display unit only. DISTANCE_METERS metrics are always stored and
+  // compared in metres; "km" vs "m" only picks the display conversion.
+  unit               String
+  valueType          MetricValueType
+  dataSourceCategory DataSourceCategory
+  icon               String // token resolved by the mobile theme registry
+  validationRuleKey  String // e.g. "steps.pedometer_corroboration"
+  anomalyRuleKey     String // e.g. "steps.baseline_spike"
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+
+  // ── StreakPot-only target/visualisation config ─────────────────────────
+  // All nullable: a race-only metric never sets these.
+  minTarget          Float?
+  maxTarget          Float?
+  defaultTarget      Float?
+  beginnerTarget     Float?
+  advancedTarget     Float?
+  stepSize           Float?
+  supportsPaceTarget Boolean        @default(false)
+  vizType            MetricVizType?
+
+  raceTypes             RaceType[]
+  leagueLevels          LeagueLevel[]
+  leagueStates          UserLeagueState[]
+  challengeRequirements ChallengeMetricRequirement[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Leagues
+// ─────────────────────────────────────────────────────────────────────────
+
+// A league level. The number of levels and their thresholds are DATA, not
+// constants — subdividing later is inserting rows plus a RacePrizeSchedule
+// per race type, with no deploy.
+//
+// `isOpen` is the low-volume safety valve. A league whose races cannot reach
+// their exact headcount produces nothing but cancelled races and refunds, so
+// a level can exist (users accumulate points toward it and are marked
+// qualified) while nobody is placed into it yet. Opening it promotes every
+// qualified user at once. This never demotes anyone — a closed league is
+// simply not somewhere anyone is standing.
+model LeagueLevel {
+  // Leagues are tracked PER METRIC, so a level is only meaningful together
+  // with the metric it belongs to. "League 3" alone means nothing; "League 3
+  // for running" does.
+  metricKey  String
+  metricType MetricTypeDefinition @relation(fields: [metricKey], references: [key], onDelete: Cascade)
+
+  level     Int // 1-based; every user starts at 1 in every metric
+  name      String
+  minPoints Int // inclusive lower bound of this level's band
+
+  // The fill-rate safety valve, and the main reason this table is per-metric
+  // rather than global. A league whose races cannot reach their exact
+  // headcount produces nothing but cancellations and refunds, and readiness
+  // is inherently per-metric: steps may have plenty of racers while swimming
+  // has almost none. Opening League 2 for steps says nothing about swimming.
+  isOpen   Boolean   @default(false)
+  openedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  schedules RacePrizeSchedule[]
+  races     Race[]
+  members   UserLeagueState[]
+
+  @@id([metricKey, level])
+  @@index([metricKey, isOpen])
+}
+
+// A user's permanent standing.
+//
+// `totalPoints` moves only via RacePointEntry rows (race results) and is
+// floored at 0. `currentLevel` NEVER decreases — the no-demotion guarantee,
+// enforced in code by only ever assigning it via Math.max.
+// `qualifiedLevel` is the highest level the points entitle them to, which
+// can run ahead of currentLevel while that level is still closed.
+model UserLeagueState {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Four independent progressions per user — one per metric. A user can be
+  // deep into the running leagues and still sit at League 1 for swimming,
+  // and both are correct: races are single-metric, so skill in one says
+  // nothing about another.
+  metricKey  String
+  metricType MetricTypeDefinition @relation(fields: [metricKey], references: [key], onDelete: Cascade)
+
+  totalPoints Int @default(0)
+
+  currentLevel   Int         @default(1)
+  league         LeagueLevel @relation(fields: [metricKey, currentLevel], references: [metricKey, level])
+  qualifiedLevel Int         @default(1)
+
+  racesEntered Int       @default(0)
+  racesWon     Int       @default(0)
+  promotedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@id([userId, metricKey])
+  @@index([metricKey, currentLevel])
+  @@index([metricKey, qualifiedLevel])
+}
+
+// Append-only audit of every point movement. "Points are never removed
+// except through race results" is enforceable precisely because this is the
+// only writer of UserLeagueState.totalPoints.
+//
+// pointsBefore/pointsAfter are stored rather than derived so the floor at 0
+// is visible in the trail (a -4 against a 2-point total records after=0).
+model RacePointEntry {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raceId           String
+  raceEntryId      String   @unique
+  // Denormalised from the race so the profile can show a metric's point
+  // history without joining through to Race on every row.
+  metricKey        String
+  points           Int // as awarded by the position scale; may be negative
+  pointsBefore     Int
+  pointsAfter      Int // floored at 0
+  position         Int
+  // Mirrors RaceEntry.lowerLeagueOptIn. Without this a 0-point lower-league
+  // race is indistinguishable in the history from a legitimate 6th-place
+  // finish at the user's own level, which also nets 0.
+  lowerLeagueOptIn Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  @@index([userId, metricKey, createdAt])
+  @@index([raceId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Race configuration (standing, platform-owned)
+// ─────────────────────────────────────────────────────────────────────────
+
+// A standing race format. `entrantCount` is EXACT — never a minimum, never a
+// cap a race may start under.
+model RaceType {
+  key         String               @id // e.g. "steps_7d_individual"
+  displayName String
+  format      RaceFormat
+  metricKey   String
+  metricType  MetricTypeDefinition @relation(fields: [metricKey], references: [key])
+
+  durationDays Int // 1 or 7
+  // INDIVIDUAL: number of entrants. SQUAD: number of SQUADS (squadSize
+  // members each), so total people = entrantCount * squadSize.
+  entrantCount Int
+  squadSize    Int?
+
+  // Does the platform auto-open a PUBLIC race of this type per open league?
+  // Kept small at launch: every active type is another pool competing for
+  // the same entrants, and a pool that cannot fill only ever refunds.
+  isActive Boolean @default(false)
+
+  // May a user create a PRIVATE race of this type? Separate from isActive on
+  // purpose — a private race brings its own entrants (the creator recruits
+  // them), so it does not compete for the shared pool and can be allowed for
+  // formats the platform is not yet running publicly.
+  allowUserCreated Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  schedules RacePrizeSchedule[]
+  races     Race[]
+}
+
+// The fixed, pre-announced prize schedule for one (race type × league).
+//
+// This is the standing configuration the whole model turns on: set once,
+// applied identically to every race of that type in that league, and NEVER
+// derived from any particular race's entry-fee total. `entryFeeCents` lives
+// here rather than on RaceType so higher leagues can charge more for the
+// same format — and so a race CREATOR can never choose it.
+model RacePrizeSchedule {
+  id          String   @id @default(cuid())
+  raceTypeKey String
+  raceType    RaceType @relation(fields: [raceTypeKey], references: [key], onDelete: Cascade)
+
+  // Duplicated from raceType.metricKey because the league relation is now a
+  // composite key and Prisma needs the scalar locally to point at it. Kept in
+  // step by the seed; a schedule's metric always equals its race type's.
+  metricKey   String
+  leagueLevel Int
+  league      LeagueLevel @relation(fields: [metricKey, leagueLevel], references: [metricKey, level])
+
+  entryFeeCents Int
+  currency      String   @default("zar")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tiers RacePrizeTier[]
+  races Race[]
+
+  @@unique([raceTypeKey, leagueLevel])
+}
+
+// One paying finishing position. Positions with no row here pay nothing.
+model RacePrizeTier {
+  id          String            @id @default(cuid())
+  scheduleId  String
+  schedule    RacePrizeSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  position    Int // 1-based
+  amountCents Int
+
+  @@unique([scheduleId, position])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Races
+// ─────────────────────────────────────────────────────────────────────────
+
+// One instance of a race type in a league.
+//
+// Every commercially material field is SNAPSHOT off the race type and prize
+// schedule at creation — before anyone could enter. That is what
+// "pre-announced" means operationally: editing config changes what FUTURE
+// races pay and can never change what an already-open race pays the people
+// who already entered it.
+model Race {
+  id          String            @id @default(cuid())
+  // Free text, creator-supplied for private races, generated for public
+  // ones. Display only — it carries no rules.
+  name        String
+  raceTypeKey String
+  raceType    RaceType          @relation(fields: [raceTypeKey], references: [key])
+  leagueLevel Int
+  scheduleId  String
+  schedule    RacePrizeSchedule @relation(fields: [scheduleId], references: [id])
+
+  status     RaceStatus     @default(FILLING)
+  visibility RaceVisibility @default(PUBLIC)
+
+  // Null for platform-opened races. Set for user-created ones, which are
+  // always PRIVATE — a user cannot create a public race, because public
+  // races all draw on one shared entrant pool and letting anyone fragment it
+  // is what stops races filling at low volume.
+  createdByUserId String?
+  createdBy       User?   @relation("RaceCreator", fields: [createdByUserId], references: [id])
+
+  // Shareable join code for PRIVATE races. The code IS the invitation; there
+  // are no per-invitee rows to issue, revoke or expire.
+  inviteCode String? @unique
+
+  // ── Snapshots, frozen at creation ──────────────────────────────────────
+  metricKey String
+  // The league this race belongs to is (metricKey, leagueLevel) — a level is
+  // only meaningful within a metric.
+  league    LeagueLevel @relation(fields: [metricKey, leagueLevel], references: [metricKey, level])
+
+  format          RaceFormat
+  durationDays    Int
+  entrantCount    Int // exact headcount required to exist
+  squadSize       Int?
+  entryFeeCents   Int
+  currency        String     @default("zar")
+  prizeSnapshot   Json // [{ position, amountCents }] — frozen, not a pointer to live config
+  totalPrizeCents Int
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────
+  // The timezone "next midnight" is computed against, for THIS race. Fixed
+  // at creation (creator's timezone for private races, a platform default
+  // for public ones) so the start moment is deterministic — nobody's join
+  // order or timezone can shift it, since it never depends on who happens to
+  // fill the last slot.
+  anchorTimezone String
+
+  signupOpensAt    DateTime  @default(now()) // no deadline — a race waits indefinitely for its exact headcount
+  lockedAt         DateTime? // set the instant the exact headcount is reached
+  // The next midnight in anchorTimezone after lockedAt — when LOCKED becomes
+  // RUNNING. Null until locked.
+  scheduledStartAt DateTime?
+  // Set from scheduledStartAt when the race actually begins running, not
+  // from "now" — see RaceStatus.RUNNING.
+  startedAt        DateTime?
+  endsAt           DateTime?
+  resolvedAt       DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries       RaceEntry[]
+  squads        RaceSquad[]
+  ledgerEntries LedgerEntry[]
+  reports       Report[]
+
+  @@index([status, raceTypeKey, leagueLevel])
+  @@index([status, scheduledStartAt])
+  @@index([status, endsAt])
+  @@index([createdByUserId])
+}
+
+// A squad within a squad race. Exactly `Race.entrantCount` of these compete.
+model RaceSquad {
+  id            String @id @default(cuid())
+  raceId        String
+  race          Race   @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  name          String
+  slotIndex     Int // 0-based
+  captainUserId String
+  captain       User   @relation("RaceSquadCaptain", fields: [captainUserId], references: [id])
+
+  // Invite-only by default: a squad is a team you assemble, not a lobby.
+  // Every member's activity feeds one aggregate, so a passenger costs the
+  // whole squad the prize.
+  joinPolicy RaceSquadJoinPolicy @default(INVITE_ONLY)
+  inviteCode String              @unique
+
+  aggregateValue Float?
+  finishPosition Int?
+
+  createdAt DateTime @default(now())
+
+  entries RaceEntry[]
+
+  @@unique([raceId, slotIndex])
+  @@index([raceId])
+}
+
+// One user's entry in one race.
+//
+// No escrow status: there is no escrow. The fee is either refunded (the race
+// never existed) or recognised as revenue (it ran).
+model RaceEntry {
+  id      String     @id @default(cuid())
+  raceId  String
+  race    Race       @relation(fields: [raceId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User       @relation(fields: [userId], references: [id])
+  squadId String?
+  squad   RaceSquad? @relation(fields: [squadId], references: [id])
+
+  // Locked at entry. Race SCORING does not use it — a race window is a
+  // single shared UTC interval so every entrant races the identical number
+  // of seconds. Kept for display and for the anomaly baseline, which is
+  // still computed in local days.
+  timezone      String
+  entryFeeCents Int
+
+  status RaceEntryStatus @default(ENTERED)
+
+  // True when this entry is a voluntary join into a race BELOW the user's
+  // own current league for this metric (the "my league is empty" fallback).
+  // It pays and can win that lower league's fixed fee/prize normally, but
+  // awards ZERO league points either way — see resolution.ts awardEntry.
+  // Racing your own level is what points are meant to measure; letting a
+  // stronger racer farm an easier field for points would be unfair to that
+  // league's actual members.
+  lowerLeagueOptIn Boolean @default(false)
+
+  aggregateValue Float?
+  finishPosition Int?
+  pointsAwarded  Int?
+  prizeCents     Int?
+
+  joinedAt DateTime @default(now())
+
+  samples RaceHealthSample[]
+
+  @@unique([raceId, userId])
+  @@index([raceId, status])
+  @@index([userId])
+}
+
+// Evidence trail for race scoring. Never mutated after ingestion.
+//
+// `corroboration` still carries GPS routes, pedometer counts, heart-rate
+// presence and workout duration — pace and route data are captured in full
+// for anti-fraud validation. What was removed is the user-facing pace
+// TARGET, not the underlying signal.
+model RaceHealthSample {
+  id          String    @id @default(cuid())
+  raceEntryId String
+  raceEntry   RaceEntry @relation(fields: [raceEntryId], references: [id], onDelete: Cascade)
+  deviceId    String?
+  device      Device?   @relation(fields: [deviceId], references: [id])
+
+  metricKey String
+  value     Float
+  unit      String
+  startTime DateTime
+  endTime   DateTime
+
+  sourceBundleId    String
+  sourceName        String
+  wasManualEntry    Boolean @default(false)
+  isWearableSourced Boolean @default(false)
+  corroboration     Json?
+
+  dataSource MetricDataSource @default(NATIVE_HEALTH)
+  ingestedAt DateTime         @default(now())
+
+  flags RaceAnomalyFlag[]
+
+  @@index([raceEntryId, metricKey])
+  @@index([raceEntryId, startTime])
+}
+
+// Anomaly flags raised against race evidence. Gates the PRIZE rather than a
+// pass/fail verdict — an unresolved flag on a prize-winning entrant holds
+// that prize instead of releasing it.
+model RaceAnomalyFlag {
+  id               String           @id @default(cuid())
+  sampleId         String
+  sample           RaceHealthSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  raceId           String
+  raceEntryId      String
+  ruleKey          String
+  severity         AnomalySeverity
+  details          Json
+  status           AnomalyStatus    @default(OPEN)
+  // Was a free-text `reviewedBy String?` the CLIENT supplied on the request
+  // body — forgeable, optional, and never checked against who was actually
+  // authenticated. Resolving a flag as DISMISSED releases a held prize, so
+  // "who reviewed this" being whatever string the caller typed (or nothing
+  // at all) was a real gap on the single most sensitive action in this file.
+  // Now taken from the verified admin's own session, same as
+  // LedgerEntry.performedByUserId and InviteCode.createdByUserId.
+  reviewedByUserId String?
+  reviewedByUser   User?            @relation("RaceAnomalyFlagReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  @@index([status, severity])
+  @@index([raceEntryId, status])
+  @@index([raceId, status])
+  @@index([reviewedByUserId])
+}
+
+// Participant-filed reports — the human backstop on top of automated checks.
+model Report {
+  id             String       @id @default(cuid())
+  reporterId     String
+  reporter       User         @relation("Reporter", fields: [reporterId], references: [id])
+  reportedUserId String
+  reported       User         @relation("Reported", fields: [reportedUserId], references: [id])
+  raceId         String?
+  race           Race?        @relation(fields: [raceId], references: [id])
+  challengeId    String?
+  challenge      Challenge?   @relation(fields: [challengeId], references: [id])
+  reason         String
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// StreakPot — pooled-stake challenges
+//
+// The original model, reintroduced as a free engagement layer alongside
+// races. A challenge has a daily target (or several, for a multi-metric
+// challenge) over a fixed number of days; every participant stakes the same
+// amount up front; whoever meets every required day's target(s) splits the
+// full pool — including stakes forfeited by participants who didn't — with
+// ZERO platform commission. See LedgerEntryType below for how that's
+// enforced in the ledger rather than just asserted in code.
+// ─────────────────────────────────────────────────────────────────────────
+
+// One pooled-stake challenge. Unlike a Race, a challenge's payout is a
+// function of who stays in — that's the totalisator structure races are
+// deliberately built to avoid, and exactly what makes it fair here: nobody
+// pays a platform cut, they only ever redistribute among themselves.
+model Challenge {
+  id           String              @id @default(cuid())
+  title        String
+  durationDays Int
+  startDate    DateTime
+  stakeCents   Int
+  currency     String              @default("zar")
+  visibility   ChallengeVisibility @default(INVITE_ONLY)
+  // Shareable code for an INVITE_ONLY challenge, same pattern as Race.
+  inviteCode   String?             @unique
+  status       ChallengeStatus     @default(DRAFT)
+
+  // How long after a day ends a check-in can still land before that day is
+  // scored as missed — device sync isn't instant.
+  gracePeriodMinutes Int @default(180)
+  // Kept as an explicit field (not just "absent") so it reads in the ledger
+  // and admin views as a deliberate 0, not a bug — see the fee comment on
+  // LedgerEntryType. StreakPot NEVER charges this; races are unaffected.
+  platformFeeBps     Int @default(0)
+  // How long after the challenge ends before results are finalised —
+  // mirrors races' RESOLVING window, same anti-fraud review purpose.
+  reviewHoldHours    Int @default(48)
+
+  // NOTE: SQUAD is NOT usable yet and creation refuses it (see
+  // modules/challenges/schemas.ts). Unlike races, which have a real
+  // RaceSquad entity with slots, a captain and an invite code, there is no
+  // ChallengeSquad table — so squads cannot be formed, and WHOLE_GROUP
+  // elimination has no way to know whose squad to eliminate. Building
+  // squad challenges means adding that entity first.
+  mode             ChallengeMode
+  // SOLO: number of individual participants. SQUAD: number of squads.
+  maxParticipants  Int?
+  // Only meaningful for SQUAD challenges: does one member missing a day
+  // eliminate just them, or the whole squad? See the note on `mode`.
+  eliminationScope ChallengeEliminationScope?
+  // Free-text difficulty label (e.g. "beginner"/"advanced") shown on
+  // Discover-equivalent browse — not an enforced constraint.
+  tier             String?
+
+  creatorId String
+  creator   User   @relation("ChallengeCreator", fields: [creatorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  metricRequirements ChallengeMetricRequirement[]
+  invites            ChallengeInvite[]
+  participants       ChallengeParticipant[]
+  ledgerEntries      LedgerEntry[]
+  reports            Report[]
+
+  @@index([status])
+  @@index([creatorId])
+}
+
+// One metric's daily target within a challenge. A challenge with more than
+// one row here is a "multi-metric challenge" — a single day's check-in must
+// clear every required metric to pass.
+model ChallengeMetricRequirement {
+  id          String    @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  metricKey  String
+  metricType MetricTypeDefinition @relation(fields: [metricKey], references: [key])
+
+  dailyTarget        Float
+  // Only set for metrics with supportsPaceTarget — a personal pace floor,
+  // never used for ranking (there is no ranking; it's pass/fail).
+  paceTargetSecPerKm Float?
+  // Optional time-of-day window (minutes since local midnight) the activity
+  // must fall within — e.g. a "morning run" challenge.
+  startTimeMinutes   Int?
+  endTimeMinutes     Int?
+
+  @@unique([challengeId, metricKey])
+  @@index([challengeId])
+}
+
+// A shareable invite into an INVITE_ONLY challenge. The code is what a
+// invitee redeems; inviteeEmail is optional bookkeeping for who it was sent
+// to, not an enforcement mechanism.
+model ChallengeInvite {
+  id           String                @id @default(cuid())
+  challengeId  String
+  challenge    Challenge             @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  inviterId    String
+  inviter      User                  @relation("ChallengeInviter", fields: [inviterId], references: [id])
+  inviteeEmail String?
+  code         String                @unique
+  status       ChallengeInviteStatus @default(PENDING)
+  createdAt    DateTime              @default(now())
+  expiresAt    DateTime?
+
+  @@index([challengeId])
+}
+
+// One user's stake in one challenge. `priority` breaks ties in a
+// WHOLE_GROUP squad elimination (who "caused" the elimination for display
+// purposes) — it does not affect payout, which is always split evenly among
+// finishers.
+model ChallengeParticipant {
+  id          String    @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+
+  status          ChallengeParticipantStatus @default(ACTIVE)
+  // Locked at join, same reasoning as RaceEntry.timezone — determines which
+  // "local day" a check-in counts toward.
+  timezone        String
+  joinedAt        DateTime                   @default(now())
+  eliminatedOnDay Int?
+  currentStreak   Int                        @default(0)
+  priority        Int                        @default(1)
+
+  stakeCents   Int
+  escrowStatus EscrowStatus @default(HELD)
+
+  // A finisher-track participant may buy back one otherwise-disqualifying
+  // missed day. The fee (if any) is added to the pool, never kept by the
+  // platform — see the ZERO-commission note on LedgerEntryType.
+  redemptionPurchased Boolean @default(false)
+  redemptionUsed      Boolean @default(false)
+  redemptionFeeCents  Int?
+
+  checkIns      DailyCheckIn[]
+  healthSamples ChallengeHealthSample[]
+
+  @@unique([challengeId, userId])
+  @@index([challengeId, status])
+  @@index([userId])
+}
+
+// One participant's check-in for one challenge day. `result` is the
+// day-level verdict; the per-metric detail (needed for multi-metric
+// challenges) lives in DailyMetricResult below.
+model DailyCheckIn {
+  id            String               @id @default(cuid())
+  participantId String
+  participant   ChallengeParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  challengeDay Int
+  // Calendar date in the participant's own timezone ("2026-08-18"), not a
+  // UTC instant — a challenge day is a local-day concept.
+  localDate    String
+
+  result            DailyCheckInResult
+  reviewStatus      CheckInReviewStatus @default(NONE)
+  redemptionApplied Boolean             @default(false)
+  verifiedAt        DateTime?
+  // gracePeriodMinutes after the day's local end — a check-in after this is
+  // scored as missed regardless of when the data eventually syncs.
+  cutoffAt          DateTime
+  createdAt         DateTime            @default(now())
+
+  metricResults DailyMetricResult[]
+  healthSamples ChallengeHealthSample[]
+
+  @@unique([participantId, challengeDay])
+  @@index([participantId])
+}
+
+// One metric's result within a check-in. A SOLO single-metric challenge has
+// exactly one row per check-in; a multi-metric challenge has one per
+// required metric, and the check-in only PASSES if every one of them does.
+model DailyMetricResult {
+  id        String       @id @default(cuid())
+  checkInId String
+  checkIn   DailyCheckIn @relation(fields: [checkInId], references: [id], onDelete: Cascade)
+
+  metricKey    String
+  targetValue  Float
+  actualValue  Float
+  passed       Boolean
+  // Same anti-fraud scoring approach as race samples, just against a
+  // pass/fail target instead of a ranked total.
+  anomalyScore Float   @default(0)
+
+  paceTargetSecPerKm Float?
+  actualPaceSecPerKm Float?
+  dataSource         MetricDataSource @default(NATIVE_HEALTH)
+
+  // One result row per required metric per check-in — this is what lets
+  // ingestion re-score a metric as more samples arrive during the day
+  // (upsert) instead of accumulating duplicate rows.
+  @@unique([checkInId, metricKey])
+  @@index([checkInId])
+}
+
+// Evidence trail for challenge check-ins — the counterpart to
+// RaceHealthSample, and for the same reason: without it, a disputed day has
+// nothing behind it but a single computed total, and an anomaly flag has
+// nothing to hang off.
+//
+// Note what this does NOT do: challenge SCORING still comes from the
+// submitted request payload (see scoring.ts — DailyMetricResult.actualValue
+// is recomputed per submission and replaces the previous value). Races sum
+// their stored samples; challenges do not. Storing samples here is about
+// auditability and the anomaly baseline, and deliberately doesn't change how
+// a day is scored.
+model ChallengeHealthSample {
+  id            String               @id @default(cuid())
+  participantId String
+  participant   ChallengeParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  // Which day's check-in this counted toward. Nullable because a sample can
+  // be rejected (outside the window, failed validation) and still be worth
+  // retaining as evidence of what was submitted.
+  checkInId     String?
+  checkIn       DailyCheckIn?        @relation(fields: [checkInId], references: [id], onDelete: SetNull)
+  deviceId      String?
+  device        Device?              @relation(fields: [deviceId], references: [id])
+
+  metricKey String
+  value     Float
+  unit      String
+  startTime DateTime
+  endTime   DateTime
+
+  sourceBundleId    String
+  sourceName        String
+  wasManualEntry    Boolean @default(false)
+  isWearableSourced Boolean @default(false)
+  corroboration     Json?
+
+  dataSource MetricDataSource @default(NATIVE_HEALTH)
+  ingestedAt DateTime         @default(now())
+
+  flags ChallengeAnomalyFlag[]
+
+  @@index([participantId, metricKey])
+  @@index([participantId, startTime])
+  @@index([checkInId])
+}
+
+// Anomaly flags raised against challenge evidence.
+//
+// Unlike RaceAnomalyFlag, this does NOT currently gate a payout. Holding a
+// race prize is unambiguous — the prize is a platform liability that simply
+// isn't paid. A pool share is other participants' money that has already
+// been divided, so "holding" one raises a question with no obvious answer
+// (does a forfeited share go back to the other finishers, or back to whoever
+// staked it?). That decision is deliberately not baked in here; for now
+// flags are recorded and surfaced for review, and a human acts on them
+// through disqualification. See modules/challenges/README.md.
+model ChallengeAnomalyFlag {
+  id               String                @id @default(cuid())
+  sampleId         String
+  sample           ChallengeHealthSample @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  challengeId      String
+  participantId    String
+  ruleKey          String
+  severity         AnomalySeverity
+  details          Json
+  status           AnomalyStatus         @default(OPEN)
+  // Same fix as RaceAnomalyFlag.reviewedByUserId, kept consistent even
+  // though nothing resolves a challenge flag yet (see the "Still open" note
+  // in modules/challenges/README.md) — so whenever that route is built, it
+  // starts from a structured field rather than the free-text one this used
+  // to be.
+  reviewedByUserId String?
+  reviewedByUser   User?                 @relation("ChallengeAnomalyFlagReviewedBy", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime              @default(now())
+
+  @@index([status, severity])
+  @@index([participantId, status])
+  @@index([challengeId, status])
+  @@index([reviewedByUserId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Gamification — StreakPot only. Races have no badges; league position IS
+// the race/league model's own progression signal.
+// ─────────────────────────────────────────────────────────────────────────
+
+model Badge {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  displayName String
+  description String
+  icon        String
+  createdAt   DateTime @default(now())
+
+  users UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeId  String
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+  earnedAt DateTime @default(now())
+
+  @@unique([userId, badgeId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Wallet / ledger
+//
+// Real payment-provider transactions happen ONLY at deposit and withdrawal.
+// Every entry fee, prize and refund is a pure walletBalanceCents movement
+// recorded here — this table is the wallet's full transaction history.
+// ─────────────────────────────────────────────────────────────────────────
+
+// Which model a transaction belongs to is deliberately NOT a stored column —
+// it is derived from which FK is set (raceId → Race/League, challengeId →
+// StreakPot, neither → wallet-level DEPOSIT/WITHDRAWAL/ADJUSTMENT). A
+// redundant "model" enum column could drift from the FKs; the API layer
+// computes the tag when serialising a ledger row for the UI instead.
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  raceId      String?
+  race        Race?      @relation(fields: [raceId], references: [id])
+  challengeId String?
+  challenge   Challenge? @relation(fields: [challengeId], references: [id])
+
+  type        LedgerEntryType
+  status      LedgerEntryStatus @default(PENDING)
+  amountCents Int // positive = credit to user, negative = debit
+  currency    String            @default("zar")
+  description String
+
+  externalRef      String? // Paystack reference / PayPal batch id (test/sandbox)
+  externalProvider String? // "paystack" | "paypal"
+
+  // Which admin did this, for the entries that aren't system-generated —
+  // currently only SPONSORED_CREDIT / SPONSORED_CREDIT_EXPENSE. NULL for
+  // everything else: a race resolution or a challenge payout has no admin
+  // behind it, and forcing a value there would misattribute automation to a
+  // person. onDelete: SetNull rather than a hard FK constraint on delete,
+  // so removing an admin account later doesn't cascade into rewriting
+  // financial history.
+  performedByUserId String?
+  performedBy       User?   @relation("LedgerEntryPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  withdrawal Withdrawal?
+
+  // Idempotency guard for deposit confirmation: two concurrent confirms for
+  // the same reference race on this constraint rather than a check-then-act
+  // read, so at most one can insert. NULL externalRef is exempt (Postgres
+  // treats multiple NULLs as distinct).
+  @@unique([externalRef, type])
+  @@index([userId, createdAt])
+  @@index([raceId])
+  @@index([challengeId])
+  @@index([performedByUserId])
+}
+
+// A user-initiated payout — Paystack Transfer or PayPal Payout, both
+// test/sandbox. Polled rather than webhook-driven: this backend has no
+// public URL in dev, so status is pulled, never assumed.
+model Withdrawal {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ledgerEntryId String      @unique
+  ledgerEntry   LedgerEntry @relation(fields: [ledgerEntryId], references: [id])
+
+  amountCents Int
+  method      WithdrawalMethod
+  status      WithdrawalStatus @default(PENDING)
+
+  paystackBankCode      String?
+  paystackAccountNumber String?
+  paystackAccountName   String? // Paystack-resolved, not user-typed
+  paystackRecipientCode String?
+  paystackTransferCode  String?
+
+  paypalEmail         String?
+  paypalPayoutBatchId String?
+  paypalPayoutItemId  String?
+
+  // MANUAL only — where to EFT, captured at request time. Held here rather
+  // than on User because it is per-withdrawal evidence of what was asked
+  // for, not a reusable profile the user can edit after the fact.
+  manualBankName      String?
+  manualAccountNumber String?
+  manualAccountName   String?
+  manualReference     String? // the EFT reference the admin used, recorded when marking paid
+  resolvedByUserId    String? // which admin marked it paid or rejected
+
+  failureReason String?
+  confirmedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+}
+
+// A deposit the user started but that we have not yet credited.
+//
+// Withdrawals have always had a first-class PENDING row plus a polling job
+// (jobs/withdrawalPolling.ts) because money leaving needs to be chased to a
+// terminal state. Money ARRIVING had neither: createDeposit wrote nothing,
+// and the only record of a deposit was the LedgerEntry written on a
+// successful confirm. So a user who paid Paystack and then closed the tab —
+// or lost connection, or was redirected to an origin without their session —
+// had their money taken with the wallet never credited, and nothing in the
+// system knew the deposit had ever been attempted.
+//
+// This row is what makes that reconcilable. jobs/depositReconciliation.ts
+// asks Paystack about every PENDING one and credits any that actually
+// succeeded, through the same idempotent confirmDeposit path the redirect
+// uses.
+model DepositIntent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Paystack transaction reference — the handle both the redirect and the reconciler verify against.
+  reference   String              @unique
+  amountCents Int
+  currency    String              @default("zar")
+  status      DepositIntentStatus @default(PENDING)
+
+  /// Why it ended up non-PENDING, when Paystack gave a reason.
+  failureReason String?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────────────────
+
+// Device attestation platforms. Deliberately has no WEB member: App Attest
+// and Play Integrity are native-only, and a Device row exists to carry an
+// attestation. Push tokens use PushPlatform instead, which does include web.
+enum Platform {
+  IOS
+  ANDROID
+}
+
+enum PushPlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+enum HealthProvider {
+  HEALTHKIT
+  HEALTH_CONNECT
+}
+
+enum ConnectionStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AttestationProvider {
+  APP_ATTEST
+  PLAY_INTEGRITY
+}
+
+enum AttestationStatus {
+  UNVERIFIED
+  VERIFIED
+  FAILED
+}
+
+// SLEEP exists for StreakPot only — race code never accepts it as a race
+// metricKey (ranking on sleep duration wouldn't be a fair competition; it's
+// fine as a personal daily target, which is all StreakPot asks of it).
+enum DataSourceCategory {
+  STEPS
+  CYCLING_WORKOUT
+  RUNNING_WORKOUT
+  SWIMMING_WORKOUT
+  SLEEP
+  GENERIC_WORKOUT // reserved for future metric types
+}
+
+// How a metric's value is expressed. Formatting only — this is NOT a target.
+enum MetricValueType {
+  COUNT // steps
+  DISTANCE_METERS // running, cycling, swimming
+  HOURS // sleep (StreakPot only)
+  DURATION_MINUTES // reserved
+}
+
+// StreakPot's daily-progress visualisation, chosen per metric.
+enum MetricVizType {
+  RING // steps
+  ROUTE_BAR // running, cycling, swimming
+  BAR // sleep
+}
+
+enum MetricDataSource {
+  NATIVE_HEALTH // HealthKit / Health Connect, synced by the mobile app
+  STRAVA // fetched server-side
+}
+
+enum RaceFormat {
+  INDIVIDUAL
+  SQUAD
+}
+
+// Public races are platform-opened and draw on the shared league pool.
+// Private races are user-created and bring their own entrants.
+enum RaceVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum RaceStatus {
+  // Accepting entrants INDEFINITELY — there is no signup deadline. The race
+  // does not exist in any committed sense while here: no prize obligation,
+  // every fee fully refundable, and an entrant may withdraw at will.
+  FILLING
+  // Exact headcount just reached. Closed to new entrants and entries are now
+  // final — no withdrawal past this point. Fees are recognised as revenue
+  // and the prize commitment becomes unconditional here, at LOCK time, even
+  // though scoring has not started yet: reaching the exact headcount is the
+  // race's existence condition, not the clock reaching a particular hour.
+  // Transitions to RUNNING automatically at `scheduledStartAt` (the next
+  // midnight in `anchorTimezone`).
+  LOCKED
+  // Scoring window open. `startedAt`/`endsAt` are set from
+  // `scheduledStartAt`, not from whenever the transition job happened to run,
+  // so the race always runs for exactly `durationDays` from the intended
+  // instant even if the job ticked a few minutes late.
+  RUNNING
+  // Window elapsed, results being computed / held for review.
+  RESOLVING
+  // Prizes and points awarded.
+  COMPLETED
+  // Manually cancelled by an admin while still FILLING (there is no
+  // automatic timeout — a race waits indefinitely for its exact headcount).
+  // Every fee refunded in full; no prize was ever owed.
+  CANCELLED_UNFILLED
+}
+
+enum RaceEntryStatus {
+  ENTERED
+  // Entrant voluntarily cancelled while the race was still FILLING — full
+  // refund, distinct from REFUNDED so the ledger/history reads honestly
+  // ("you withdrew" vs "the race never filled"). Never possible once LOCKED.
+  WITHDRAWN
+  REFUNDED // race never filled (or was cancelled by an admin)
+  DISQUALIFIED // confirmed cheating; ranked last, fee forfeited
+  SCORED
+}
+
+enum RaceSquadJoinPolicy {
+  INVITE_ONLY
+  OPEN
+}
+
+enum AnomalySeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AnomalyStatus {
+  OPEN
+  DISMISSED
+  CONFIRMED_CHEAT
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  DISMISSED
+}
+
+enum LedgerEntryType {
+  // Real external money, the only two backed by a provider object.
+  DEPOSIT
+  WITHDRAWAL
+
+  // Races. A race entry fee is platform REVENUE the moment the race starts —
+  // it is not held against that race's prize obligation, and the prize is a
+  // fixed platform EXPENSE that would be owed at the same amount if the fees
+  // collected had been half or double. Keeping these distinct is what makes
+  // "revenue vs. pooled stake" answerable from the ledger alone.
+  RACE_ENTRY_FEE // user debit — PENDING until the race starts
+  RACE_ENTRY_REVENUE // platform credit — recognised at race start
+  RACE_PRIZE // user credit — fixed, position-based
+  RACE_PRIZE_EXPENSE // platform debit — mirror of the above
+  RACE_ENTRY_REFUND // user credit — race never filled
+
+  // StreakPot. NOTICE there is no *_REVENUE / *_EXPENSE pair here the way
+  // there is for races — that pair is exactly what would represent a
+  // platform cut, and StreakPot takes none. Every cent a participant stakes
+  // either comes back to them or moves to another PARTICIPANT's payout; it
+  // never becomes a platform-side credit anywhere in this enum.
+  STAKE_HOLD // user debit — PENDING until the challenge resolves
+  STAKE_REFUND // user credit — challenge cancelled/never started, full refund
+  STAKE_FORFEITED // user debit-recognition — participant missed out, stake moves into the payable pool (never platform revenue)
+  POOL_PAYOUT // user credit — a finisher's share of the pool (their own stake + redistributed forfeits), split with zero platform cut
+  REDEMPTION_FEE // user debit — buys back one missed day; added to the pool, never kept by the platform
+
+  // Pilot sponsorship. The first ~50 users are funded by the platform rather
+  // than depositing, so this is the only way money ENTERS a wallet while
+  // deposits are switched off (see PILOT_DEPOSITS_ENABLED in lib/env.ts).
+  //
+  // It gets a REVENUE/EXPENSE-style pair for the same reason races do: a
+  // granted balance is a real platform liability the moment it is issued,
+  // because the holder can withdraw it as cash. Recording only the user side
+  // would make the platform look break-even while it was actually spending.
+  SPONSORED_CREDIT // user credit — granted by an admin, spendable and withdrawable
+  SPONSORED_CREDIT_EXPENSE // platform debit — mirror of the above
+
+  // Manual correction. Deliberately the only path that can move a balance
+  // outside the race/challenge flow, and it is never used to move league
+  // points or streak state.
+  ADJUSTMENT
+  DISPUTE_REVERSAL
+}
+
+enum LedgerEntryStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum WithdrawalMethod {
+  PAYSTACK
+  PAYPAL
+
+  // Pilot default: the user requests, an admin is notified, and the money is
+  // sent by hand as an EFT. No provider call is made, so nothing polls it to
+  // a terminal state — an admin marks it paid or rejects it. At ~50 known
+  // users the human in that loop is also the fraud review that self-imported
+  // activity data would otherwise have nowhere to happen.
+  MANUAL
+}
+
+enum WithdrawalStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// ABANDONED is the common non-success outcome, not FAILED: the usual story
+// is a checkout page closed without paying, which is not an error.
+enum DepositIntentStatus {
+  PENDING
+  COMPLETED
+  ABANDONED
+  FAILED
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// StreakPot enums
+// ─────────────────────────────────────────────────────────────────────────
+
+// Mirrors Race's PUBLIC/PRIVATE split. PUBLIC challenges are discoverable
+// and joinable by anyone; INVITE_ONLY requires the shareable code.
+enum ChallengeVisibility {
+  PUBLIC
+  INVITE_ONLY
+}
+
+enum ChallengeStatus {
+  DRAFT // being configured, not yet joinable
+  OPEN // accepting participants, before startDate
+  ACTIVE // running — daily check-ins are being scored
+  COMPLETED // finished, payouts settled
+  CANCELLED // ended early / never reached startDate viably; stakes refunded
+}
+
+enum ChallengeMode {
+  SOLO
+  SQUAD
+}
+
+// Only meaningful for SQUAD challenges.
+enum ChallengeEliminationScope {
+  INDIVIDUAL // a member missing a day eliminates only them
+  WHOLE_GROUP // a member missing a day eliminates the entire squad
+}
+
+enum ChallengeInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum ChallengeParticipantStatus {
+  ACTIVE
+  ELIMINATED // missed a required day (and had no valid redemption)
+  WITHDRAWN // left voluntarily before the challenge started
+  FINISHED // completed every required day — eligible for a payout share
+}
+
+// A participant's stake, from hold to resolution.
+enum EscrowStatus {
+  HELD // challenge still running / not yet resolved
+  RELEASED // participant finished — stake became part of a POOL_PAYOUT
+  FORFEITED // participant was eliminated — stake moved into the payable pool
+}
+
+enum DailyCheckInResult {
+  PENDING // day not yet over / not yet scored
+  PASSED
+  FAILED
+  SYNC_ISSUE // device data hadn't synced by cutoffAt — treated as a miss, distinctly labelled so it's not confused with a genuine skip
+}
+
+// A day-level review verdict, separate from AnomalyStatus (races) because a
+// check-in is scored pass/fail per day, not ranked — "flagged" here means
+// "under review before this day's result is trusted," not "holding a prize."
+enum CheckInReviewStatus {
+  NONE
+  FLAGGED
+  CONFIRMED_CHEAT
+  DISMISSED
+}

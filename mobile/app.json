@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Streak",
+    "slug": "streak",
+    "scheme": "streak",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#241f19",
+    "assetBundlePatterns": ["**/*"],
+    "splash": {
+      "backgroundColor": "#241f19",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "bundleIdentifier": "com.streak.demo",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Streak reads your steps, workouts, and sleep from Health to verify challenge check-ins — nothing is written back to Health.",
+        "NSHealthUpdateUsageDescription": "Streak does not write data to Health.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.devicecheck.appattest-environment": "development"
+      }
+    },
+    "android": {
+      "package": "com.streak.demo",
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_EXERCISE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "backgroundColor": "#241f19"
+    },
+    "plugins": [
+      ["react-native-health", { "isClinicalDataEnabled": false }],
+      "expo-secure-store",
+      "expo-splash-screen",
+      "./plugins/withAndroidGradleHeap.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
+    ]
+  }
+}
