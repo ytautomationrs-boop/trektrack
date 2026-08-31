@@ -162,7 +162,7 @@ emulator, `localhost` for the iOS simulator, or your LAN IP for a real device.
 To run exactly what production runs (backend serving the built web app):
 
 ```bash
-bash scripts/build-web.sh && cd backend && node dist/server.js
+npm run build && npm start
 # then open http://localhost:4000
 ```
 

@@ -257,11 +257,15 @@ async function registerWebApp(app: FastifyInstance) {
 // (backslash path separators, drive-letter casing) and silently skips the
 // listen() call with no error — pathToFileURL normalizes both sides the
 // same way regardless of platform.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+export async function startProductionServer() {
   const app = await buildServer();
   startScheduler();
   app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
     app.log.error(err);
     process.exit(1);
   });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void startProductionServer();
 }

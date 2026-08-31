@@ -22,11 +22,11 @@ Use the repository root as the application root.
 | Hostinger field | Value |
 |---|---|
 | Package manager | npm |
-| Node.js version | 20.x or newer |
+| Node.js version | 22.12.0 or newer |
 | Install command | `npm install` |
 | Build command | `npm run build` |
 | Start command | `npm start` |
-| Entry file | `backend/dist/server.js` |
+| Entry file | `backend/start.cjs` |
 | Output directory | Not separate; the server serves `backend/public` |
 | Health check path | `/health` |
 
@@ -34,6 +34,7 @@ The root `npm run build` command installs both subprojects with their lock
 files, exports the Expo web bundle into `backend/public`, generates Prisma,
 and compiles the backend. The root `npm start` command runs
 `prisma migrate deploy --schema backend/prisma/schema.prisma` and then starts
+`backend/start.cjs`, which loads the compiled backend from
 `backend/dist/server.js`.
 
 Hostinger should supply `PORT` at runtime. The server reads `process.env.PORT`
