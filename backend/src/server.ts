@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { ZodError } from "zod";
 import { env } from "./lib/env.js";
+import { prisma } from "./lib/prisma.js";
 import { authRoutes } from "./modules/auth/routes.js";
 import { accountRoutes } from "./modules/account/routes.js";
 import { anomalyRoutes } from "./modules/anomaly/routes.js";
@@ -258,6 +259,7 @@ async function registerWebApp(app: FastifyInstance) {
 // listen() call with no error — pathToFileURL normalizes both sides the
 // same way regardless of platform.
 export async function startProductionServer() {
+  await prisma.$connect();
   const app = await buildServer();
   startScheduler();
   app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
