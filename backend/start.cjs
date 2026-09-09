@@ -1,6 +1,7 @@
 "use strict";
 
 const { spawnSync } = require("node:child_process");
+const { chmodSync, readdirSync } = require("node:fs");
 const { join } = require("node:path");
 
 const backendDir = __dirname;
@@ -8,6 +9,13 @@ const schemaPath = join("prisma", "schema.prisma");
 const prismaCli = require.resolve("prisma/build/index.js", {
   paths: [backendDir],
 });
+const prismaEnginesDir = join(backendDir, "node_modules", "@prisma", "engines");
+
+for (const fileName of readdirSync(prismaEnginesDir)) {
+  if (fileName.startsWith("schema-engine") || fileName.startsWith("query-engine")) {
+    chmodSync(join(prismaEnginesDir, fileName), 0o755);
+  }
+}
 
 const migration = spawnSync(
   process.execPath,
