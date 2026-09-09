@@ -17,18 +17,20 @@ for (const fileName of readdirSync(prismaEnginesDir)) {
   }
 }
 
-const migration = spawnSync(
-  process.execPath,
-  [prismaCli, "migrate", "deploy", "--schema", schemaPath],
-  {
-    cwd: backendDir,
-    env: process.env,
-    stdio: "inherit",
-  },
-);
+if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
+  const migration = spawnSync(
+    process.execPath,
+    [prismaCli, "migrate", "deploy", "--schema", schemaPath],
+    {
+      cwd: backendDir,
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
 
-if (migration.status !== 0) {
-  process.exit(migration.status ?? 1);
+  if (migration.status !== 0) {
+    process.exit(migration.status ?? 1);
+  }
 }
 
 import("./dist/server.js")
