@@ -10,6 +10,6 @@
     "install:deps": "npm ci --prefix mobile && npm ci --prefix backend",
     "build": "bash scripts/build-web.sh",
     "db:migrate:deploy": "npm --prefix backend exec -- prisma migrate deploy --schema backend/prisma/schema.prisma",
-    "start": "npm run db:migrate:deploy && node backend/start.cjs"
+    "start": "node backend/start.cjs"
   }
 }
