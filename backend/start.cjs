@@ -3,13 +3,15 @@
 const { spawnSync } = require("node:child_process");
 const { join } = require("node:path");
 
-const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
 const backendDir = __dirname;
 const schemaPath = join("prisma", "schema.prisma");
+const prismaCli = require.resolve("prisma/build/index.js", {
+  paths: [backendDir],
+});
 
 const migration = spawnSync(
-  npmCmd,
-  ["exec", "--", "prisma", "migrate", "deploy", "--schema", schemaPath],
+  process.execPath,
+  [prismaCli, "migrate", "deploy", "--schema", schemaPath],
   {
     cwd: backendDir,
     env: process.env,
