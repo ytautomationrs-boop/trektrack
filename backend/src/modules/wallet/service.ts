@@ -2,8 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { initializeTransaction, verifyTransaction, createTransferRecipient, initiateTransfer } from "./paystackService.js";
 import { createPayout } from "./paypalService.js";
-import { PLATFORM_ACCOUNT_EMAIL, WITHDRAWAL_MIN_CENTS } from "../../lib/constants.js";
+import { WITHDRAWAL_MIN_CENTS } from "../../lib/constants.js";
 import { env } from "../../lib/env.js";
+import { ensurePlatformAccount } from "../../lib/platformAccount.js";
 import { notifyUsers } from "../notifications/service.js";
 
 export class WalletError extends Error {
@@ -153,7 +154,7 @@ export async function grantSponsoredCredit(params: {
   const user = await prisma.user.findUnique({ where: { id: params.userId }, select: { id: true } });
   if (!user) throw new WalletError("user_not_found", "No account with that id.");
 
-  const platform = await prisma.user.findUniqueOrThrow({ where: { email: PLATFORM_ACCOUNT_EMAIL } });
+  const platform = await ensurePlatformAccount(prisma);
   const description = params.note ? `Pilot sponsorship — ${params.note}` : "Pilot sponsorship";
 
   try {

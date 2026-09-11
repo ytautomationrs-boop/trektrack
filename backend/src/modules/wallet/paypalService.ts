@@ -1,4 +1,5 @@
 import { env } from "../../lib/env.js";
+import { withExternalFetchTimeout } from "../../lib/http.js";
 
 // The other withdrawal method alongside Paystack Transfers (paystackService.ts)
 // — PayPal sandbox only. Payouts always send in ZAR (the wallet's single
@@ -20,11 +21,11 @@ async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
 
   const basicAuth = Buffer.from(`${env.PAYPAL_SANDBOX_CLIENT_ID}:${env.PAYPAL_SANDBOX_SECRET}`).toString("base64");
-  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+  const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, withExternalFetchTimeout({
     method: "POST",
     headers: { Authorization: `Basic ${basicAuth}`, "Content-Type": "application/x-www-form-urlencoded" },
     body: "grant_type=client_credentials",
-  });
+  }));
   const body = (await res.json()) as { access_token?: string; expires_in?: number; error_description?: string };
   if (!res.ok || !body.access_token) {
     throw new Error(`PayPal auth error: ${body.error_description ?? res.statusText}`);
@@ -36,10 +37,10 @@ async function getAccessToken(): Promise<string> {
 
 async function paypalFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAccessToken();
-  const res = await fetch(`${PAYPAL_API_BASE}${path}`, {
+  const res = await fetch(`${PAYPAL_API_BASE}${path}`, withExternalFetchTimeout({
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
+  }));
   const body = (await res.json()) as T & { message?: string; name?: string; details?: Array<{ issue?: string; description?: string; field?: string }> };
   if (!res.ok) {
     // PayPal's top-level `message` ("Invalid request - see details") is

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
-import { PLATFORM_ACCOUNT_EMAIL } from "../../lib/constants.js";
+import { ensurePlatformAccount } from "../../lib/platformAccount.js";
 import { getAllLeagueStates, getOrCreateLeagueState } from "./leagues.js";
 import { isRaceEligibleMetric, PLATFORM_DEFAULT_TIMEZONE } from "./config.js";
 import { nextMidnightInTimeZone } from "./scheduling.js";
@@ -580,7 +580,7 @@ async function lockRace(tx: Prisma.TransactionClient, race: Race): Promise<Race>
   const entries = await tx.raceEntry.findMany({ where: { raceId: race.id, status: "ENTERED" } });
   const revenueCents = entries.reduce((sum, e) => sum + e.entryFeeCents, 0);
 
-  const platform = await tx.user.findUniqueOrThrow({ where: { email: PLATFORM_ACCOUNT_EMAIL } });
+  const platform = await ensurePlatformAccount(tx);
   await tx.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { increment: revenueCents } } });
   await tx.ledgerEntry.create({
     data: {

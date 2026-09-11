@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { PLATFORM_ACCOUNT_EMAIL } from "../../lib/constants.js";
+import { ensurePlatformAccount } from "../../lib/platformAccount.js";
 import { pointsForPosition, RACE_PRIZE_REVIEW_HOLD_HOURS } from "./config.js";
 import { applyRaceResult } from "./leagues.js";
 import { aggregateForEntries } from "./scoring.js";
@@ -231,7 +231,7 @@ async function awardEntry(race: Race, row: Ranked, now: Date): Promise<{ paidCen
   });
   const holdPrize = prizeCents > 0 && openFlags > 0;
 
-  const platform = await prisma.user.findUniqueOrThrow({ where: { email: PLATFORM_ACCOUNT_EMAIL } });
+  const platform = await ensurePlatformAccount(prisma);
 
   await prisma.$transaction(async (tx) => {
     await tx.raceEntry.update({
@@ -365,7 +365,7 @@ export async function releaseHeldRacePrizes(now = new Date()) {
     include: { race: true },
   });
 
-  const platform = await prisma.user.findUniqueOrThrow({ where: { email: PLATFORM_ACCOUNT_EMAIL } });
+  const platform = await ensurePlatformAccount(prisma);
   let released = 0;
   let stillHeld = 0;
 
@@ -396,6 +396,16 @@ export async function releaseHeldRacePrizes(now = new Date()) {
       data: { status: "COMPLETED" },
     });
     if (claimedRows.count === 0) continue;
+
+    const winner = await prisma.user.findUnique({ where: { id: entry.userId }, select: { id: true } });
+    if (!winner) {
+      await prisma.ledgerEntry.update({
+        where: { id: entry.id },
+        data: { status: "FAILED", description: `${entry.description} (not released: user missing)` },
+      });
+      console.error(`[race-prizes] held prize ${entry.id} referenced missing user ${entry.userId}`);
+      continue;
+    }
 
     await prisma.$transaction([
       prisma.user.update({ where: { id: entry.userId }, data: { walletBalanceCents: { increment: entry.amountCents } } }),

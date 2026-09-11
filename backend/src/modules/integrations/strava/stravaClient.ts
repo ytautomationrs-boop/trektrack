@@ -1,5 +1,6 @@
 import { STRAVA_API_BASE, STRAVA_OAUTH_AUTHORIZE_URL, STRAVA_OAUTH_TOKEN_URL } from "../../../lib/constants.js";
 import { env } from "../../../lib/env.js";
+import { withExternalFetchTimeout } from "../../../lib/http.js";
 
 /** Base credentials only — a specific PLATFORM's redirect bridge (mobile vs web) is checked separately, since a deployment may only have one registered. */
 export function stravaConfigured(): boolean {
@@ -53,22 +54,22 @@ export type StravaTokenResponse = {
 
 export async function exchangeCodeForToken(code: string): Promise<StravaTokenResponse> {
   const { clientId, clientSecret } = requireConfig();
-  const res = await fetch(STRAVA_OAUTH_TOKEN_URL, {
+  const res = await fetch(STRAVA_OAUTH_TOKEN_URL, withExternalFetchTimeout({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code, grant_type: "authorization_code" }),
-  });
+  }));
   if (!res.ok) throw new Error(`Strava token exchange failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as StravaTokenResponse;
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<StravaTokenResponse> {
   const { clientId, clientSecret } = requireConfig();
-  const res = await fetch(STRAVA_OAUTH_TOKEN_URL, {
+  const res = await fetch(STRAVA_OAUTH_TOKEN_URL, withExternalFetchTimeout({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, refresh_token: refreshToken, grant_type: "refresh_token" }),
-  });
+  }));
   if (!res.ok) throw new Error(`Strava token refresh failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as StravaTokenResponse;
 }
@@ -87,9 +88,9 @@ export type StravaActivity = {
 /** Activities starting on/after `afterUnixSeconds` — used to fetch just "today" for a participant's local day window. One call per participant per metric per day (see stravaService.ts), well within the free-tier rate limit. */
 export async function listActivitiesSince(accessToken: string, afterUnixSeconds: number): Promise<StravaActivity[]> {
   const params = new URLSearchParams({ after: String(afterUnixSeconds), per_page: "30" });
-  const res = await fetch(`${STRAVA_API_BASE}/athlete/activities?${params.toString()}`, {
+  const res = await fetch(`${STRAVA_API_BASE}/athlete/activities?${params.toString()}`, withExternalFetchTimeout({
     headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  }));
   if (!res.ok) throw new Error(`Strava activities fetch failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as StravaActivity[];
 }

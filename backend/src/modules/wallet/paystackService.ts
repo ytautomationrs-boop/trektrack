@@ -1,4 +1,5 @@
 import { env } from "../../lib/env.js";
+import { withExternalFetchTimeout } from "../../lib/http.js";
 
 // All amounts in cents (Paystack calls this "the smallest currency unit" —
 // for ZAR that's cents, same unit as every other *Cents field in this
@@ -29,14 +30,14 @@ type PaystackVerifyResponse = {
 };
 
 async function paystackFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${PAYSTACK_API_BASE}${path}`, {
+  const res = await fetch(`${PAYSTACK_API_BASE}${path}`, withExternalFetchTimeout({
     ...init,
     headers: {
       Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-  });
+  }));
   const body = (await res.json()) as T & { status: boolean; message: string };
   if (!res.ok || !body.status) {
     throw new Error(`Paystack API error: ${body.message ?? res.statusText}`);
