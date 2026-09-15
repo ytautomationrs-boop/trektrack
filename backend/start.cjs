@@ -33,7 +33,7 @@ if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
   }
 }
 
-if (process.env.SKIP_PRISMA_SEED !== "true") {
+if (process.env.RUN_PRISMA_SEED_ON_START === "true") {
   const seed = spawnSync("npm", ["run", "seed"], {
     cwd: backendDir,
     env: process.env,
