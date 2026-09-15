@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
+import { LoadError } from "../../components/LoadError";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
 import { iconFor } from "../../theme/metricIcons";
@@ -73,16 +74,33 @@ export function CreateChallengeScreen() {
   const [isPublic, setIsPublic] = useState(true);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [busy, setBusy] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<Error | null>(null);
+
+  const loadMetrics = useCallback(async () => {
+    setConfigLoading(true);
+    try {
+      const result = await getStreakPotMetricTypes();
+      if (result.metricTypes.length === 0) throw new Error("Pool daily targets are not configured yet.");
+      setMetrics(result.metricTypes);
+      setRequirements((current) => {
+        if (current.length > 0) return current;
+        const steps = result.metricTypes.find((m) => m.key === "steps");
+        return steps ? [{ metricKey: steps.key, target: steps.defaultTarget ?? 8000 }] : [];
+      });
+      setConfigError(null);
+    } catch (err) {
+      setMetrics([]);
+      setRequirements([]);
+      setConfigError(err as Error);
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    getStreakPotMetricTypes()
-      .then((r) => {
-        setMetrics(r.metricTypes);
-        const steps = r.metricTypes.find((m) => m.key === "steps");
-        if (steps) setRequirements([{ metricKey: steps.key, target: steps.defaultTarget ?? 8000 }]);
-      })
-      .catch(() => setMetrics([]));
-  }, []);
+    void loadMetrics();
+  }, [loadMetrics]);
 
   const resolvedStake = customStake.trim() ? Math.round(parseFloat(customStake) * 100) : stakeCents;
   const canSubmit =
@@ -169,17 +187,23 @@ export function CreateChallengeScreen() {
 
         <Text style={styles.label}>Daily targets</Text>
         <Text style={styles.hint}>Pick one, or several for a multi-metric challenge — every one has to pass for the day to count.</Text>
-        <View style={styles.metricRow}>
-          {metrics.map((m) => {
-            const active = requirements.some((r) => r.metricKey === m.key);
-            return (
-              <Pressable key={m.key} style={[styles.metricChip, active && styles.metricChipActive]} onPress={() => toggleMetric(m)}>
-                <Ionicons name={iconFor(m.key === "steps" ? "footprints" : m.key === "sleep" ? "moon" : m.key)} size={16} color={active ? colors.bg : colors.sub} />
-                <Text style={[styles.metricChipText, active && styles.metricChipTextActive]}>{m.displayName}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {configError ? (
+          <LoadError error={configError} onRetry={loadMetrics} />
+        ) : configLoading ? (
+          <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} />
+        ) : (
+          <View style={styles.metricRow}>
+            {metrics.map((m) => {
+              const active = requirements.some((r) => r.metricKey === m.key);
+              return (
+                <Pressable key={m.key} style={[styles.metricChip, active && styles.metricChipActive]} onPress={() => toggleMetric(m)}>
+                  <Ionicons name={iconFor(m.key === "steps" ? "footprints" : m.key === "sleep" ? "moon" : m.key)} size={16} color={active ? colors.bg : colors.sub} />
+                  <Text style={[styles.metricChipText, active && styles.metricChipTextActive]}>{m.displayName}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
 
         {requirements.map((req) => {
           const metric = metrics.find((m) => m.key === req.metricKey);

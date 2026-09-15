@@ -165,13 +165,8 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get("/admin/overview", { preHandler: [requireAuth, requireAdmin] }, async (_req, reply) => {
-    const now = Date.now();
-    const since15m = new Date(now - 15 * 60 * 1000);
-    const since24h = new Date(now - 24 * 60 * 60 * 1000);
     const [
       totalUsers,
-      activeNow,
-      activeToday,
       wallet,
       raceCounts,
       challengeCounts,
@@ -181,8 +176,6 @@ export async function authRoutes(app: FastifyInstance) {
       recentLedger,
     ] = await Promise.all([
       prisma.user.count({ where: { email: { not: "platform@streak.demo" } } }),
-      prisma.user.count({ where: { email: { not: "platform@streak.demo" }, lastSeenAt: { gte: since15m } } }),
-      prisma.user.count({ where: { email: { not: "platform@streak.demo" }, lastSeenAt: { gte: since24h } } }),
       prisma.user.aggregate({ where: { email: { not: "platform@streak.demo" } }, _sum: { walletBalanceCents: true } }),
       prisma.race.groupBy({ by: ["status"], _count: { _all: true } }),
       prisma.challenge.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -190,7 +183,7 @@ export async function authRoutes(app: FastifyInstance) {
       prisma.report.count({ where: { status: "OPEN" } }),
       prisma.user.findMany({
         where: { email: { not: "platform@streak.demo" } },
-        orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }],
+        orderBy: { createdAt: "desc" },
         take: 25,
         select: {
           id: true,
@@ -199,7 +192,6 @@ export async function authRoutes(app: FastifyInstance) {
           isAdmin: true,
           walletBalanceCents: true,
           createdAt: true,
-          lastSeenAt: true,
           _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
         },
       }),
@@ -221,8 +213,8 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({
       stats: {
         totalUsers,
-        activeNow,
-        activeToday,
+        activeNow: 0,
+        activeToday: 0,
         userWalletBalanceCents: wallet._sum.walletBalanceCents ?? 0,
         pendingWithdrawals,
         openReports,
@@ -236,7 +228,7 @@ export async function authRoutes(app: FastifyInstance) {
         isAdmin: u.isAdmin,
         walletBalanceCents: u.walletBalanceCents,
         createdAt: u.createdAt,
-        lastSeenAt: u.lastSeenAt,
+        lastSeenAt: null,
         counts: {
           races: u._count.raceEntries,
           challenges: u._count.challengeParticipations,

@@ -83,7 +83,7 @@ const navTheme = {
 };
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Pool: "water-outline",
+  Pool: "people-outline",
   Competitions: "trophy-outline",
   Wallet: "wallet-outline",
   Profile: "person-outline",

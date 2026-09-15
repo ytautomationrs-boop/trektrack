@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
+import { LoadError } from "../../components/LoadError";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
 import { iconFor } from "../../theme/metricIcons";
@@ -68,11 +69,29 @@ export function CreateRaceScreen() {
 
   const [raceTypes, setRaceTypes] = useState<RaceType[]>([]);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<Error | null>(null);
+
+  const loadConfig = useCallback(async () => {
+    setConfigLoading(true);
+    try {
+      const [typesResult, standingsResult] = await Promise.all([getRaceTypes(), getLeagueStandings()]);
+      if (typesResult.raceTypes.length === 0) throw new Error("Race fees and prizes are not configured yet.");
+      setRaceTypes(typesResult.raceTypes);
+      setStandings(standingsResult);
+      setConfigError(null);
+    } catch (err) {
+      setRaceTypes([]);
+      setStandings(null);
+      setConfigError(err as Error);
+    } finally {
+      setConfigLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    getRaceTypes().then((r) => setRaceTypes(r.raceTypes)).catch(() => setRaceTypes([]));
-    getLeagueStandings().then(setStandings).catch(() => setStandings(null));
-  }, []);
+    void loadConfig();
+  }, [loadConfig]);
 
   // The race runs in the creator's league FOR THE SELECTED METRIC — someone
   // deep in the running leagues still creates a swimming race at their
@@ -252,7 +271,11 @@ export function CreateRaceScreen() {
           Each metric has its own leagues, so this changes with the metric you pick.
         </Text>
 
-        {selected ? (
+        {configError ? (
+          <View style={styles.feeCard}>
+            <LoadError error={configError} onRetry={loadConfig} />
+          </View>
+        ) : selected ? (
           <View style={styles.feeCard}>
             <View style={styles.feeRow}>
               <Text style={styles.feeLabel}>Entry fee</Text>
@@ -277,7 +300,17 @@ export function CreateRaceScreen() {
           </View>
         ) : (
           <View style={styles.feeCard}>
-            <ActivityIndicator color={colors.accent} />
+            {configLoading ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <View style={styles.emptyConfig}>
+                <Text style={styles.emptyConfigTitle}>No pricing found for this setup.</Text>
+                <Text style={styles.emptyConfigText}>Try a different metric or press retry to reload the race catalog.</Text>
+                <Pressable style={styles.retryButton} onPress={loadConfig}>
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
@@ -364,6 +397,11 @@ const styles = StyleSheet.create({
   },
 
   feeCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
+  emptyConfig: { alignItems: "center", gap: spacing.sm },
+  emptyConfigTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text, textAlign: "center" },
+  emptyConfigText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, textAlign: "center", lineHeight: 17 },
+  retryButton: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+  retryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   feeLabel: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
   feeValue: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },

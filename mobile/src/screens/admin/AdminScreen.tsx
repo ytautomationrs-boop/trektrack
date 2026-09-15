@@ -121,8 +121,8 @@ function OverviewPanel() {
 
   const statCards = [
     { label: "Users", value: String(overview.stats.totalUsers) },
-    { label: "Active now", value: String(overview.stats.activeNow) },
-    { label: "Active today", value: String(overview.stats.activeToday) },
+    { label: "Races", value: String(Object.values(overview.stats.racesByStatus).reduce((sum, n) => sum + n, 0)) },
+    { label: "Pools", value: String(Object.values(overview.stats.challengesByStatus).reduce((sum, n) => sum + n, 0)) },
     { label: "Wallets", value: formatCents(overview.stats.userWalletBalanceCents) },
     { label: "Payouts", value: String(overview.stats.pendingWithdrawals) },
     { label: "Reports", value: String(overview.stats.openReports) },
@@ -149,7 +149,7 @@ function OverviewPanel() {
             <Text style={styles.userName} numberOfLines={1}>{user.displayName}{user.isAdmin ? " · admin" : ""}</Text>
             <Text style={styles.userMeta} numberOfLines={1}>{user.email}</Text>
             <Text style={styles.userMeta}>
-              Last seen {user.lastSeenAt ? formatWhen(user.lastSeenAt) : "never"} · {user.counts.races} races · {user.counts.challenges} pools
+              Joined {formatWhen(user.createdAt)} · {user.counts.races} races · {user.counts.challenges} pools
             </Text>
           </View>
           <Text style={styles.userBalance}>{formatCents(user.walletBalanceCents)}</Text>

@@ -33,6 +33,18 @@ if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
   }
 }
 
+if (process.env.SKIP_PRISMA_SEED !== "true") {
+  const seed = spawnSync("npm", ["run", "seed"], {
+    cwd: backendDir,
+    env: process.env,
+    stdio: "inherit",
+  });
+
+  if (seed.status !== 0) {
+    process.exit(seed.status ?? 1);
+  }
+}
+
 import("./dist/server.js")
   .then(({ startProductionServer }) => startProductionServer())
   .catch((err) => {
