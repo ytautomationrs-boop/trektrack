@@ -38,10 +38,11 @@ if (process.env.SKIP_PRISMA_SEED !== "true") {
     cwd: backendDir,
     env: process.env,
     stdio: "inherit",
+    timeout: 45_000,
   });
 
   if (seed.status !== 0) {
-    process.exit(seed.status ?? 1);
+    console.warn("[startup] Prisma seed failed; continuing to start the web app. Race/pool catalog data may need manual seeding.");
   }
 }
 
