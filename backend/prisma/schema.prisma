@@ -31,7 +31,8 @@
 // Payments run on Paystack/PayPal TEST/sandbox only.
 
 generator client {
-  provider = "prisma-client-js"
+  provider   = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {

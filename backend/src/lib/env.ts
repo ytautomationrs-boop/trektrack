@@ -68,6 +68,14 @@ const EnvSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
 
+  // Hostinger's Node.js Web App process should serve HTTP first. Background
+  // cron work is opt-in so timers and long-running Prisma queries cannot
+  // destabilize the web process on shared hosting.
+  RUN_BACKGROUND_JOBS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
+
   PORT: z.coerce.number().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });

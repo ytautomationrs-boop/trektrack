@@ -261,7 +261,11 @@ async function registerWebApp(app: FastifyInstance) {
 export async function startProductionServer() {
   await prisma.$connect();
   const app = await buildServer();
-  startScheduler();
+  if (env.RUN_BACKGROUND_JOBS) {
+    startScheduler();
+  } else {
+    app.log.info("background jobs disabled");
+  }
   app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
     app.log.error(err);
     process.exit(1);
