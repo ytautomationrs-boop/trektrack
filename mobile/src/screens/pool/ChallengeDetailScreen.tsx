@@ -119,7 +119,7 @@ export function ChallengeDetailScreen() {
   async function handleShare() {
     if (!challenge?.inviteCode) return;
     await shareCode({
-      message: `Join my StreakPot challenge "${challenge.title}" on Streak — code: ${challenge.inviteCode}`,
+      message: `Join my TrackTrek Pool "${challenge.title}" — code: ${challenge.inviteCode}`,
       title: "Invite code",
       code: challenge.inviteCode,
     });
@@ -415,7 +415,7 @@ function ActiveParticipantActions({
           for native users, where reading Health is genuinely less effort
           than exporting a file. */}
       <Pressable style={[styles.cta, (importing || !participantId) && styles.ctaDisabled]} disabled={importing || !participantId} onPress={handleImport}>
-        {importing ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Upload a workout file</Text>}
+        {importing ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Sync data</Text>}
       </Pressable>
       <Text style={styles.importHint}>
         Export it from your watch or training app — Streak reads {ACCEPTED_EXTENSIONS.join(", ")}. It counts for the day you did it.
@@ -427,7 +427,7 @@ function ActiveParticipantActions({
           disabled={syncing || !participantId}
           onPress={handleSync}
         >
-          {syncing ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.secondaryCtaText}>Or sync today from Health</Text>}
+          {syncing ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.secondaryCtaText}>Sync today from Health</Text>}
         </Pressable>
       )}
       {!!lastResult && <Text style={styles.syncResult}>{lastResult}</Text>}

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
@@ -8,6 +8,7 @@ import { LoadError } from "../../components/LoadError";
 import { iconFor } from "../../theme/metricIcons";
 import { getChallenges } from "../../api/challengeClient";
 import type { Challenge } from "../../api/challengeTypes";
+import { sportImageFor } from "../../theme/sportImages";
 
 /**
  * Pool — StreakPot's home. The pooled-stakes model, reintroduced as a free,
@@ -108,43 +109,46 @@ function ChallengeCard({ challenge, onPress }: { challenge: Challenge; onPress: 
   const statusMeta = challenge.myStatus ? STATUS_META[challenge.myStatus] : null;
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <View style={styles.cardHead}>
-        <View style={styles.metricBadge}>
-          <Ionicons name={iconFor(metricIconFor(challenge))} size={18} color={colors.accent} />
+      <ImageBackground source={{ uri: sportImageFor(challenge.metricRequirements[0]?.metricKey) }} style={styles.cardImage} imageStyle={styles.cardImageStyle}>
+        <View style={styles.cardOverlay} />
+        <View style={styles.cardHead}>
+          <View style={styles.metricBadge}>
+            <Ionicons name={iconFor(metricIconFor(challenge))} size={18} color={colors.text} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle} numberOfLines={1}>
+              {challenge.title}
+            </Text>
+            <Text style={styles.cardSub}>{summaryFor(challenge)}</Text>
+          </View>
+          {statusMeta && (
+            <View style={[styles.statusPill, { backgroundColor: statusMeta.color + "22" }]}>
+              <Text style={[styles.statusPillText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+            </View>
+          )}
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {challenge.title}
+
+        <View style={styles.stakeRow}>
+          <Text style={styles.stakeLabel}>Stake</Text>
+          <Text style={styles.stakeValue}>{formatCents(challenge.stakeCents)}</Text>
+          <Text style={styles.participantCount}>
+            {challenge.participantCount} {challenge.participantCount === 1 ? "person" : "people"} staking
           </Text>
-          <Text style={styles.cardSub}>{summaryFor(challenge)}</Text>
         </View>
-        {statusMeta && (
-          <View style={[styles.statusPill, { backgroundColor: statusMeta.color + "22" }]}>
-            <Text style={[styles.statusPillText, { color: statusMeta.color }]}>{statusMeta.label}</Text>
+
+        {challenge.hasJoined && challenge.myStatus === "ACTIVE" && (challenge.myCurrentStreak ?? 0) > 0 && (
+          <View style={styles.streakRow}>
+            <Ionicons name="flame" size={14} color={colors.accent} />
+            <Text style={styles.streakText}>{challenge.myCurrentStreak}-day streak</Text>
           </View>
         )}
-      </View>
 
-      <View style={styles.stakeRow}>
-        <Text style={styles.stakeLabel}>Stake</Text>
-        <Text style={styles.stakeValue}>{formatCents(challenge.stakeCents)}</Text>
-        <Text style={styles.participantCount}>
-          {challenge.participantCount} {challenge.participantCount === 1 ? "person" : "people"} staking
-        </Text>
-      </View>
-
-      {challenge.hasJoined && challenge.myStatus === "ACTIVE" && (challenge.myCurrentStreak ?? 0) > 0 && (
-        <View style={styles.streakRow}>
-          <Ionicons name="flame" size={14} color={colors.accent} />
-          <Text style={styles.streakText}>{challenge.myCurrentStreak}-day streak</Text>
-        </View>
-      )}
-
-      {!challenge.hasJoined && (
-        <View style={styles.cta}>
-          <Text style={styles.ctaText}>Join · {formatCents(challenge.stakeCents)} stake</Text>
-        </View>
-      )}
+        {!challenge.hasJoined && (
+          <View style={styles.cta}>
+            <Text style={styles.ctaText}>Join · {formatCents(challenge.stakeCents)} stake</Text>
+          </View>
+        )}
+      </ImageBackground>
     </Pressable>
   );
 }
@@ -160,7 +164,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   emptyText: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", marginTop: spacing.sm, lineHeight: 18 },
 
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
+  card: { backgroundColor: colors.surface, borderRadius: radii.lg, marginBottom: spacing.md, overflow: "hidden", borderWidth: 1, borderColor: colors.line },
+  cardImage: { padding: spacing.lg, minHeight: 190 },
+  cardImageStyle: { opacity: 0.88 },
+  cardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   metricBadge: { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },

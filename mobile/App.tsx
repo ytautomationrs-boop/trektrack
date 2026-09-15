@@ -125,7 +125,7 @@ function AppShell() {
       {!app.session ? (
         <AuthScreen />
       ) : app.onboardingStep !== "done" ? (
-        <OnboardingFlow onComplete={(metricKey) => app.selectStarterMetric(metricKey)} />
+        <OnboardingFlow onComplete={(metricKeys) => app.selectStarterMetrics(metricKeys)} />
       ) : (
         <RootNavigator />
       )}

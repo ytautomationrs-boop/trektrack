@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, FlatList, Linking, Platform } from "react-native";
+import { View, Text, Pressable, StyleSheet, FlatList, Linking, Platform, ImageBackground } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { iconFor } from "../../theme/metricIcons";
@@ -7,6 +7,7 @@ import { connectHealth, type ConnectHealthOutcome } from "../../health/permissio
 import { connectStravaAccount } from "../../integrations/strava";
 import { useAppState } from "../../state/useAppState";
 import type { MetricTypeDefinition } from "../../api/types";
+import { sportImageFor } from "../../theme/sportImages";
 
 const SLIDES = [
   {
@@ -32,7 +33,7 @@ const STARTER_METRICS: Array<{ metricKey: string; icon: string; title: string; s
   { metricKey: "swimming", icon: "waves", title: "Swimming", sub: "Distance in the pool" },
 ];
 
-export function OnboardingFlow({ onComplete }: { onComplete: (starterMetricKey: string) => void }) {
+export function OnboardingFlow({ onComplete }: { onComplete: (starterMetricKeys: string[]) => void }) {
   const app = useAppState();
 
   if (app.onboardingStep === "intro") return <IntroSlides onDone={() => app.advanceOnboarding("connect_health")} />;
@@ -160,20 +161,29 @@ function PermissionDeniedStep({ app }: { app: ReturnType<typeof useAppState> }) 
   );
 }
 
-function StarterChallengeGrid({ onPick }: { onPick: (metricKey: string) => void }) {
+function StarterChallengeGrid({ onPick }: { onPick: (metricKeys: string[]) => void }) {
+  const [selected, setSelected] = useState<string[]>(["running", "cycling"]);
+  const toggle = (metricKey: string) =>
+    setSelected((prev) => (prev.includes(metricKey) ? prev.filter((key) => key !== metricKey) : [...prev, metricKey]));
   return (
     <View style={styles.screen}>
-      <Text style={styles.slideTitle}>Pick a starter challenge</Text>
-      <Text style={styles.slideBody}>You can join more or create your own later.</Text>
+      <Text style={styles.slideTitle}>Pick starter sports</Text>
+      <Text style={styles.slideBody}>Choose a few. We’ll shape Pool and Competition suggestions around them first.</Text>
       <View style={styles.grid}>
         {STARTER_METRICS.map((c) => (
-          <Pressable key={c.metricKey} style={styles.gridCard} onPress={() => onPick(c.metricKey)}>
-            <Ionicons name={iconFor(c.icon)} size={26} color={colors.accent} />
-            <Text style={styles.gridCardTitle}>{c.title}</Text>
-            <Text style={styles.gridCardSub}>{c.sub}</Text>
+          <Pressable key={c.metricKey} style={[styles.gridCard, selected.includes(c.metricKey) && styles.gridCardActive]} onPress={() => toggle(c.metricKey)}>
+            <ImageBackground source={{ uri: sportImageFor(c.metricKey) }} style={styles.gridImage} imageStyle={styles.gridImageStyle}>
+              <View style={styles.gridOverlay} />
+              <Ionicons name={selected.includes(c.metricKey) ? "checkmark-circle" : iconFor(c.icon)} size={26} color={colors.text} />
+              <Text style={styles.gridCardTitle}>{c.title}</Text>
+              <Text style={styles.gridCardSub}>{c.sub}</Text>
+            </ImageBackground>
           </Pressable>
         ))}
       </View>
+      <Pressable style={[styles.primaryButton, selected.length === 0 && styles.primaryButtonDisabled]} disabled={selected.length === 0} onPress={() => onPick(selected)}>
+        <Text style={styles.primaryButtonText}>Continue</Text>
+      </Pressable>
     </View>
   );
 }
@@ -190,11 +200,16 @@ const styles = StyleSheet.create({
   dot: { width: 6, height: 6, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
   dotActive: { backgroundColor: colors.accent, width: 18 },
   primaryButton: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
+  primaryButtonDisabled: { opacity: 0.45 },
   primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },
   secondaryButton: { alignItems: "center", paddingVertical: spacing.sm },
   secondaryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, marginTop: spacing.lg },
-  gridCard: { width: "47%", backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.xs },
+  gridCard: { width: "47%", height: 148, backgroundColor: colors.surface, borderRadius: radii.lg, overflow: "hidden", borderWidth: 1, borderColor: colors.line },
+  gridCardActive: { borderColor: colors.accent },
+  gridImage: { flex: 1, padding: spacing.lg, justifyContent: "flex-end", gap: spacing.xs },
+  gridImageStyle: { opacity: 0.82 },
+  gridOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
   gridCardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xs },
   gridCardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
 });

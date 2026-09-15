@@ -14,6 +14,13 @@ export const GenerateInviteCodesSchema = z.object({
   // How many fresh single-use codes to mint in one call.
   count: z.number().int().min(1).max(200).default(1),
   label: z.string().max(200).optional(),
+  code: z
+    .string()
+    .trim()
+    .min(4)
+    .max(32)
+    .regex(/^[a-zA-Z0-9_-]+$/, "Invite codes can only use letters, numbers, underscores and hyphens.")
+    .optional(),
 });
 
 export const LoginSchema = z.object({

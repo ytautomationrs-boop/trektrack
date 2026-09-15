@@ -134,7 +134,7 @@ const LEAGUE_NAMES = ["Bronze", "Iron", "Steel", "Silver", "Gold", "Platinum", "
 // recruits them — so it never competes for the shared public pool.
 // ─────────────────────────────────────────────────────────────────────────
 const INDIVIDUAL_ENTRANTS = 10; // exactly ten racers
-const SQUAD_COUNT = 4; // exactly four squads
+const SQUAD_COUNT = 2; // exactly two squads
 const SQUAD_SIZE = 4; // of exactly four members each
 
 // Running and cycling, NOT steps — and that is the whole point.
@@ -232,15 +232,15 @@ const INDIVIDUAL_1D: ScheduleSeed = {
   ], // R200 — 20% margin
 };
 
-// 4 squads × 4 members = 16 entrants.
+// 2 squads × 4 members = 8 entrants.
 const SQUAD_7D: ScheduleSeed = {
-  entryFeeCents: 5000, // R50 × 16 = R800 revenue
-  prizes: [{ position: 1, amountCents: 60000 }], // R600 — 25% margin, R150 each
+  entryFeeCents: 5000, // R50 × 8 = R400 revenue
+  prizes: [{ position: 1, amountCents: 30000 }], // R300 — 25% margin, R75 each
 };
 
 const SQUAD_1D: ScheduleSeed = {
-  entryFeeCents: 2500, // R25 × 16 = R400 revenue
-  prizes: [{ position: 1, amountCents: 30000 }], // R300 — 25% margin, R75 each
+  entryFeeCents: 2500, // R25 × 8 = R200 revenue
+  prizes: [{ position: 1, amountCents: 15000 }], // R150 — 25% margin, R37.50 each
 };
 
 function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {

@@ -15,8 +15,11 @@ import {
   markWithdrawalPaid,
   rejectWithdrawal,
   mintInviteCodes,
+  createCustomInviteCode,
+  getAdminOverview,
   type PendingWithdrawal,
   type InviteCode,
+  type AdminOverview,
 } from "../../api/adminClient";
 
 /**
@@ -43,12 +46,12 @@ function formatWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-type Tab = "fund" | "payouts" | "invites";
+type Tab = "overview" | "fund" | "payouts" | "invites";
 
 export function AdminScreen() {
   const navigation = useNavigation<any>();
   const app = useAppState();
-  const [tab, setTab] = useState<Tab>("fund");
+  const [tab, setTab] = useState<Tab>("overview");
 
   // Belt and braces with the navigator, which only registers this screen for
   // an admin. If a session somehow lands here without the flag, say so rather
@@ -70,17 +73,100 @@ export function AdminScreen() {
           <Ionicons name="chevron-back" size={18} color={colors.sub} />
           <Text style={styles.backText}>Profile</Text>
         </Pressable>
-        <Text style={styles.title}>Run the pilot</Text>
+        <Text style={styles.title}>Admin console</Text>
       </View>
 
       <View style={styles.tabs}>
+        <TabChip label="Overview" active={tab === "overview"} onPress={() => setTab("overview")} />
         <TabChip label="Fund" active={tab === "fund"} onPress={() => setTab("fund")} />
         <TabChip label="Payouts" active={tab === "payouts"} onPress={() => setTab("payouts")} />
         <TabChip label="Invites" active={tab === "invites"} onPress={() => setTab("invites")} />
       </View>
 
-      {tab === "fund" ? <FundPanel /> : tab === "payouts" ? <PayoutsPanel /> : <InvitesPanel />}
+      {tab === "overview" ? <OverviewPanel /> : tab === "fund" ? <FundPanel /> : tab === "payouts" ? <PayoutsPanel /> : <InvitesPanel />}
     </SafeAreaView>
+  );
+}
+
+function OverviewPanel() {
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setOverview(await getAdminOverview());
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  if (loading && !overview) {
+    return <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />;
+  }
+  if (loadError && !overview) {
+    return (
+      <ScrollView contentContainerStyle={styles.content}>
+        <LoadError error={loadError} onRetry={load} />
+      </ScrollView>
+    );
+  }
+  if (!overview) return null;
+
+  const statCards = [
+    { label: "Users", value: String(overview.stats.totalUsers) },
+    { label: "Active now", value: String(overview.stats.activeNow) },
+    { label: "Active today", value: String(overview.stats.activeToday) },
+    { label: "Wallets", value: formatCents(overview.stats.userWalletBalanceCents) },
+    { label: "Payouts", value: String(overview.stats.pendingWithdrawals) },
+    { label: "Reports", value: String(overview.stats.openReports) },
+  ];
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+    >
+      <View style={styles.statGrid}>
+        {statCards.map((item) => (
+          <View key={item.label} style={styles.statCard}>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{item.value}</Text>
+            <Text style={styles.statLabel}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>Recent users</Text>
+      {overview.users.map((user) => (
+        <View key={user.id} style={styles.userRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName} numberOfLines={1}>{user.displayName}{user.isAdmin ? " · admin" : ""}</Text>
+            <Text style={styles.userMeta} numberOfLines={1}>{user.email}</Text>
+            <Text style={styles.userMeta}>
+              Last seen {user.lastSeenAt ? formatWhen(user.lastSeenAt) : "never"} · {user.counts.races} races · {user.counts.challenges} pools
+            </Text>
+          </View>
+          <Text style={styles.userBalance}>{formatCents(user.walletBalanceCents)}</Text>
+        </View>
+      ))}
+
+      <Text style={styles.sectionTitle}>Recent wallet activity</Text>
+      {overview.ledger.map((entry) => (
+        <View key={entry.id} style={styles.ledgerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName} numberOfLines={1}>{entry.user.displayName}</Text>
+            <Text style={styles.userMeta}>{entry.type} · {entry.status} · {formatWhen(entry.createdAt)}</Text>
+          </View>
+          <Text style={[styles.userBalance, { color: entry.amountCents < 0 ? colors.fail : colors.sage }]}>{formatCents(entry.amountCents)}</Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -320,6 +406,8 @@ function InvitesPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [minting, setMinting] = useState(false);
+  const [customCode, setCustomCode] = useState("");
+  const [customLabel, setCustomLabel] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -349,6 +437,25 @@ function InvitesPanel() {
     }
   }
 
+  async function createCustom() {
+    if (customCode.trim().length < 4) {
+      showAlert("Code too short", "Use at least 4 letters or numbers.");
+      return;
+    }
+    setMinting(true);
+    try {
+      const result = await createCustomInviteCode(customCode.trim(), customLabel.trim() || undefined);
+      setCustomCode("");
+      setCustomLabel("");
+      await load();
+      showAlert("Invite created", result.codes.map((c) => c.code).join("\n"));
+    } catch (err: any) {
+      showAlert("Couldn't create that code", err.message ?? "It may already exist.");
+    } finally {
+      setMinting(false);
+    }
+  }
+
   const unused = codes.filter((c) => !c.revokedAt && c.useCount < c.maxUses);
 
   return (
@@ -359,6 +466,29 @@ function InvitesPanel() {
       <Text style={styles.panelHint}>
         There is no public signup — an account can only be created with an unused code. {unused.length} unused right now.
       </Text>
+
+      <View style={styles.customInviteCard}>
+        <Text style={styles.sectionTitle}>Make your own code</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. reece-friends"
+          placeholderTextColor={colors.sub}
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={customCode}
+          onChangeText={setCustomCode}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Label"
+          placeholderTextColor={colors.sub}
+          value={customLabel}
+          onChangeText={setCustomLabel}
+        />
+        <Pressable style={[styles.cta, minting && styles.ctaDisabled]} disabled={minting} onPress={createCustom}>
+          <Text style={styles.ctaText}>Create invite code</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.presetRow}>
         {[1, 10, 25].map((n) => (
@@ -464,4 +594,15 @@ const styles = StyleSheet.create({
   codeSpent: { color: colors.sub, textDecorationLine: "line-through" },
   codeLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
   codeState: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
+  customInviteCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  statCard: { width: "31%", minWidth: 94, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
+  statValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },
+  statLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
+  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.md },
+  userRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
+  ledgerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: spacing.md },
+  userName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  userMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
+  userBalance: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
 });

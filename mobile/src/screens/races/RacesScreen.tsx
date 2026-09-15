@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -11,6 +11,7 @@ import { iconFor } from "../../theme/metricIcons";
 import { getLeagueStandings, getRaces, enterRace } from "../../api/raceClient";
 import type { LeagueStandings, Race } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
+import { sportImageFor } from "../../theme/sportImages";
 
 // No websocket infra exists yet — this is how fill counts and lock states
 // stay close to live on a screen with no deadline to countdown against.
@@ -250,34 +251,36 @@ function RaceCard({
 
   return (
     <Pressable style={styles.card} onPress={onOpen}>
-      <View style={styles.cardHead}>
-        <View style={styles.metricBadge}>
+      <ImageBackground source={{ uri: sportImageFor(race.metricKey) }} style={styles.cardImage} imageStyle={styles.cardImageStyle}>
+        <View style={styles.cardOverlay} />
+        <View style={styles.cardHead}>
+          <View style={styles.metricBadge}>
           {/* iconFor is keyed by the backend's icon TOKEN ("footprints"), not
               the metric key ("steps") — passing the key silently falls back to
               a generic chart glyph. */}
-          <Ionicons name={iconFor(race.raceType?.metricType.icon ?? "")} size={18} color={colors.accent} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle}>
-            {race.raceType?.metricType.displayName ?? race.metricKey} ·{" "}
-            {race.format === "SQUAD" ? "Squad" : "Solo"} · {race.durationDays}
-            {race.durationDays === 1 ? " day" : " days"}
-          </Text>
-          <Text style={styles.cardSub}>
-            {race.league?.name ? `${race.league.name} · ` : ""}
-            {formatCents(race.entryFeeCents)} to enter
-          </Text>
-        </View>
-        {race.hasEntered ? (
-          <View style={styles.enteredPill}>
-            <Text style={styles.enteredPillText}>Entered</Text>
+            <Ionicons name={iconFor(race.raceType?.metricType.icon ?? "")} size={18} color={colors.text} />
           </View>
-        ) : race.isLowerLeagueOption ? (
-          <View style={styles.lowerLeaguePill}>
-            <Text style={styles.lowerLeaguePillText}>Lower league</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>
+              {race.raceType?.metricType.displayName ?? race.metricKey} ·{" "}
+              {race.format === "SQUAD" ? "Squad" : "Solo"} · {race.durationDays}
+              {race.durationDays === 1 ? " day" : " days"}
+            </Text>
+            <Text style={styles.cardSub}>
+              {race.league?.name ? `${race.league.name} · ` : ""}
+              {formatCents(race.entryFeeCents)} to enter
+            </Text>
           </View>
-        ) : null}
-      </View>
+          {race.hasEntered ? (
+            <View style={styles.enteredPill}>
+              <Text style={styles.enteredPillText}>Entered</Text>
+            </View>
+          ) : race.isLowerLeagueOption ? (
+            <View style={styles.lowerLeaguePill}>
+              <Text style={styles.lowerLeaguePillText}>Lower league</Text>
+            </View>
+          ) : null}
+        </View>
 
       {/* Fill status — the race's existence condition, front and centre. No
           deadline anywhere here: fill is indefinite, and once it locks the
@@ -346,6 +349,7 @@ function RaceCard({
           )}
         </Pressable>
       )}
+      </ImageBackground>
     </Pressable>
   );
 }
@@ -380,7 +384,10 @@ const styles = StyleSheet.create({
   },
   emptyCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
 
-  card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
+  card: { backgroundColor: colors.surface, borderRadius: radii.lg, marginBottom: spacing.md, overflow: "hidden", borderWidth: 1, borderColor: colors.line },
+  cardImage: { padding: spacing.lg, minHeight: 230 },
+  cardImageStyle: { opacity: 0.88 },
+  cardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.50)" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   metricBadge: {
     width: 36,

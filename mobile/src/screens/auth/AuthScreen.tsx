@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ImageBackground } from "react-native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { login, signUp } from "../../api/client";
 import { useAppState } from "../../state/useAppState";
+import { heroImages } from "../../theme/sportImages";
 
 // Some Hermes builds (notably generic/AOSP emulator images without full ICU
 // data) return undefined from resolvedOptions().timeZone instead of throwing
@@ -43,55 +44,77 @@ export function AuthScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Text style={styles.logo}>Streak</Text>
-      <Text style={styles.tagline}>Race. Win. Climb.</Text>
+    <ImageBackground source={{ uri: heroImages.auth }} style={styles.background} imageStyle={styles.backgroundImage}>
+      <View style={styles.overlay} />
+      <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.brandBlock}>
+          <Text style={styles.logo}>
+            Track<Text style={styles.logoRed}>Trek</Text>
+          </Text>
+          <Text style={styles.tagline}>Race. Win. Climb.</Text>
+        </View>
 
-      <View style={styles.form}>
-        {mode === "signup" && (
-          <TextInput style={styles.input} placeholder="Display name" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} />
-        )}
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={colors.sub}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-        <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} />
-        {mode === "signup" && (
+        <View style={styles.form}>
+          {mode === "signup" && (
+            <TextInput style={styles.input} placeholder="Display name" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} />
+          )}
           <TextInput
             style={styles.input}
-            placeholder="Invite code"
+            placeholder="Email"
             placeholderTextColor={colors.sub}
             autoCapitalize="none"
-            autoCorrect={false}
-            value={inviteCode}
-            onChangeText={setInviteCode}
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
           />
-        )}
-        {error && <Text style={styles.error}>{error}</Text>}
-        <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
-          <Text style={styles.primaryButtonText}>{submitting ? "…" : mode === "signup" ? "Create account" : "Log in"}</Text>
-        </Pressable>
-        <Pressable onPress={() => setMode(mode === "signup" ? "login" : "signup")}>
-          <Text style={styles.switchModeText}>{mode === "signup" ? "Already have an account? Log in" : "New here? Create an account"}</Text>
-        </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+          <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} />
+          {mode === "signup" && (
+            <TextInput
+              style={styles.input}
+              placeholder="Invite code"
+              placeholderTextColor={colors.sub}
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={inviteCode}
+              onChangeText={setInviteCode}
+            />
+          )}
+          {error && <Text style={styles.error}>{error}</Text>}
+          <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
+            <Text style={styles.primaryButtonText}>{submitting ? "..." : mode === "signup" ? "Create account" : "Log in"}</Text>
+          </Pressable>
+          <Pressable onPress={() => setMode(mode === "signup" ? "login" : "signup")}>
+            <Text style={styles.switchModeText}>{mode === "signup" ? "Already have an account? Log in" : "New here? Create an account"}</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xs },
-  logo: { fontFamily: fonts.display, fontSize: 40, color: colors.accent },
-  tagline: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, marginBottom: spacing.xl },
+  background: { flex: 1, backgroundColor: colors.bg },
+  backgroundImage: { opacity: 0.95 },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
+  screen: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xs },
+  brandBlock: { alignItems: "center", marginBottom: spacing.xl },
+  logo: { fontFamily: fonts.display, fontSize: 44, color: colors.text },
+  logoRed: { color: colors.accent, fontStyle: "italic" },
+  tagline: { fontFamily: fonts.body, fontSize: 18, color: colors.sub, marginTop: spacing.xs },
   form: { width: "100%", gap: spacing.sm },
-  input: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, fontFamily: fonts.body, fontSize: 14, color: colors.text },
+  input: {
+    backgroundColor: colors.glass,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    fontFamily: fonts.body,
+    fontSize: 17,
+    color: colors.text,
+  },
   error: { fontFamily: fonts.body, fontSize: 12, color: colors.fail },
-  primaryButton: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.sm },
-  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },
-  switchModeText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, textAlign: "center", marginTop: spacing.sm },
+  primaryButton: { backgroundColor: colors.accent, borderRadius: radii.lg, paddingVertical: spacing.lg, alignItems: "center", marginTop: spacing.sm },
+  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 17, color: "#111217" },
+  switchModeText: { fontFamily: fonts.body, fontSize: 15, color: colors.text, textAlign: "center", marginTop: spacing.sm },
 });

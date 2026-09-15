@@ -358,7 +358,7 @@ export function RaceDetailScreen() {
               {importing ? (
                 <ActivityIndicator color={colors.bg} />
               ) : (
-                <Text style={styles.ctaText}>Upload a workout file</Text>
+                <Text style={styles.ctaText}>Sync data</Text>
               )}
             </Pressable>
           </View>

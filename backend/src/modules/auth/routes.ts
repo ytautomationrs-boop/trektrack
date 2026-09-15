@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { Prisma } from "@prisma/client";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { prisma } from "../../lib/prisma.js";
@@ -143,14 +144,108 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/admin/invite-codes", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
     const body = GenerateInviteCodesSchema.parse(req.body ?? {});
-    const codes = await prisma.$transaction(
-      Array.from({ length: body.count }, () =>
-        prisma.inviteCode.create({
-          data: { code: randomBytes(5).toString("hex"), label: body.label, maxUses: 1, createdByUserId: req.userId },
-        })
-      )
-    );
-    return reply.code(201).send({ codes });
+    if (body.code && body.count !== 1) {
+      return reply.code(400).send({ error: "custom_code_count", message: "Create one custom invite code at a time." });
+    }
+    try {
+      const codes = await prisma.$transaction(
+        Array.from({ length: body.count }, () =>
+          prisma.inviteCode.create({
+            data: { code: (body.code ?? randomBytes(5).toString("hex")).trim().toLowerCase(), label: body.label, maxUses: 1, createdByUserId: req.userId },
+          })
+        )
+      );
+      return reply.code(201).send({ codes });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return reply.code(409).send({ error: "invite_code_exists", message: "That invite code already exists. Try a different one." });
+      }
+      throw err;
+    }
+  });
+
+  app.get("/admin/overview", { preHandler: [requireAuth, requireAdmin] }, async (_req, reply) => {
+    const now = Date.now();
+    const since15m = new Date(now - 15 * 60 * 1000);
+    const since24h = new Date(now - 24 * 60 * 60 * 1000);
+    const [
+      totalUsers,
+      activeNow,
+      activeToday,
+      wallet,
+      raceCounts,
+      challengeCounts,
+      pendingWithdrawals,
+      openReports,
+      recentUsers,
+      recentLedger,
+    ] = await Promise.all([
+      prisma.user.count({ where: { email: { not: "platform@streak.demo" } } }),
+      prisma.user.count({ where: { email: { not: "platform@streak.demo" }, lastSeenAt: { gte: since15m } } }),
+      prisma.user.count({ where: { email: { not: "platform@streak.demo" }, lastSeenAt: { gte: since24h } } }),
+      prisma.user.aggregate({ where: { email: { not: "platform@streak.demo" } }, _sum: { walletBalanceCents: true } }),
+      prisma.race.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.challenge.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.withdrawal.count({ where: { status: "PENDING" } }),
+      prisma.report.count({ where: { status: "OPEN" } }),
+      prisma.user.findMany({
+        where: { email: { not: "platform@streak.demo" } },
+        orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }],
+        take: 25,
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          isAdmin: true,
+          walletBalanceCents: true,
+          createdAt: true,
+          lastSeenAt: true,
+          _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
+        },
+      }),
+      prisma.ledgerEntry.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: {
+          id: true,
+          userId: true,
+          type: true,
+          status: true,
+          amountCents: true,
+          createdAt: true,
+          user: { select: { displayName: true, email: true } },
+        },
+      }),
+    ]);
+
+    return reply.send({
+      stats: {
+        totalUsers,
+        activeNow,
+        activeToday,
+        userWalletBalanceCents: wallet._sum.walletBalanceCents ?? 0,
+        pendingWithdrawals,
+        openReports,
+        racesByStatus: Object.fromEntries(raceCounts.map((row) => [row.status, row._count._all])),
+        challengesByStatus: Object.fromEntries(challengeCounts.map((row) => [row.status, row._count._all])),
+      },
+      users: recentUsers.map((u) => ({
+        id: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        isAdmin: u.isAdmin,
+        walletBalanceCents: u.walletBalanceCents,
+        createdAt: u.createdAt,
+        lastSeenAt: u.lastSeenAt,
+        counts: {
+          races: u._count.raceEntries,
+          challenges: u._count.challengeParticipations,
+          withdrawals: u._count.withdrawals,
+          deposits: u._count.depositIntents,
+        },
+      })),
+      ledger: recentLedger,
+    });
   });
 
   app.get("/admin/invite-codes", { preHandler: [requireAuth, requireAdmin] }, async (_req, reply) => {

@@ -27,7 +27,7 @@ class AppStateMachineImpl {
 
   session: Session = null;
   onboardingStep: OnboardingStep = "intro";
-  selectedStarterMetricKey: string | null = null;
+  selectedStarterMetricKeys: string[] = [];
 
   subscribe = (listener: Listener) => {
     this.listeners.add(listener);
@@ -61,8 +61,8 @@ class AppStateMachineImpl {
     this.emit();
   }
 
-  selectStarterMetric(metricKey: string) {
-    this.selectedStarterMetricKey = metricKey;
+  selectStarterMetrics(metricKeys: string[]) {
+    this.selectedStarterMetricKeys = metricKeys;
     this.onboardingStep = "done";
     this.emit();
   }

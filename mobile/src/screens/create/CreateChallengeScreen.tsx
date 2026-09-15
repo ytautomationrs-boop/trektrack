@@ -154,7 +154,7 @@ export function CreateChallengeScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.header}>New challenge</Text>
+        <Text style={styles.header}>New Pool</Text>
         <Text style={styles.subheader}>Pooled stakes, zero platform cut — finishers split everything.</Text>
 
         <Text style={styles.label}>Title</Text>
@@ -255,7 +255,7 @@ export function CreateChallengeScreen() {
         </View>
 
         <Pressable style={[styles.cta, !canSubmit && styles.ctaDisabled]} disabled={!canSubmit} onPress={submit}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Create challenge</Text>}
+          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Create Pool</Text>}
         </Pressable>
       </ScrollView>
     </SafeAreaView>

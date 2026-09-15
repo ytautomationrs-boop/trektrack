@@ -25,6 +25,38 @@ export type InviteCode = {
   createdAt: string;
 };
 
+export type AdminOverview = {
+  stats: {
+    totalUsers: number;
+    activeNow: number;
+    activeToday: number;
+    userWalletBalanceCents: number;
+    pendingWithdrawals: number;
+    openReports: number;
+    racesByStatus: Record<string, number>;
+    challengesByStatus: Record<string, number>;
+  };
+  users: Array<{
+    id: string;
+    email: string;
+    displayName: string;
+    isAdmin: boolean;
+    walletBalanceCents: number;
+    createdAt: string;
+    lastSeenAt: string | null;
+    counts: { races: number; challenges: number; withdrawals: number; deposits: number };
+  }>;
+  ledger: Array<{
+    id: string;
+    userId: string;
+    type: string;
+    status: string;
+    amountCents: number;
+    createdAt: string;
+    user: { displayName: string; email: string };
+  }>;
+};
+
 /**
  * Funds a sponsored account — the pilot's only way money enters a wallet.
  *
@@ -66,4 +98,12 @@ export function getInviteCodes() {
 
 export function mintInviteCodes(count: number, label?: string) {
   return request<{ codes: InviteCode[] }>("/admin/invite-codes", { method: "POST", body: JSON.stringify({ count, label }) });
+}
+
+export function createCustomInviteCode(code: string, label?: string) {
+  return request<{ codes: InviteCode[] }>("/admin/invite-codes", { method: "POST", body: JSON.stringify({ count: 1, code, label }) });
+}
+
+export function getAdminOverview() {
+  return request<AdminOverview>("/admin/overview");
 }

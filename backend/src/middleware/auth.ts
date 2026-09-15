@@ -34,6 +34,9 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   }
 
   req.userId = user.id;
+  void prisma.user
+    .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
+    .catch((err) => req.log.warn({ err, userId: user.id }, "failed to update lastSeenAt"));
 }
 
 /**

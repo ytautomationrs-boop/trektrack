@@ -2,16 +2,19 @@
 // Nothing in components/ should hardcode a hex value; import from here.
 
 export const colors = {
-  bg: "#241f19",
-  surface: "#332b22",
-  surfaceRaised: "#463b2e",
-  text: "#f7efe1",
-  sub: "#b5a891",
-  accent: "#f6a06b", // orange
-  sage: "#aebf92",
-  risk: "#f0b84f", // amber
-  fail: "#e0705a", // coral
-  won: "#f4c869", // gold
+  bg: "#0b0d12",
+  surface: "#17191f",
+  surfaceRaised: "#24272f",
+  text: "#ffffff",
+  sub: "#c9cbd1",
+  accent: "#ff2f3f",
+  accent2: "#ffffff",
+  glass: "rgba(23, 25, 31, 0.72)",
+  line: "rgba(255, 255, 255, 0.14)",
+  sage: "#64d48a",
+  risk: "#f5c15b",
+  fail: "#ff6b6b",
+  won: "#ffe06d",
 } as const;
 
 // Fixed status token set — applied identically across dashboard cards, the
@@ -34,7 +37,7 @@ export const statusLabels: Record<keyof typeof statusColors, string> = {
 };
 
 export const fonts = {
-  display: "Caprasimo_400Regular",
+  display: "Figtree_700Bold",
   body: "Figtree_400Regular",
   bodyMedium: "Figtree_500Medium",
   bodySemiBold: "Figtree_600SemiBold",

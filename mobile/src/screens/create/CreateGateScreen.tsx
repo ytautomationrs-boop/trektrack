@@ -36,7 +36,7 @@ export function CreateGateScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.pickerBlock}>
-        <Text style={styles.pickerTitle}>What are you opening?</Text>
+        <Text style={styles.pickerTitle}>Pool or Competition?</Text>
         <Text style={styles.pickerSub}>The two models have different rules about what people's money does.</Text>
 
         <Pressable style={styles.card} onPress={() => setMode("challenge")}>
@@ -44,7 +44,7 @@ export function CreateGateScreen() {
             <Ionicons name="water-outline" size={22} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>StreakPot challenge</Text>
+            <Text style={styles.cardTitle}>Pool</Text>
             <Text style={styles.cardBody}>
               Everyone stakes the same amount and hits a daily target. Whoever finishes splits the whole pool — Streak takes
               nothing.
@@ -58,7 +58,7 @@ export function CreateGateScreen() {
             <Ionicons name="trophy-outline" size={22} color={colors.accent} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Race</Text>
+            <Text style={styles.cardTitle}>Competition</Text>
             <Text style={styles.cardBody}>
               A fixed field competing on one metric, for a prize published before anyone enters. The fee and prizes are
               platform config — you don't set them.

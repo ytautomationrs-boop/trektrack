@@ -205,7 +205,7 @@ export function CreateRaceScreen() {
           </Pressable>
           <Pressable style={[styles.rowItem, format === "SQUAD" && styles.rowItemActive]} onPress={() => setFormat("SQUAD")}>
             <Text style={[styles.rowItemText, format === "SQUAD" && styles.rowItemTextActive]}>Squad</Text>
-            <Text style={[styles.rowItemHint, format === "SQUAD" && styles.rowItemHintActive]}>Exactly 4 squads of 4</Text>
+            <Text style={[styles.rowItemHint, format === "SQUAD" && styles.rowItemHintActive]}>Exactly 2 squads of 4</Text>
           </Pressable>
         </View>
 
@@ -286,7 +286,7 @@ export function CreateRaceScreen() {
           <Text style={styles.conditionTitle}>This race needs exactly {peopleNeeded} racers</Text>
           <Text style={styles.conditionBody}>
             It doesn't start until all {peopleNeeded} are in — you'll need {peopleNeeded - 1} more
-            {format === "SQUAD" ? " people across 4 squads" : ""}. If it doesn't fill before entries close,
+            {format === "SQUAD" ? " people across 2 squads" : ""}. If it doesn't fill before entries close,
             the race doesn't run and <Text style={styles.conditionStrong}>every entry fee is refunded in full</Text>.
           </Text>
           <Text style={styles.conditionBody}>
