@@ -124,8 +124,8 @@ export async function raceRoutes(app: FastifyInstance) {
    * Create a race. Always private, always in the creator's own league, and
    * the creator is entered and charged as entrant 1 of N.
    *
-   * Fee and prizes are not accepted from the request at all — they are read
-   * from the league's standing schedule. See modules/races/schemas.ts.
+   * Private races can accept a host-set entry fee; prizes are calculated
+   * server-side from that fee and snapshotted onto the race.
    */
   // Pilot: only admin-flagged accounts can create races (regular users can
   // still enter/withdraw/view normally). See middleware/auth.ts requireAdmin.
@@ -147,6 +147,7 @@ export async function raceRoutes(app: FastifyInstance) {
         userId: req.userId,
         raceTypeKey,
         name: body.name,
+        entryFeeCents: body.entryFeeCents,
         squadName: body.squadName,
         squadJoinPolicy: body.squadJoinPolicy,
       });

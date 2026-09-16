@@ -6,6 +6,7 @@ import { getAllLeagueStates, getOrCreateLeagueState } from "./leagues.js";
 import { isRaceEligibleMetric, PLATFORM_DEFAULT_TIMEZONE } from "./config.js";
 import { nextMidnightInTimeZone } from "./scheduling.js";
 import { notifyUsers } from "../notifications/service.js";
+import { prizeScheduleForEntryFee, totalPrizeCents as sumPrizeCents } from "./pricing.js";
 import type { Race, RaceEntry, RaceType } from "@prisma/client";
 
 /**
@@ -88,6 +89,8 @@ export type CreateRaceOptions = {
    * should pass the creator's own timezone instead.
    */
   anchorTimezone?: string;
+  /** Private/user-created races may snapshot a host-chosen entry fee. */
+  entryFeeCents?: number;
 };
 
 /** Readable default name for a platform-opened race. */
@@ -97,15 +100,10 @@ function defaultRaceName(metricKey: string, durationDays: number, format: "INDIV
 }
 
 /**
- * Creates one race of `raceTypeKey` in `leagueLevel`, snapshotting the prize
- * schedule as it stands right now.
- *
- * The snapshot is the mechanism behind "pre-announced". Editing a schedule
- * later changes what future races pay and can never change what an already
- * open race pays the people who already entered — which is exactly the
- * property that makes the prize independent of that race's own entry fees.
- * It is also why a race CREATOR never supplies a fee or a prize: both are
- * read from platform config here, not from the request.
+ * Creates one race of `raceTypeKey` in `leagueLevel`, snapshotting the fee
+ * and prize schedule up front. Platform-created races use the standing
+ * schedule. Private races can carry a host-chosen entry fee, with prizes
+ * calculated from that fee and frozen onto the race row.
  */
 export async function createRace(
   raceTypeKey: string,
@@ -149,8 +147,12 @@ export async function createRace(
     throw new RaceError("metric_not_race_eligible", `"${schedule.raceType.metricKey}" is not eligible for races.`);
   }
 
-  const prizeSnapshot: PrizeSnapshotEntry[] = schedule.tiers.map((t) => ({ position: t.position, amountCents: t.amountCents }));
-  const totalPrizeCents = prizeSnapshot.reduce((sum, p) => sum + p.amountCents, 0);
+  const entryFeeCents = options.entryFeeCents ?? schedule.entryFeeCents;
+  const prizeSnapshot: PrizeSnapshotEntry[] =
+    options.entryFeeCents == null
+      ? schedule.tiers.map((t) => ({ position: t.position, amountCents: t.amountCents }))
+      : prizeScheduleForEntryFee(entryFeeCents, schedule.raceType.entrantCount);
+  const totalPrizeCents = sumPrizeCents(prizeSnapshot);
 
   return prisma.race.create({
     data: {
@@ -169,7 +171,7 @@ export async function createRace(
       durationDays: schedule.raceType.durationDays,
       entrantCount: schedule.raceType.entrantCount,
       squadSize: schedule.raceType.squadSize,
-      entryFeeCents: schedule.entryFeeCents,
+      entryFeeCents,
       currency: schedule.currency,
       prizeSnapshot: prizeSnapshot as unknown as Prisma.InputJsonValue,
       totalPrizeCents,
@@ -183,7 +185,7 @@ export async function createRace(
  * Creates a PRIVATE race and enters its creator as the first entrant, in one
  * transaction-ish flow.
  *
- * The creator is charged the league's fixed entry fee immediately. That is
+ * The creator is charged the race's entry fee immediately. That is
  * deliberate: it stops drive-by race creation from burying the few real
  * races in empty ones nobody committed to, and it makes the creator
  * entrant 1 of N rather than an organiser standing outside their own race.
@@ -199,6 +201,7 @@ export async function createPrivateRaceAndEnter(params: {
   userId: string;
   raceTypeKey: string;
   name: string;
+  entryFeeCents?: number;
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
 }) {
@@ -218,6 +221,7 @@ export async function createPrivateRaceAndEnter(params: {
     visibility: "PRIVATE",
     createdByUserId: params.userId,
     anchorTimezone: user.timezone,
+    entryFeeCents: params.entryFeeCents,
   });
 
   try {

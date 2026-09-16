@@ -135,13 +135,8 @@ export function getMyRaces() {
 }
 
 /**
- * Creates a PRIVATE race and enters the creator as racer 1, charging the
- * league's fixed entry fee.
- *
- * Note what is not in the payload: no entry fee, no prize amounts, no league,
- * no field size. All of it is platform configuration resolved server-side —
- * a creator who could set their own prize would turn it into a share of what
- * entrants paid in, which is the structure this model avoids.
+ * Creates a PRIVATE race and enters the creator as racer 1. The host can set
+ * the entry fee; prize amounts are still calculated server-side from that fee.
  *
  * Throws with err.code "insufficient_balance" (402),
  * "race_type_not_user_creatable", or "public_race_not_user_creatable".
@@ -151,6 +146,7 @@ export function createRace(input: {
   metricKey: "steps" | "running" | "cycling" | "swimming";
   durationDays: 1 | 7;
   format: "INDIVIDUAL" | "SQUAD";
+  entryFeeCents?: number;
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
 }) {

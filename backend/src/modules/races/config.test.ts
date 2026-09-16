@@ -8,7 +8,7 @@ import {
 } from "./config.js";
 
 /**
- * The points scale is worth pinning down precisely because a mistake in it
+ * The trophy scale is worth pinning down precisely because a mistake in it
  * is invisible at runtime: nothing throws, users just quietly end up in the
  * wrong league forever (points are permanent and there is no demotion to
  * correct an over-promotion). These are the two scales the spec states
@@ -17,25 +17,25 @@ import {
  */
 
 describe("pointsForPosition", () => {
-  it("reproduces the 10-entrant individual scale exactly", () => {
+  it("reproduces the 10-entrant trophy scale exactly", () => {
     const scale = Array.from({ length: 10 }, (_, i) => pointsForPosition(i + 1, 10));
-    expect(scale).toEqual([5, 4, 3, 2, 1, 0, -1, -2, -3, -4]);
+    expect(scale).toEqual([6, 4, 3, 2, 1, 0, -1, -2, -3, -4]);
   });
 
-  it("reproduces the 4-squad scale exactly", () => {
+  it("uses the same ranked trophy ladder for smaller fields", () => {
     const scale = Array.from({ length: 4 }, (_, i) => pointsForPosition(i + 1, 4));
-    expect(scale).toEqual([5, 2, -1, -4]);
+    expect(scale).toEqual([6, 4, 3, 2]);
   });
 
-  it("always awards +5 for a win and -4 for last, whatever the field size", () => {
-    for (const size of [4, 6, 8, 10, 12, 20]) {
+  it("awards +6 for a win and -4 for 10th", () => {
+    for (const size of [4, 6, 8, 10]) {
       expect(pointsForPosition(1, size)).toBe(POINTS_FIRST_PLACE);
-      expect(pointsForPosition(size, size)).toBe(POINTS_LAST_PLACE);
     }
+    expect(pointsForPosition(10, 10)).toBe(POINTS_LAST_PLACE);
   });
 
   it("never rewards a worse position with more points", () => {
-    for (const size of [4, 6, 8, 10, 12, 20]) {
+    for (const size of [4, 6, 8, 10]) {
       for (let position = 2; position <= size; position++) {
         expect(pointsForPosition(position, size)).toBeLessThanOrEqual(pointsForPosition(position - 1, size));
       }

@@ -22,13 +22,9 @@ import type { MetricKey } from "../../api/types";
 /**
  * Create a race.
  *
- * The creator sets exactly five things: name, metric, duration, format,
- * visibility. Everything with money attached — entry fee, prize breakdown,
- * field size — is platform configuration, shown here read-only.
- *
- * That split is the model, not a missing feature. A creator who could set
- * their own prize would make the prize a function of what entrants paid in,
- * which is the pooled structure this app deliberately does not use.
+ * The creator sets the competition shape and entry fee. Prize money is
+ * calculated from that fee and snapshotted server-side when the race is
+ * created, so everyone sees the same fixed prize schedule before joining.
  *
  * Also deliberately absent, all of which the old create-wizard had: stake
  * amount, tier selection, multi-metric selection, pace targets, custom
@@ -48,6 +44,21 @@ const DURATIONS: Array<{ days: 1 | 7; label: string; hint: string }> = [
 ];
 
 const LEAGUE_NAMES = ["Bronze", "Iron", "Steel", "Silver", "Gold", "Platinum"];
+const PRIZE_MULTIPLIERS = [
+  { position: 1, multiplier: 3 },
+  { position: 2, multiplier: 2 },
+  { position: 3, multiplier: 1.5 },
+  { position: 4, multiplier: 1 },
+  { position: 5, multiplier: 0.5 },
+] as const;
+const TROPHY_SCALE = [6, 4, 3, 2, 1, 0, -1, -2, -3, -4] as const;
+
+const TROPHY_META: Record<MetricKey, { label: string; icon: string; color: string }> = {
+  steps: { label: "Steps trophies", icon: "footprints", color: "#ffffff" },
+  running: { label: "Running trophies", icon: "running", color: "#ff2f3f" },
+  cycling: { label: "Cycling trophies", icon: "bike", color: "#64d48a" },
+  swimming: { label: "Swimming trophies", icon: "waves", color: "#38bdf8" },
+};
 
 const METRIC_META: Record<MetricKey, RaceType["metricType"]> = {
   steps: { key: "steps", displayName: "Steps", unit: "steps", valueType: "COUNT", icon: "footprints" },
@@ -56,42 +67,29 @@ const METRIC_META: Record<MetricKey, RaceType["metricType"]> = {
   swimming: { key: "swimming", displayName: "Swimming", unit: "m", valueType: "DISTANCE_METERS", icon: "waves" },
 };
 
-const BASE_PRIZES = {
-  individual7: {
-    entryFeeCents: 5000,
-    prizes: [
-      { position: 1, amountCents: 15000 },
-      { position: 2, amountCents: 10000 },
-      { position: 3, amountCents: 7500 },
-      { position: 4, amountCents: 5000 },
-      { position: 5, amountCents: 2500 },
-    ],
-  },
-  individual1: {
-    entryFeeCents: 2500,
-    prizes: [
-      { position: 1, amountCents: 7500 },
-      { position: 2, amountCents: 5000 },
-      { position: 3, amountCents: 3500 },
-      { position: 4, amountCents: 2500 },
-      { position: 5, amountCents: 1500 },
-    ],
-  },
-  squad7: { entryFeeCents: 5000, prizes: [{ position: 1, amountCents: 30000 }] },
-  squad1: { entryFeeCents: 2500, prizes: [{ position: 1, amountCents: 15000 }] },
+const BASE_FEES = {
+  individual7: 5000,
+  individual1: 2500,
+  squad7: 5000,
+  squad1: 2500,
 } as const;
 
-function scaleSchedule(base: { entryFeeCents: number; prizes: Array<{ position: number; amountCents: number }> }, level: number) {
-  const entryFeeCents = base.entryFeeCents + (level - 1) * 500;
-  const ratio = entryFeeCents / base.entryFeeCents;
-  const round = (cents: number) => Math.round(cents / 500) * 500;
-  const prizes = base.prizes.map((p) => ({ position: p.position, amountCents: round(p.amountCents * ratio) }));
+function prizesForEntryFee(entryFeeCents: number, rankedPositions: number) {
+  return PRIZE_MULTIPLIERS.filter((tier) => tier.position <= rankedPositions).map((tier) => ({
+    position: tier.position,
+    amountCents: Math.round(entryFeeCents * tier.multiplier),
+  }));
+}
+
+function scaleSchedule(baseEntryFeeCents: number, level: number, rankedPositions: number) {
+  const entryFeeCents = baseEntryFeeCents + (level - 1) * 500;
+  const prizes = prizesForEntryFee(entryFeeCents, rankedPositions);
   return { entryFeeCents, prizes };
 }
 
 function baseScheduleFor(format: RaceFormat, durationDays: 1 | 7) {
-  if (format === "SQUAD") return durationDays === 1 ? BASE_PRIZES.squad1 : BASE_PRIZES.squad7;
-  return durationDays === 1 ? BASE_PRIZES.individual1 : BASE_PRIZES.individual7;
+  if (format === "SQUAD") return durationDays === 1 ? BASE_FEES.squad1 : BASE_FEES.squad7;
+  return durationDays === 1 ? BASE_FEES.individual1 : BASE_FEES.individual7;
 }
 
 function buildLaunchRaceTypes(): RaceType[] {
@@ -115,7 +113,7 @@ function buildLaunchRaceTypes(): RaceType[] {
           totalEntrants: entrantCount * (squadSize ?? 1),
           schedules: LEAGUE_NAMES.map((leagueName, index) => {
             const leagueLevel = index + 1;
-            const scaled = scaleSchedule(baseScheduleFor(format, duration.days), leagueLevel);
+            const scaled = scaleSchedule(baseScheduleFor(format, duration.days), leagueLevel, entrantCount);
             return {
               leagueLevel,
               leagueName,
@@ -156,6 +154,14 @@ function formatCents(cents: number) {
   return `R${(cents / 100).toLocaleString()}`;
 }
 
+function parseEntryFeeCents(value: string) {
+  const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
+  if (!normalized) return null;
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) return null;
+  return Math.round(amount * 100);
+}
+
 function ordinal(n: number) {
   const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] ?? "th";
   return `${n}${suffix}`;
@@ -173,6 +179,7 @@ export function CreateRaceScreen() {
   const [metricKey, setMetricKey] = useState<MetricKey>("steps");
   const [durationDays, setDurationDays] = useState<1 | 7>(7);
   const [format, setFormat] = useState<RaceFormat>("INDIVIDUAL");
+  const [entryFeeText, setEntryFeeText] = useState("");
   const [squadName, setSquadName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -203,8 +210,7 @@ export function CreateRaceScreen() {
   const metricStanding = standings.standings.find((s) => s.metricKey === metricKey) ?? null;
   const league = metricStanding?.currentLeague ?? null;
 
-  // The selected combination's platform config: fee, prizes, field size.
-  // Read-only here — it comes from the league's standing schedule.
+  // The selected combination's default config: fee, prizes, field size.
   const selected = useMemo(() => {
     const key = `${metricKey}_${durationDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
     const type = raceTypes.find((t) => t.key === key);
@@ -217,7 +223,18 @@ export function CreateRaceScreen() {
   const peopleNeeded = selected ? selected.type.totalEntrants : format === "SQUAD" ? 16 : 10;
   const resolvedRaceName = name.trim() || defaultRaceName(metricKey, durationDays, format);
   const resolvedSquadName = squadName.trim() || "My Squad";
-  const canSubmit = selected != null && !busy;
+  const defaultEntryFeeCents = selected?.schedule.entryFeeCents ?? baseScheduleFor(format, durationDays);
+  const customEntryFeeCents = parseEntryFeeCents(entryFeeText);
+  const resolvedEntryFeeCents = customEntryFeeCents ?? defaultEntryFeeCents;
+  const entryFeeIsValid = resolvedEntryFeeCents >= 100 && resolvedEntryFeeCents <= 1_000_000;
+  const displaySchedule = selected
+    ? {
+        entryFeeCents: resolvedEntryFeeCents,
+        prizes: prizesForEntryFee(resolvedEntryFeeCents, selected.type.entrantCount),
+      }
+    : null;
+  const trophyMeta = TROPHY_META[metricKey];
+  const canSubmit = selected != null && entryFeeIsValid && !busy;
 
   const submit = useCallback(async () => {
     if (!selected) return;
@@ -228,6 +245,7 @@ export function CreateRaceScreen() {
         metricKey,
         durationDays,
         format,
+        entryFeeCents: resolvedEntryFeeCents,
         squadName: format === "SQUAD" ? resolvedSquadName : undefined,
       });
       const code = result.inviteCode;
@@ -263,7 +281,7 @@ export function CreateRaceScreen() {
     } finally {
       setBusy(false);
     }
-  }, [selected, resolvedRaceName, metricKey, durationDays, format, resolvedSquadName, peopleNeeded, navigation]);
+  }, [selected, resolvedRaceName, metricKey, durationDays, format, resolvedEntryFeeCents, resolvedSquadName, peopleNeeded, navigation]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -369,23 +387,33 @@ export function CreateRaceScreen() {
           </Text>
         </View>
 
-        {/* READ-ONLY: what the platform sets */}
+        {/* Entry fee controls the fixed prize snapshot. */}
         <Text style={styles.label}>Entry fee and prizes</Text>
         <Text style={styles.labelHint}>
-          Set by Streak for {metricStanding?.metricName ?? ""} {league?.name ?? "your league"} — not by you.
-          Each metric has its own leagues, so this changes with the metric you pick.
+          Set the entry fee. Prizes calculate from it automatically and are fixed before anyone joins.
         </Text>
 
-        {selected ? (
+        {selected && displaySchedule ? (
           <View style={styles.feeCard}>
             {configLoading && <ActivityIndicator color={colors.accent} style={styles.inlineLoader} />}
+            <Text style={styles.inputLabel}>Entry fee (R)</Text>
+            <TextInput
+              style={[styles.input, !entryFeeIsValid && styles.inputError]}
+              value={entryFeeText}
+              onChangeText={setEntryFeeText}
+              placeholder={(defaultEntryFeeCents / 100).toString()}
+              placeholderTextColor={colors.sub}
+              keyboardType="decimal-pad"
+            />
+            {!entryFeeIsValid && <Text style={styles.errorText}>Use an entry fee from R1 to R10,000.</Text>}
+
             <View style={styles.feeRow}>
-              <Text style={styles.feeLabel}>Entry fee</Text>
-              <Text style={styles.feeValue}>{formatCents(selected.schedule.entryFeeCents)}</Text>
+              <Text style={styles.feeLabel}>Prize formula</Text>
+              <Text style={styles.feeValue}>{formatCents(displaySchedule.entryFeeCents)}</Text>
             </View>
             <View style={styles.divider} />
 
-            {selected.schedule.prizes.map((p) => (
+            {displaySchedule.prizes.map((p) => (
               <View key={p.position} style={styles.prizeRow}>
                 <Text style={styles.prizePos}>{ordinal(p.position)}</Text>
                 <Text style={styles.prizeAmount}>{formatCents(p.amountCents)}</Text>
@@ -394,11 +422,28 @@ export function CreateRaceScreen() {
 
             <Text style={styles.prizeFootnote}>
               {format === "SQUAD"
-                ? `One prize to the winning squad, split evenly among its ${selected.type.squadSize} members.`
-                : `${ordinal(selected.schedule.prizes.length + 1)}–${ordinal(selected.type.entrantCount)} pay nothing.`}{" "}
-              These are fixed in advance. They don't change with how many people enter or what the
-              entry fees add up to.
+                ? `Prizes are awarded by squad position and split evenly among each squad's ${selected.type.squadSize} members.`
+                : `${ordinal(displaySchedule.prizes.length + 1)}–${ordinal(selected.type.entrantCount)} pay nothing.`}{" "}
+              1st gets 3x entry, 2nd 2x, 3rd 1.5x, 4th 1x, and 5th 0.5x.
             </Text>
+
+            <View style={styles.trophyCard}>
+              <View style={styles.trophyHeader}>
+                <Ionicons name={iconFor(trophyMeta.icon)} size={18} color={trophyMeta.color} />
+                <Text style={styles.trophyTitle}>{trophyMeta.label}</Text>
+              </View>
+              <View style={styles.trophyGrid}>
+                {TROPHY_SCALE.map((trophies, index) => {
+                  const position = index + 1;
+                  return (
+                    <View key={position} style={[styles.trophyChip, { borderColor: trophyMeta.color }]}>
+                      <Text style={[styles.trophyPosition, { color: trophyMeta.color }]}>{ordinal(position)}</Text>
+                      <Text style={styles.trophyValue}>{trophies > 0 ? `+${trophies}` : trophies}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         ) : (
           <View style={styles.feeCard}>
@@ -434,7 +479,7 @@ export function CreateRaceScreen() {
             <ActivityIndicator color={colors.bg} />
           ) : (
             <Text style={styles.ctaText}>
-              Create &amp; enter{selected ? ` · ${formatCents(selected.schedule.entryFeeCents)}` : ""}
+              Create &amp; enter{selected ? ` · ${formatCents(resolvedEntryFeeCents)}` : ""}
             </Text>
           )}
         </Pressable>
@@ -460,6 +505,9 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     fontSize: 15,
   },
+  inputLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub, marginBottom: spacing.sm },
+  inputError: { borderWidth: 1, borderColor: colors.fail },
+  errorText: { fontFamily: fonts.body, fontSize: 11, color: colors.fail, marginTop: spacing.sm },
   charCount: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, textAlign: "right", marginTop: 4 },
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -505,7 +553,7 @@ const styles = StyleSheet.create({
   emptyConfigText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, textAlign: "center", lineHeight: 17 },
   retryButton: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
   retryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
-  feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.md },
   feeLabel: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
   feeValue: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
   divider: { height: 1, backgroundColor: colors.surfaceRaised, marginVertical: spacing.md },
@@ -513,6 +561,21 @@ const styles = StyleSheet.create({
   prizePos: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
   prizeAmount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.won },
   prizeFootnote: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.md, lineHeight: 16 },
+  trophyCard: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg },
+  trophyHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  trophyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  trophyGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  trophyChip: {
+    width: "18%",
+    minWidth: 52,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    backgroundColor: colors.surface,
+  },
+  trophyPosition: { fontFamily: fonts.bodySemiBold, fontSize: 11 },
+  trophyValue: { fontFamily: fonts.display, fontSize: 14, color: colors.text, marginTop: 2 },
 
   conditionCard: {
     backgroundColor: colors.surfaceRaised,

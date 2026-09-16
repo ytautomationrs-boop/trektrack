@@ -74,8 +74,8 @@ export type ListRacesQuery = z.infer<typeof ListRacesQuerySchema>;
 /**
  * Creating a race.
  *
- * The five things a creator chooses — name, metric, duration, format,
- * visibility — and nothing else. Metric is a single value, not a list: a
+ * The creator chooses the race shape and the entry fee. Metric is a single
+ * value, not a list: a
  * race cannot combine metrics because there is no non-arbitrary way to
  * weight (say) swum metres against run metres in one ranked ordering.
  */
@@ -86,6 +86,8 @@ export const CreateRaceSchema = z.object({
   // is another pool that has to reach its own exact headcount.
   durationDays: z.union([z.literal(1), z.literal(7)]),
   format: z.enum(["INDIVIDUAL", "SQUAD"]),
+  // Custom entry fee for a user-created/private race, in cents.
+  entryFeeCents: z.coerce.number().int().min(100).max(1_000_000).optional(),
   // PUBLIC is accepted but rejected server-side with a clear message —
   // public races are platform-opened so that one shared queue per league
   // actually fills. Modelled here rather than omitted so the client can

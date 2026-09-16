@@ -6,6 +6,7 @@ import {
   RACE_ELIGIBLE_METRIC_KEYS,
   isRaceEligibleMetric,
 } from "../src/modules/races/config.js";
+import { prizeScheduleForEntryFee } from "../src/modules/races/pricing.js";
 import { PLATFORM_ACCOUNT_EMAIL } from "../src/lib/constants.js";
 
 /**
@@ -204,48 +205,26 @@ function buildRaceTypes(): RaceTypeSeed[] {
 // default outcome. Squad races pay one prize to the winning squad, split
 // evenly among its members at payout.
 //
-// Every amount is a whole multiple of R5 on purpose — scaleSchedule() rounds
-// to the nearest R5, and a base with half-rand amounts would be rounded up
-// even at league 1, quietly eroding the intended margin.
+// Prizes are derived from the entry fee: 3x, 2x, 1.5x, 1x, 0.5x for
+// positions 1-5. Positions 6-10 receive no cash prize.
 // ─────────────────────────────────────────────────────────────────────────
 type ScheduleSeed = { entryFeeCents: number; prizes: Array<{ position: number; amountCents: number }> };
 
-const INDIVIDUAL_7D: ScheduleSeed = {
-  entryFeeCents: 5000, // R50 × 10 = R500 revenue
-  prizes: [
-    { position: 1, amountCents: 15000 },
-    { position: 2, amountCents: 10000 },
-    { position: 3, amountCents: 7500 },
-    { position: 4, amountCents: 5000 },
-    { position: 5, amountCents: 2500 },
-  ], // R400 — 20% margin
-};
-
-const INDIVIDUAL_1D: ScheduleSeed = {
-  entryFeeCents: 2500, // R25 × 10 = R250 revenue
-  prizes: [
-    { position: 1, amountCents: 7500 },
-    { position: 2, amountCents: 5000 },
-    { position: 3, amountCents: 3500 },
-    { position: 4, amountCents: 2500 },
-    { position: 5, amountCents: 1500 },
-  ], // R200 — 20% margin
-};
-
-// 2 squads × 4 members = 8 entrants.
-const SQUAD_7D: ScheduleSeed = {
-  entryFeeCents: 5000, // R50 × 8 = R400 revenue
-  prizes: [{ position: 1, amountCents: 30000 }], // R300 — 25% margin, R75 each
-};
-
-const SQUAD_1D: ScheduleSeed = {
-  entryFeeCents: 2500, // R25 × 8 = R200 revenue
-  prizes: [{ position: 1, amountCents: 15000 }], // R150 — 25% margin, R37.50 each
-};
+const INDIVIDUAL_7D_ENTRY_FEE_CENTS = 5000;
+const INDIVIDUAL_1D_ENTRY_FEE_CENTS = 2500;
+const SQUAD_7D_ENTRY_FEE_CENTS = 5000;
+const SQUAD_1D_ENTRY_FEE_CENTS = 2500;
 
 function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {
-  if (type.format === "SQUAD") return type.durationDays === 1 ? SQUAD_1D : SQUAD_7D;
-  return type.durationDays === 1 ? INDIVIDUAL_1D : INDIVIDUAL_7D;
+  const entryFeeCents =
+    type.format === "SQUAD"
+      ? type.durationDays === 1
+        ? SQUAD_1D_ENTRY_FEE_CENTS
+        : SQUAD_7D_ENTRY_FEE_CENTS
+      : type.durationDays === 1
+        ? INDIVIDUAL_1D_ENTRY_FEE_CENTS
+        : INDIVIDUAL_7D_ENTRY_FEE_CENTS;
+  return { entryFeeCents, prizes: prizeScheduleForEntryFee(entryFeeCents, type.entrantCount) };
 }
 
 /**
@@ -268,14 +247,12 @@ function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {
  * league's race always pays the same fixed prize regardless of how long it
  * took to fill.
  */
-function scaleSchedule(base: ScheduleSeed, level: number): ScheduleSeed {
+function scaleSchedule(base: ScheduleSeed, level: number, rankedPositions = 10): ScheduleSeed {
   const FLAT_INCREMENT_CENTS = 500; // R5 per level, every format
   const entryFeeCents = base.entryFeeCents + (level - 1) * FLAT_INCREMENT_CENTS;
-  const ratio = entryFeeCents / base.entryFeeCents;
-  const round = (cents: number) => Math.round(cents / 500) * 500; // nearest R5
   return {
     entryFeeCents,
-    prizes: base.prizes.map((p) => ({ position: p.position, amountCents: round(p.amountCents * ratio) })),
+    prizes: prizeScheduleForEntryFee(entryFeeCents, rankedPositions),
   };
 }
 
@@ -394,7 +371,7 @@ async function main() {
 
     const base = baseScheduleFor(type);
     for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
-      const scaled = scaleSchedule(base, level);
+      const scaled = scaleSchedule(base, level, type.entrantCount);
       assertViable(type, level, scaled);
 
       const schedule = await prisma.racePrizeSchedule.upsert({

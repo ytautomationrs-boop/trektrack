@@ -7,6 +7,7 @@ import {
   RACE_ELIGIBLE_METRIC_KEYS,
   isRaceEligibleMetric,
 } from "../modules/races/config.js";
+import { prizeScheduleForEntryFee } from "../modules/races/pricing.js";
 
 const METRIC_TYPES = [
   {
@@ -71,37 +72,10 @@ type RaceTypeSeed = {
 
 type ScheduleSeed = { entryFeeCents: number; prizes: Array<{ position: number; amountCents: number }> };
 
-const INDIVIDUAL_7D: ScheduleSeed = {
-  entryFeeCents: 5000,
-  prizes: [
-    { position: 1, amountCents: 15000 },
-    { position: 2, amountCents: 10000 },
-    { position: 3, amountCents: 7500 },
-    { position: 4, amountCents: 5000 },
-    { position: 5, amountCents: 2500 },
-  ],
-};
-
-const INDIVIDUAL_1D: ScheduleSeed = {
-  entryFeeCents: 2500,
-  prizes: [
-    { position: 1, amountCents: 7500 },
-    { position: 2, amountCents: 5000 },
-    { position: 3, amountCents: 3500 },
-    { position: 4, amountCents: 2500 },
-    { position: 5, amountCents: 1500 },
-  ],
-};
-
-const SQUAD_7D: ScheduleSeed = {
-  entryFeeCents: 5000,
-  prizes: [{ position: 1, amountCents: 30000 }],
-};
-
-const SQUAD_1D: ScheduleSeed = {
-  entryFeeCents: 2500,
-  prizes: [{ position: 1, amountCents: 15000 }],
-};
+const INDIVIDUAL_7D_ENTRY_FEE_CENTS = 5000;
+const INDIVIDUAL_1D_ENTRY_FEE_CENTS = 2500;
+const SQUAD_7D_ENTRY_FEE_CENTS = 5000;
+const SQUAD_1D_ENTRY_FEE_CENTS = 2500;
 
 let catalogPromise: Promise<void> | null = null;
 
@@ -121,7 +95,7 @@ export function getCompetitionRaceTypesPayload() {
     metricType: metricTypePayload(type.metricKey),
     schedules: Array.from({ length: LEAGUE_LEVELS_SEEDED }, (_, index) => {
       const leagueLevel = index + 1;
-      const scaled = scaleSchedule(baseScheduleFor(type), leagueLevel);
+      const scaled = scaleSchedule(baseScheduleFor(type), leagueLevel, type.entrantCount);
       return {
         leagueLevel,
         leagueName: LEAGUE_NAMES[index] ?? `League ${leagueLevel}`,
@@ -172,17 +146,22 @@ function buildRaceTypes(): RaceTypeSeed[] {
 }
 
 function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {
-  if (type.format === "SQUAD") return type.durationDays === 1 ? SQUAD_1D : SQUAD_7D;
-  return type.durationDays === 1 ? INDIVIDUAL_1D : INDIVIDUAL_7D;
+  const entryFeeCents =
+    type.format === "SQUAD"
+      ? type.durationDays === 1
+        ? SQUAD_1D_ENTRY_FEE_CENTS
+        : SQUAD_7D_ENTRY_FEE_CENTS
+      : type.durationDays === 1
+        ? INDIVIDUAL_1D_ENTRY_FEE_CENTS
+        : INDIVIDUAL_7D_ENTRY_FEE_CENTS;
+  return { entryFeeCents, prizes: prizeScheduleForEntryFee(entryFeeCents, type.entrantCount) };
 }
 
-function scaleSchedule(base: ScheduleSeed, level: number): ScheduleSeed {
+function scaleSchedule(base: ScheduleSeed, level: number, rankedPositions = 10): ScheduleSeed {
   const entryFeeCents = base.entryFeeCents + (level - 1) * 500;
-  const ratio = entryFeeCents / base.entryFeeCents;
-  const round = (cents: number) => Math.round(cents / 500) * 500;
   return {
     entryFeeCents,
-    prizes: base.prizes.map((p) => ({ position: p.position, amountCents: round(p.amountCents * ratio) })),
+    prizes: prizeScheduleForEntryFee(entryFeeCents, rankedPositions),
   };
 }
 
@@ -249,7 +228,7 @@ async function seedCompetitionCatalog() {
 
     const base = baseScheduleFor(type);
     for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
-      const scaled = scaleSchedule(base, level);
+      const scaled = scaleSchedule(base, level, type.entrantCount);
       assertViable(type, scaled);
 
       const schedule = await prisma.racePrizeSchedule.upsert({

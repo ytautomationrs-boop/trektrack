@@ -283,16 +283,16 @@ async function main() {
   check("positions 1..10 assigned", scored.map((e) => e.finishPosition), [1,2,3,4,5,6,7,8,9,10]);
   check("ranked by aggregate, not by join order", scored.map((e) => e.aggregateValue), expectedOrder);
   check("  winner is the highest stepper, not the first to enter", scored[0].userId, users[1].id);
-  check("prizes match the frozen schedule", scored.map((e) => e.prizeCents), [7500,5000,3500,2500,1500,0,0,0,0,0]);
-  check("points follow the position scale", scored.map((e) => e.pointsAwarded), [5,4,3,2,1,0,-1,-2,-3,-4]);
+  check("prizes match the frozen schedule", scored.map((e) => e.prizeCents), [7500,5000,3750,2500,1250,0,0,0,0,0]);
+  check("trophies follow the position scale", scored.map((e) => e.pointsAwarded), [6,4,3,2,1,0,-1,-2,-3,-4]);
 
   const paid = scored.reduce((s, e) => s + e.prizeCents, 0);
   check("total paid equals the pre-announced purse", paid, race.totalPrizeCents);
   note(`platform: R${(10 * race.entryFeeCents) / 100} in, R${paid / 100} out, net R${(10 * race.entryFeeCents - paid) / 100}`);
 
-  section("League points — permanence and the zero floor");
+  section("League trophies — permanence and the zero floor");
   const winner = await prisma.userLeagueState.findUnique({ where: { userId_metricKey: { userId: users[1].id, metricKey: "steps" } } });
-  check("winner has 5 points", winner!.totalPoints, 5);
+  check("winner has 6 trophies", winner!.totalPoints, 6);
   check("winner still in league 1 (one win is not a promotion)", winner!.currentLevel, 1);
 
   const last = await prisma.userLeagueState.findUnique({ where: { userId_metricKey: { userId: users[2].id, metricKey: "steps" } } });
@@ -450,7 +450,7 @@ async function main() {
   check("every Alpha member placed 1st", alphaEntries.map((e) => e.finishPosition), [1, 1, 1, 1]);
   check("the single prize split evenly, 4 x R150", alphaEntries.map((e) => e.prizeCents), [15000, 15000, 15000, 15000]);
   check("  summing to exactly the pre-announced purse", alphaEntries.reduce((t, e) => t + e.prizeCents, 0), squadRace.totalPrizeCents);
-  check("every Alpha member gets the squad's points", alphaEntries.map((e) => e.pointsAwarded), [5, 5, 5, 5]);
+  check("every Alpha member gets the squad's trophies", alphaEntries.map((e) => e.pointsAwarded), [6, 6, 6, 6]);
 
   const deltaEntries = await prisma.raceEntry.findMany({ where: { squadId: squadIds.Delta } });
   check("last squad: -4 each, no prize", deltaEntries.map((e) => e.pointsAwarded), [-4, -4, -4, -4]);
@@ -655,7 +655,7 @@ async function main() {
   const created = await api("/races", {
     method: "POST",
     token: organiser.token,
-    body: { name: "Smoke Private Solo", metricKey: "running", durationDays: 7, format: "INDIVIDUAL" },
+    body: { name: "Smoke Private Solo", metricKey: "running", durationDays: 7, format: "INDIVIDUAL", entryFeeCents: 4200 },
   });
   check("an admin-flagged user CAN create a private race", created.status, 201);
   check("  it is PRIVATE", created.json.race.visibility, "PRIVATE");
@@ -666,7 +666,7 @@ async function main() {
   const createdRow = await prisma.race.findUnique({ where: { id: created.json.race.id } });
   const creatorRunning = await prisma.userLeagueState.findUnique({ where: { userId_metricKey: { userId: organiser.id, metricKey: "running" } } });
   check("  a running race uses the creator's RUNNING league", createdRow!.leagueLevel, creatorRunning!.currentLevel);
-  check("  fee came from platform config, not the request", createdRow!.entryFeeCents, 5000);
+  check("  fee came from the host's request", createdRow!.entryFeeCents, 4200);
   check("  prizes came from the frozen schedule", (createdRow!.prizeSnapshot as any[]).length, 5);
   check("  in the creator's own league", createdRow!.leagueLevel, 1);
   const organiserWallet = await prisma.user.findUnique({ where: { id: organiser.id } });

@@ -1,3 +1,5 @@
+import { trophiesForPosition } from "./pricing.js";
+
 // Fixed-prize races — tunable constants.
 //
 // Anything that varies per race type, per league, or per prize position is
@@ -31,37 +33,25 @@ export function isRaceEligibleMetric(key: string): key is RaceEligibleMetricKey 
 export const RACE_METRICS_PER_RACE = 1;
 
 // ─────────────────────────────────────────────────────────────────────────
-// League points
+// League trophies
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Points for finishing first, in any race format. */
-export const POINTS_FIRST_PLACE = 5;
-/** Points for finishing last, in any race format. */
+/** Trophies for finishing first, in any race format. */
+export const POINTS_FIRST_PLACE = 6;
+/** Trophies for finishing last in the standard 10-person field. */
 export const POINTS_LAST_PLACE = -4;
 
 /**
- * Position → points, spread linearly from POINTS_FIRST_PLACE down to
- * POINTS_LAST_PLACE across however many finishing positions the race has.
- *
- * This one formula reproduces both scales in the spec exactly:
- *   10 positions → 5, 4, 3, 2, 1, 0, -1, -2, -3, -4
- *    4 positions → 5, 2, -1, -4          (squad races, ranked among 4 squads)
- * so a future 6-entrant or 20-entrant format needs no new table of numbers,
- * and the endpoints stay meaningful: winning is always +5, coming last is
- * always -4, regardless of field size.
+ * Position → trophies. The persisted column is still named pointsAwarded for
+ * backwards compatibility, but the product now treats the value as trophies:
+ * 10 positions → 6, 4, 3, 2, 1, 0, -1, -2, -3, -4.
  *
  * `positionCount` is the number of RANKED SLOTS, which for a squad race is
- * the number of squads (4), not the number of people (16) — every member of
- * a squad receives that squad's points.
+ * the number of squads, not the number of people — every member of a squad
+ * receives that squad's trophies.
  */
 export function pointsForPosition(position: number, positionCount: number): number {
-  if (position < 1 || position > positionCount) {
-    throw new Error(`position ${position} out of range for a ${positionCount}-slot race`);
-  }
-  if (positionCount === 1) return POINTS_FIRST_PLACE;
-  const span = POINTS_FIRST_PLACE - POINTS_LAST_PLACE;
-  const raw = POINTS_FIRST_PLACE - (span * (position - 1)) / (positionCount - 1);
-  return Math.round(raw);
+  return trophiesForPosition(position, positionCount);
 }
 
 /**
