@@ -161,6 +161,11 @@ function ordinal(n: number) {
   return `${n}${suffix}`;
 }
 
+function defaultRaceName(metricKey: MetricKey, durationDays: 1 | 7, format: RaceFormat) {
+  const metric = METRICS.find((m) => m.key === metricKey)?.label ?? "Competition";
+  return `${metric} ${durationDays}-day ${format === "SQUAD" ? "squad" : "solo"} race`;
+}
+
 export function CreateRaceScreen() {
   const navigation = useNavigation<any>();
 
@@ -210,19 +215,20 @@ export function CreateRaceScreen() {
   }, [raceTypes, metricKey, durationDays, format, league]);
 
   const peopleNeeded = selected ? selected.type.totalEntrants : format === "SQUAD" ? 16 : 10;
-  const canSubmit =
-    name.trim().length >= 3 && selected != null && !busy && (format === "INDIVIDUAL" || squadName.trim().length >= 2);
+  const resolvedRaceName = name.trim() || defaultRaceName(metricKey, durationDays, format);
+  const resolvedSquadName = squadName.trim() || "My Squad";
+  const canSubmit = selected != null && !busy;
 
   const submit = useCallback(async () => {
     if (!selected) return;
     setBusy(true);
     try {
       const result = await createRace({
-        name: name.trim(),
+        name: resolvedRaceName,
         metricKey,
         durationDays,
         format,
-        squadName: format === "SQUAD" ? squadName.trim() : undefined,
+        squadName: format === "SQUAD" ? resolvedSquadName : undefined,
       });
       const code = result.inviteCode;
       showAlert(
@@ -235,7 +241,7 @@ export function CreateRaceScreen() {
                 text: "Share code",
                 onPress: () =>
                   void shareCode({
-                    message: `Join my race "${name.trim()}" on Streak — race code: ${code}`,
+                    message: `Join my race "${resolvedRaceName}" on Streak — race code: ${code}`,
                     title: "Race code",
                     code,
                   }),
@@ -257,7 +263,7 @@ export function CreateRaceScreen() {
     } finally {
       setBusy(false);
     }
-  }, [selected, name, metricKey, durationDays, format, squadName, peopleNeeded, navigation]);
+  }, [selected, resolvedRaceName, metricKey, durationDays, format, resolvedSquadName, peopleNeeded, navigation]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -273,11 +279,11 @@ export function CreateRaceScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="Friday Night Steps"
+          placeholder={defaultRaceName(metricKey, durationDays, format)}
           placeholderTextColor={colors.sub}
           maxLength={50}
         />
-        <Text style={styles.charCount}>{name.length}/50</Text>
+        <Text style={styles.charCount}>{name.length ? `${name.length}/50` : "Optional"}</Text>
 
         {/* b) METRIC — exactly one */}
         <Text style={styles.label}>Metric</Text>
@@ -334,7 +340,7 @@ export function CreateRaceScreen() {
               style={styles.input}
               value={squadName}
               onChangeText={setSquadName}
-              placeholder="Trail Blazers"
+              placeholder="My Squad"
               placeholderTextColor={colors.sub}
               maxLength={30}
             />
