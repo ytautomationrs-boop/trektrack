@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { ensureCompetitionCatalog } from "../../lib/competitionCatalog.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import {
@@ -52,6 +53,7 @@ export async function raceRoutes(app: FastifyInstance) {
   // "Pre-announced" is only meaningful if it is actually announced, so this
   // is deliberately available without entering a race.
   app.get("/race-types", async (_req, reply) => {
+    await ensureCompetitionCatalog();
     // Both the publicly-run formats and the ones users may create
     // privately — the create screen needs the fee and prize schedule for a
     // format the platform is not itself running publicly.
@@ -85,6 +87,7 @@ export async function raceRoutes(app: FastifyInstance) {
   // Every metric's league ladder. A level is only meaningful within a
   // metric, so these are grouped rather than returned as one list.
   app.get("/leagues", async (_req, reply) => {
+    await ensureCompetitionCatalog();
     const levels = await prisma.leagueLevel.findMany({
       orderBy: [{ metricKey: "asc" }, { level: "asc" }],
     });
@@ -96,6 +99,7 @@ export async function raceRoutes(app: FastifyInstance) {
   // ── Races ───────────────────────────────────────────────────────────────
 
   app.get("/races", { preHandler: requireAuth }, async (req, reply) => {
+    await ensureCompetitionCatalog();
     const q = ListRacesQuerySchema.parse(req.query);
 
     if (q.scope === "my_league") {
@@ -154,6 +158,7 @@ export async function raceRoutes(app: FastifyInstance) {
   // Pilot: only admin-flagged accounts can create races (regular users can
   // still enter/withdraw/view normally). See middleware/auth.ts requireAdmin.
   app.post("/races", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
+    await ensureCompetitionCatalog();
     const body = CreateRaceSchema.parse(req.body);
 
     if (body.visibility === "PUBLIC") {
@@ -379,11 +384,13 @@ export async function raceRoutes(app: FastifyInstance) {
    * league says nothing about their swimming.
    */
   app.get("/me/leagues", { preHandler: requireAuth }, async (req, reply) => {
+    await ensureCompetitionCatalog();
     return reply.send(await getLeagueStandings(req.userId));
   });
 
   /** One metric's standing on its own. */
   app.get("/me/leagues/:metricKey", { preHandler: requireAuth }, async (req, reply) => {
+    await ensureCompetitionCatalog();
     const { metricKey } = req.params as { metricKey: string };
     return reply.send(await getMetricStanding(req.userId, metricKey));
   });

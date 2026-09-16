@@ -5,8 +5,6 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii } from "../theme/tokens";
-import { PoolHomeScreen } from "../screens/pool/PoolHomeScreen";
-import { ChallengeDetailScreen } from "../screens/pool/ChallengeDetailScreen";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
 import { WalletScreen } from "../screens/wallet/WalletScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
@@ -18,34 +16,15 @@ import { useAppState } from "../state/useAppState";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
-const PoolStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
 /**
- * Two models, two tabs, one app.
+ * Launch shell.
  *
- *   Pool          → StreakPot: pooled stakes, daily targets, zero commission
- *   Competitions  → race/league: fixed prizes, cumulative ranking, leagues
- *
- * They're separate stacks rather than one merged list on purpose. The two
- * models have genuinely different rules about what your money does — a
- * stake can move to another participant, an entry fee cannot — and a single
- * blended feed would be the easiest possible place for someone to lose
- * track of which one they're looking at.
- *
- * "Competitions" rather than "Challenges" for the race tab: StreakPot's own
- * core noun is a challenge, so reusing it here would collide exactly where
- * the distinction matters most.
+ * The public launch product is fixed-prize competitions only. The pooled
+ * challenge code remains in the repository for now, but it is not exposed in
+ * navigation because that model may carry gambling/compliance risk.
  */
-function PoolStackScreen() {
-  return (
-    <PoolStack.Navigator screenOptions={{ headerShown: false }}>
-      <PoolStack.Screen name="PoolHome" component={PoolHomeScreen} />
-      <PoolStack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
-    </PoolStack.Navigator>
-  );
-}
-
 function RacesStackScreen() {
   return (
     <RaceStack.Navigator screenOptions={{ headerShown: false }}>
@@ -83,7 +62,6 @@ const navTheme = {
 };
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Pool: "people-outline",
   Competitions: "trophy-outline",
   Wallet: "wallet-outline",
   Profile: "person-outline",
@@ -121,12 +99,10 @@ export function RootNavigator() {
           tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
         })}
       >
-        {/* StreakPot's home. */}
-        <Tab.Screen name="Pool" component={PoolStackScreen} />
         {/* The race/league browse screen — what used to be "Discover". */}
         <Tab.Screen name="Competitions" component={RacesStackScreen} />
         {/* Hidden from the bar: a stable target for navigating into the race
-            stack by name from Pool, Profile or Create. */}
+            stack by name from Profile or Create. */}
         <Tab.Screen
           name="Races"
           component={RacesStackScreen}

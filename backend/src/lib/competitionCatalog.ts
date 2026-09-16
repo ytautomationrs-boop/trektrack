@@ -1,0 +1,226 @@
+import { prisma } from "./prisma.js";
+import { ensurePlatformAccount } from "./platformAccount.js";
+import {
+  LEAGUE_LEVELS_SEEDED,
+  LEAGUE_POINT_BAND,
+  MAX_PRIZE_TO_REVENUE_RATIO,
+  RACE_ELIGIBLE_METRIC_KEYS,
+  isRaceEligibleMetric,
+} from "../modules/races/config.js";
+
+const METRIC_TYPES = [
+  {
+    key: "steps",
+    displayName: "Steps",
+    unit: "steps",
+    valueType: "COUNT" as const,
+    dataSourceCategory: "STEPS" as const,
+    icon: "footprints",
+    validationRuleKey: "steps.pedometer_corroboration",
+    anomalyRuleKey: "steps.baseline_spike",
+  },
+  {
+    key: "running",
+    displayName: "Running",
+    unit: "km",
+    valueType: "DISTANCE_METERS" as const,
+    dataSourceCategory: "RUNNING_WORKOUT" as const,
+    icon: "running",
+    validationRuleKey: "workout.gps_route_required_running",
+    anomalyRuleKey: "workout.pace_plausibility",
+  },
+  {
+    key: "cycling",
+    displayName: "Cycling",
+    unit: "km",
+    valueType: "DISTANCE_METERS" as const,
+    dataSourceCategory: "CYCLING_WORKOUT" as const,
+    icon: "bike",
+    validationRuleKey: "workout.gps_route_required",
+    anomalyRuleKey: "workout.pace_plausibility",
+  },
+  {
+    key: "swimming",
+    displayName: "Swimming",
+    unit: "m",
+    valueType: "DISTANCE_METERS" as const,
+    dataSourceCategory: "SWIMMING_WORKOUT" as const,
+    icon: "waves",
+    validationRuleKey: "workout.session_required",
+    anomalyRuleKey: "workout.pace_plausibility",
+  },
+];
+
+const LEAGUE_NAMES = ["Bronze", "Iron", "Steel", "Silver", "Gold", "Platinum", "Diamond", "Champion"];
+const INDIVIDUAL_ENTRANTS = 10;
+const SQUAD_COUNT = 2;
+const SQUAD_SIZE = 4;
+const LAUNCH_PUBLIC_FORMATS = new Set(["running_1d_individual", "running_7d_individual", "cycling_7d_individual"]);
+
+type RaceTypeSeed = {
+  key: string;
+  displayName: string;
+  format: "INDIVIDUAL" | "SQUAD";
+  metricKey: string;
+  durationDays: number;
+  entrantCount: number;
+  squadSize: number | null;
+  isActive: boolean;
+  allowUserCreated: boolean;
+};
+
+type ScheduleSeed = { entryFeeCents: number; prizes: Array<{ position: number; amountCents: number }> };
+
+const INDIVIDUAL_7D: ScheduleSeed = {
+  entryFeeCents: 5000,
+  prizes: [
+    { position: 1, amountCents: 15000 },
+    { position: 2, amountCents: 10000 },
+    { position: 3, amountCents: 7500 },
+    { position: 4, amountCents: 5000 },
+    { position: 5, amountCents: 2500 },
+  ],
+};
+
+const INDIVIDUAL_1D: ScheduleSeed = {
+  entryFeeCents: 2500,
+  prizes: [
+    { position: 1, amountCents: 7500 },
+    { position: 2, amountCents: 5000 },
+    { position: 3, amountCents: 3500 },
+    { position: 4, amountCents: 2500 },
+    { position: 5, amountCents: 1500 },
+  ],
+};
+
+const SQUAD_7D: ScheduleSeed = {
+  entryFeeCents: 5000,
+  prizes: [{ position: 1, amountCents: 30000 }],
+};
+
+const SQUAD_1D: ScheduleSeed = {
+  entryFeeCents: 2500,
+  prizes: [{ position: 1, amountCents: 15000 }],
+};
+
+let catalogPromise: Promise<void> | null = null;
+
+export function ensureCompetitionCatalog() {
+  catalogPromise ??= seedCompetitionCatalog().catch((err) => {
+    catalogPromise = null;
+    throw err;
+  });
+  return catalogPromise;
+}
+
+function buildRaceTypes(): RaceTypeSeed[] {
+  const types: RaceTypeSeed[] = [];
+  for (const metric of RACE_ELIGIBLE_METRIC_KEYS) {
+    for (const durationDays of [1, 7] as const) {
+      for (const format of ["INDIVIDUAL", "SQUAD"] as const) {
+        const key = `${metric}_${durationDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
+        const label = metric.charAt(0).toUpperCase() + metric.slice(1);
+        types.push({
+          key,
+          displayName: `${label} · ${durationDays} day${durationDays === 1 ? "" : "s"} · ${format === "SQUAD" ? "Squad" : "Solo"}`,
+          format,
+          metricKey: metric,
+          durationDays,
+          entrantCount: format === "SQUAD" ? SQUAD_COUNT : INDIVIDUAL_ENTRANTS,
+          squadSize: format === "SQUAD" ? SQUAD_SIZE : null,
+          isActive: LAUNCH_PUBLIC_FORMATS.has(key),
+          allowUserCreated: true,
+        });
+      }
+    }
+  }
+  return types;
+}
+
+function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {
+  if (type.format === "SQUAD") return type.durationDays === 1 ? SQUAD_1D : SQUAD_7D;
+  return type.durationDays === 1 ? INDIVIDUAL_1D : INDIVIDUAL_7D;
+}
+
+function scaleSchedule(base: ScheduleSeed, level: number): ScheduleSeed {
+  const entryFeeCents = base.entryFeeCents + (level - 1) * 500;
+  const ratio = entryFeeCents / base.entryFeeCents;
+  const round = (cents: number) => Math.round(cents / 500) * 500;
+  return {
+    entryFeeCents,
+    prizes: base.prizes.map((p) => ({ position: p.position, amountCents: round(p.amountCents * ratio) })),
+  };
+}
+
+function assertViable(type: RaceTypeSeed, schedule: ScheduleSeed) {
+  const bodies = type.entrantCount * (type.squadSize ?? 1);
+  const revenueCents = bodies * schedule.entryFeeCents;
+  const prizeCents = schedule.prizes.reduce((sum, p) => sum + p.amountCents, 0);
+  if (prizeCents / revenueCents > MAX_PRIZE_TO_REVENUE_RATIO) {
+    throw new Error(`Prize schedule for ${type.key} exceeds the fixed-prize margin guardrail.`);
+  }
+}
+
+async function seedCompetitionCatalog() {
+  await ensurePlatformAccount(prisma);
+
+  for (const metric of METRIC_TYPES) {
+    if (!isRaceEligibleMetric(metric.key)) {
+      throw new Error(`Metric "${metric.key}" is not race-eligible.`);
+    }
+    await prisma.metricTypeDefinition.upsert({
+      where: { key: metric.key },
+      update: metric,
+      create: metric,
+    });
+  }
+
+  for (const metric of METRIC_TYPES) {
+    for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+      const name = LEAGUE_NAMES[level - 1] ?? `League ${level}`;
+      const minPoints = (level - 1) * LEAGUE_POINT_BAND;
+      await prisma.leagueLevel.upsert({
+        where: { metricKey_level: { metricKey: metric.key, level } },
+        update: {
+          name,
+          minPoints,
+          ...(level === 1 ? { isOpen: true, openedAt: new Date() } : {}),
+        },
+        create: {
+          metricKey: metric.key,
+          level,
+          name,
+          minPoints,
+          isOpen: level === 1,
+          openedAt: level === 1 ? new Date() : null,
+        },
+      });
+    }
+  }
+
+  for (const type of buildRaceTypes()) {
+    await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
+
+    const base = baseScheduleFor(type);
+    for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+      const scaled = scaleSchedule(base, level);
+      assertViable(type, scaled);
+
+      const schedule = await prisma.racePrizeSchedule.upsert({
+        where: { raceTypeKey_leagueLevel: { raceTypeKey: type.key, leagueLevel: level } },
+        update: { metricKey: type.metricKey, entryFeeCents: scaled.entryFeeCents },
+        create: {
+          raceTypeKey: type.key,
+          metricKey: type.metricKey,
+          leagueLevel: level,
+          entryFeeCents: scaled.entryFeeCents,
+        },
+      });
+
+      await prisma.racePrizeTier.deleteMany({ where: { scheduleId: schedule.id } });
+      await prisma.racePrizeTier.createMany({
+        data: scaled.prizes.map((p) => ({ scheduleId: schedule.id, position: p.position, amountCents: p.amountCents })),
+      });
+    }
+  }
+}

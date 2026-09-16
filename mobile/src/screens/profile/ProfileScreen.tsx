@@ -7,23 +7,18 @@ import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { getProfileStats, getStravaStatus, disconnectStrava, getAppConfig } from "../../api/client";
 import { getLeagueStandings, getLeagueHistory, lookUpRaceCode } from "../../api/raceClient";
-import { getChallengeHistory } from "../../api/challengeClient";
 import { connectStravaAccount } from "../../integrations/strava";
 import { useAppState } from "../../state/useAppState";
 import { formatMetricValue } from "../../utils/metricValue";
 import type { ProfileStats, StravaStatus } from "../../api/types";
 import type { LeagueStandings, MetricStanding, RacePointEntry } from "../../api/raceTypes";
-import type { ChallengeHistoryEntry } from "../../api/challengeTypes";
 import { iconFor } from "../../theme/metricIcons";
 
 /**
  * Profile.
  *
- * Both models, in two clearly separated sections rather than one merged
- * record — because the two measure genuinely different things and a
- * combined figure would describe neither. A league position is a ranking
- * against other people; a streak is a run of days against yourself. There
- * is deliberately still no global numeric rank of any kind.
+ * Competition profile. The launch product is fixed-prize competitions only:
+ * league position, race history and account controls.
  */
 
 function formatCents(cents: number) {
@@ -39,13 +34,11 @@ export function ProfileScreen() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [points, setPoints] = useState<RacePointEntry[]>([]);
-  const [challenges, setChallenges] = useState<ChallengeHistoryEntry[]>([]);
 
   const load = useCallback(() => {
     getProfileStats().then(setStats).catch(() => setStats(null));
     getLeagueStandings().then(setStandings).catch(() => setStandings(null));
     getLeagueHistory().then((r) => setPoints(r.entries)).catch(() => setPoints([]));
-    getChallengeHistory().then((r) => setChallenges(r.entries)).catch(() => setChallenges([]));
   }, []);
 
   useFocusEffect(
@@ -66,10 +59,6 @@ export function ProfileScreen() {
         <PointsHistory entries={points} />
         <JoinByCodeSection />
 
-        {/* ── StreakPot ───────────────────────────────────────────────── */}
-        <ModelHeading title="Pool" subtitle="Pooled-stake challenges. No platform cut — finishers split everything." />
-        <StreakPotSection entries={challenges} />
-
         {/* ── Account ─────────────────────────────────────────────────── */}
         <ModelHeading title="Account" subtitle="" />
         <AdminRow />
@@ -89,78 +78,6 @@ function ModelHeading({ title, subtitle }: { title: string; subtitle: string }) 
       <Text style={styles.modelHeadingTitle}>{title}</Text>
       {!!subtitle && <Text style={styles.modelHeadingSub}>{subtitle}</Text>}
     </View>
-  );
-}
-
-/**
- * StreakPot record: streaks completed, challenges won/lost.
- *
- * Deliberately NOT merged into the race stat grid above — "3 challenges
- * finished" and "3 races won" are different achievements, and summing them
- * into one "wins" number would overstate both.
- */
-function StreakPotSection({ entries }: { entries: ChallengeHistoryEntry[] }) {
-  if (entries.length === 0) {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>No challenges yet</Text>
-        <Text style={styles.cardBody}>Join one from the Pool tab — stake, hit your daily target, split the pool with whoever finishes.</Text>
-      </View>
-    );
-  }
-
-  const finished = entries.filter((e) => e.status === "FINISHED").length;
-  const eliminated = entries.filter((e) => e.status === "ELIMINATED").length;
-  const active = entries.filter((e) => e.status === "ACTIVE").length;
-  const bestStreak = entries.reduce((max, e) => Math.max(max, e.currentStreak), 0);
-
-  const items = [
-    { label: "Finished", value: String(finished) },
-    { label: "Missed out", value: String(eliminated) },
-    { label: "In progress", value: String(active) },
-    { label: "Best streak", value: `${bestStreak}d` },
-  ];
-
-  return (
-    <>
-      <View style={styles.statGrid}>
-        {items.map((item) => (
-          <View key={item.label} style={styles.statCard}>
-            <Text style={styles.statCardValue} numberOfLines={1} adjustsFontSizeToFit>
-              {item.value}
-            </Text>
-            <Text style={styles.statCardLabel}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.card}>
-        {entries.slice(0, 8).map((e) => (
-          <View key={e.id} style={styles.challengeRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.challengeTitle} numberOfLines={1}>
-                {e.challenge.title}
-              </Text>
-              <Text style={styles.challengeSub}>
-                {e.challenge.durationDays}d · {e.challenge.mode === "SQUAD" ? "Squad" : "Solo"}
-                {e.status === "ELIMINATED" && e.eliminatedOnDay != null ? ` · out on day ${e.eliminatedOnDay}` : ""}
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.challengeStatus,
-                {
-                  color:
-                    e.status === "FINISHED" ? colors.won : e.status === "ELIMINATED" ? colors.fail : e.status === "ACTIVE" ? colors.sage : colors.sub,
-                },
-              ]}
-            >
-              {e.status === "FINISHED" ? "Finished" : e.status === "ELIMINATED" ? "Missed" : e.status === "ACTIVE" ? "Active" : "Withdrawn"}
-            </Text>
-          </View>
-        ))}
-      </View>
-    </>
   );
 }
 
