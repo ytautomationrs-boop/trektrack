@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { ensureEffectiveAdmin, isBootstrapAdminEmail } from "../../lib/adminAccess.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import { GenerateInviteCodesSchema, LoginSchema, SignUpSchema } from "./schemas.js";
@@ -85,6 +86,7 @@ export async function authRoutes(app: FastifyInstance) {
             passwordHash,
             displayName: body.displayName,
             timezone: body.timezone,
+            isAdmin: isBootstrapAdminEmail(body.email),
           },
         });
 
@@ -103,9 +105,10 @@ export async function authRoutes(app: FastifyInstance) {
       });
 
       const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+      const isAdmin = await ensureEffectiveAdmin(user);
       return reply.code(201).send({
         token,
-        user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin: user.isAdmin },
+        user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin },
       });
     } catch (err) {
       return sendAuthError(reply, err);
@@ -119,9 +122,10 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: "invalid_credentials" });
     }
     const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+    const isAdmin = await ensureEffectiveAdmin(user);
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin: user.isAdmin },
+      user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin },
     });
   });
 
@@ -134,7 +138,8 @@ export async function authRoutes(app: FastifyInstance) {
       select: { id: true, email: true, displayName: true, avatarUrl: true, walletBalanceCents: true, isAdmin: true },
     });
     if (!user) return reply.code(404).send({ error: "not_found" });
-    return reply.send({ user });
+    const isAdmin = await ensureEffectiveAdmin(user);
+    return reply.send({ user: { ...user, isAdmin } });
   });
 
   // ── Pilot invite-code administration ──────────────────────────────────

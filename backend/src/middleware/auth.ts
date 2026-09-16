@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { ensureEffectiveAdmin } from "../lib/adminAccess.js";
 import { prisma } from "../lib/prisma.js";
 
 declare module "fastify" {
@@ -43,8 +44,8 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
  * while the app is invite-only. Drop this once public creation reopens.
  */
 export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
-  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
-  if (!user?.isAdmin) {
+  const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { id: true, email: true, isAdmin: true } });
+  if (!user || !(await ensureEffectiveAdmin(user))) {
     reply.code(403).send({
       error: "admin_only",
       message: "Streak is invite-only right now — only the team can create races or challenges during the pilot.",
