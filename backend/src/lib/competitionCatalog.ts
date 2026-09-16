@@ -113,6 +113,40 @@ export function ensureCompetitionCatalog() {
   return catalogPromise;
 }
 
+export function getCompetitionRaceTypesPayload() {
+  return buildRaceTypes().map((type) => ({
+    ...type,
+    createdAt: new Date(0).toISOString(),
+    totalEntrants: type.entrantCount * (type.squadSize ?? 1),
+    metricType: metricTypePayload(type.metricKey),
+    schedules: Array.from({ length: LEAGUE_LEVELS_SEEDED }, (_, index) => {
+      const leagueLevel = index + 1;
+      const scaled = scaleSchedule(baseScheduleFor(type), leagueLevel);
+      return {
+        leagueLevel,
+        leagueName: LEAGUE_NAMES[index] ?? `League ${leagueLevel}`,
+        leagueIsOpen: leagueLevel === 1,
+        entryFeeCents: scaled.entryFeeCents,
+        currency: "zar",
+        prizes: scaled.prizes,
+        totalPrizeCents: scaled.prizes.reduce((sum, prize) => sum + prize.amountCents, 0),
+      };
+    }),
+  }));
+}
+
+function metricTypePayload(metricKey: string) {
+  const metric = METRIC_TYPES.find((item) => item.key === metricKey);
+  if (!metric) throw new Error(`Unknown race metric "${metricKey}".`);
+  return {
+    key: metric.key,
+    displayName: metric.displayName,
+    unit: metric.unit,
+    valueType: metric.valueType,
+    icon: metric.icon,
+  };
+}
+
 function buildRaceTypes(): RaceTypeSeed[] {
   const types: RaceTypeSeed[] = [];
   for (const metric of RACE_ELIGIBLE_METRIC_KEYS) {
@@ -162,6 +196,18 @@ function assertViable(type: RaceTypeSeed, schedule: ScheduleSeed) {
 }
 
 async function seedCompetitionCatalog() {
+  const [metricCount, leagueCount, raceTypeCount, scheduleCount] = await Promise.all([
+    prisma.metricTypeDefinition.count({ where: { key: { in: METRIC_TYPES.map((metric) => metric.key) } } }),
+    prisma.leagueLevel.count(),
+    prisma.raceType.count(),
+    prisma.racePrizeSchedule.count(),
+  ]);
+  const expectedSchedules = buildRaceTypes().length * LEAGUE_LEVELS_SEEDED;
+  const expectedLeagues = METRIC_TYPES.length * LEAGUE_LEVELS_SEEDED;
+  if (metricCount >= METRIC_TYPES.length && leagueCount >= expectedLeagues && raceTypeCount >= buildRaceTypes().length && scheduleCount >= expectedSchedules) {
+    return;
+  }
+
   await ensurePlatformAccount(prisma);
 
   for (const metric of METRIC_TYPES) {

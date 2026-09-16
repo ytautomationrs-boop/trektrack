@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { ensureCompetitionCatalog } from "../../lib/competitionCatalog.js";
+import { ensureCompetitionCatalog, getCompetitionRaceTypesPayload } from "../../lib/competitionCatalog.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import {
@@ -53,35 +53,8 @@ export async function raceRoutes(app: FastifyInstance) {
   // "Pre-announced" is only meaningful if it is actually announced, so this
   // is deliberately available without entering a race.
   app.get("/race-types", async (_req, reply) => {
-    await ensureCompetitionCatalog();
-    // Both the publicly-run formats and the ones users may create
-    // privately — the create screen needs the fee and prize schedule for a
-    // format the platform is not itself running publicly.
-    const types = await prisma.raceType.findMany({
-      where: { OR: [{ isActive: true }, { allowUserCreated: true }] },
-      include: {
-        metricType: { select: { key: true, displayName: true, unit: true, valueType: true, icon: true } },
-        schedules: {
-          include: { tiers: { orderBy: { position: "asc" } }, league: true },
-          orderBy: { leagueLevel: "asc" },
-        },
-      },
-    });
-    return reply.send({
-      raceTypes: types.map((t) => ({
-        ...t,
-        totalEntrants: t.entrantCount * (t.squadSize ?? 1),
-        schedules: t.schedules.map((s) => ({
-          leagueLevel: s.leagueLevel,
-          leagueName: s.league.name,
-          leagueIsOpen: s.league.isOpen,
-          entryFeeCents: s.entryFeeCents,
-          currency: s.currency,
-          prizes: s.tiers.map((tier) => ({ position: tier.position, amountCents: tier.amountCents })),
-          totalPrizeCents: s.tiers.reduce((sum, tier) => sum + tier.amountCents, 0),
-        })),
-      })),
-    });
+    void ensureCompetitionCatalog().catch((err) => app.log.error({ err }, "competition catalog repair failed"));
+    return reply.send({ raceTypes: getCompetitionRaceTypesPayload() });
   });
 
   // Every metric's league ladder. A level is only meaningful within a

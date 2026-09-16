@@ -12,7 +12,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
-import { LoadError } from "../../components/LoadError";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
 import { iconFor } from "../../theme/metricIcons";
@@ -48,6 +47,111 @@ const DURATIONS: Array<{ days: 1 | 7; label: string; hint: string }> = [
   { days: 7, label: "7 days", hint: "A full week" },
 ];
 
+const LEAGUE_NAMES = ["Bronze", "Iron", "Steel", "Silver", "Gold", "Platinum"];
+
+const METRIC_META: Record<MetricKey, RaceType["metricType"]> = {
+  steps: { key: "steps", displayName: "Steps", unit: "steps", valueType: "COUNT", icon: "footprints" },
+  running: { key: "running", displayName: "Running", unit: "km", valueType: "DISTANCE_METERS", icon: "running" },
+  cycling: { key: "cycling", displayName: "Cycling", unit: "km", valueType: "DISTANCE_METERS", icon: "bike" },
+  swimming: { key: "swimming", displayName: "Swimming", unit: "m", valueType: "DISTANCE_METERS", icon: "waves" },
+};
+
+const BASE_PRIZES = {
+  individual7: {
+    entryFeeCents: 5000,
+    prizes: [
+      { position: 1, amountCents: 15000 },
+      { position: 2, amountCents: 10000 },
+      { position: 3, amountCents: 7500 },
+      { position: 4, amountCents: 5000 },
+      { position: 5, amountCents: 2500 },
+    ],
+  },
+  individual1: {
+    entryFeeCents: 2500,
+    prizes: [
+      { position: 1, amountCents: 7500 },
+      { position: 2, amountCents: 5000 },
+      { position: 3, amountCents: 3500 },
+      { position: 4, amountCents: 2500 },
+      { position: 5, amountCents: 1500 },
+    ],
+  },
+  squad7: { entryFeeCents: 5000, prizes: [{ position: 1, amountCents: 30000 }] },
+  squad1: { entryFeeCents: 2500, prizes: [{ position: 1, amountCents: 15000 }] },
+} as const;
+
+function scaleSchedule(base: { entryFeeCents: number; prizes: Array<{ position: number; amountCents: number }> }, level: number) {
+  const entryFeeCents = base.entryFeeCents + (level - 1) * 500;
+  const ratio = entryFeeCents / base.entryFeeCents;
+  const round = (cents: number) => Math.round(cents / 500) * 500;
+  const prizes = base.prizes.map((p) => ({ position: p.position, amountCents: round(p.amountCents * ratio) }));
+  return { entryFeeCents, prizes };
+}
+
+function baseScheduleFor(format: RaceFormat, durationDays: 1 | 7) {
+  if (format === "SQUAD") return durationDays === 1 ? BASE_PRIZES.squad1 : BASE_PRIZES.squad7;
+  return durationDays === 1 ? BASE_PRIZES.individual1 : BASE_PRIZES.individual7;
+}
+
+function buildLaunchRaceTypes(): RaceType[] {
+  return METRICS.flatMap((metric) =>
+    DURATIONS.flatMap((duration) =>
+      (["INDIVIDUAL", "SQUAD"] as const).map((format) => {
+        const key = `${metric.key}_${duration.days}d_${format === "SQUAD" ? "squad" : "individual"}`;
+        const entrantCount = format === "SQUAD" ? 2 : 10;
+        const squadSize = format === "SQUAD" ? 4 : null;
+        return {
+          key,
+          displayName: `${metric.label} · ${duration.days} day${duration.days === 1 ? "" : "s"} · ${format === "SQUAD" ? "Squad" : "Solo"}`,
+          isActive: ["running_1d_individual", "running_7d_individual", "cycling_7d_individual"].includes(key),
+          allowUserCreated: true,
+          format,
+          metricKey: metric.key,
+          metricType: METRIC_META[metric.key],
+          durationDays: duration.days,
+          entrantCount,
+          squadSize,
+          totalEntrants: entrantCount * (squadSize ?? 1),
+          schedules: LEAGUE_NAMES.map((leagueName, index) => {
+            const leagueLevel = index + 1;
+            const scaled = scaleSchedule(baseScheduleFor(format, duration.days), leagueLevel);
+            return {
+              leagueLevel,
+              leagueName,
+              leagueIsOpen: leagueLevel === 1,
+              entryFeeCents: scaled.entryFeeCents,
+              currency: "zar",
+              prizes: scaled.prizes,
+              totalPrizeCents: scaled.prizes.reduce((sum, prize) => sum + prize.amountCents, 0),
+            };
+          }),
+        };
+      })
+    )
+  );
+}
+
+const LAUNCH_RACE_TYPES = buildLaunchRaceTypes();
+
+function fallbackStandings(): LeagueStandings {
+  return {
+    primaryMetricKey: "steps",
+    standings: METRICS.map((metric) => ({
+      metricKey: metric.key,
+      metricName: metric.label,
+      totalPoints: 0,
+      racesEntered: 0,
+      racesWon: 0,
+      currentLeague: { level: 1, name: "Bronze", minPoints: 0 },
+      nextLeague: { level: 2, name: "Iron", minPoints: 15, isOpen: false },
+      pointsToNextLeague: 15,
+      bandProgress: 0,
+      qualifiedForUnopenedLevel: null,
+    })),
+  };
+}
+
 function formatCents(cents: number) {
   return `R${(cents / 100).toLocaleString()}`;
 }
@@ -67,26 +171,21 @@ export function CreateRaceScreen() {
   const [squadName, setSquadName] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [raceTypes, setRaceTypes] = useState<RaceType[]>([]);
-  const [standings, setStandings] = useState<LeagueStandings | null>(null);
-  const [configLoading, setConfigLoading] = useState(true);
-  const [configError, setConfigError] = useState<Error | null>(null);
+  const [raceTypes, setRaceTypes] = useState<RaceType[]>(LAUNCH_RACE_TYPES);
+  const [standings, setStandings] = useState<LeagueStandings>(fallbackStandings());
+  const [configLoading, setConfigLoading] = useState(false);
 
   const loadConfig = useCallback(async () => {
     setConfigLoading(true);
-    try {
-      const [typesResult, standingsResult] = await Promise.all([getRaceTypes(), getLeagueStandings()]);
-      if (typesResult.raceTypes.length === 0) throw new Error("Race fees and prizes are not configured yet.");
-      setRaceTypes(typesResult.raceTypes);
-      setStandings(standingsResult);
-      setConfigError(null);
-    } catch (err) {
-      setRaceTypes([]);
-      setStandings(null);
-      setConfigError(err as Error);
-    } finally {
-      setConfigLoading(false);
+    const [typesResult, standingsResult] = await Promise.allSettled([getRaceTypes(), getLeagueStandings()]);
+
+    if (typesResult.status === "fulfilled" && typesResult.value.raceTypes.length > 0) {
+      setRaceTypes(typesResult.value.raceTypes);
     }
+    if (standingsResult.status === "fulfilled") {
+      setStandings(standingsResult.value);
+    }
+    setConfigLoading(false);
   }, []);
 
   useEffect(() => {
@@ -96,7 +195,7 @@ export function CreateRaceScreen() {
   // The race runs in the creator's league FOR THE SELECTED METRIC — someone
   // deep in the running leagues still creates a swimming race at their
   // swimming level, which for a first-time swimmer is Bronze.
-  const metricStanding = standings?.standings.find((s) => s.metricKey === metricKey) ?? null;
+  const metricStanding = standings.standings.find((s) => s.metricKey === metricKey) ?? null;
   const league = metricStanding?.currentLeague ?? null;
 
   // The selected combination's platform config: fee, prizes, field size.
@@ -271,12 +370,9 @@ export function CreateRaceScreen() {
           Each metric has its own leagues, so this changes with the metric you pick.
         </Text>
 
-        {configError ? (
+        {selected ? (
           <View style={styles.feeCard}>
-            <LoadError error={configError} onRetry={loadConfig} />
-          </View>
-        ) : selected ? (
-          <View style={styles.feeCard}>
+            {configLoading && <ActivityIndicator color={colors.accent} style={styles.inlineLoader} />}
             <View style={styles.feeRow}>
               <Text style={styles.feeLabel}>Entry fee</Text>
               <Text style={styles.feeValue}>{formatCents(selected.schedule.entryFeeCents)}</Text>
@@ -397,6 +493,7 @@ const styles = StyleSheet.create({
   },
 
   feeCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
+  inlineLoader: { alignSelf: "flex-start", marginBottom: spacing.sm },
   emptyConfig: { alignItems: "center", gap: spacing.sm },
   emptyConfigTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text, textAlign: "center" },
   emptyConfigText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, textAlign: "center", lineHeight: 17 },
