@@ -53,7 +53,6 @@ export async function raceRoutes(app: FastifyInstance) {
   // "Pre-announced" is only meaningful if it is actually announced, so this
   // is deliberately available without entering a race.
   app.get("/race-types", async (_req, reply) => {
-    void ensureCompetitionCatalog().catch((err) => app.log.error({ err }, "competition catalog repair failed"));
     return reply.send({ raceTypes: getCompetitionRaceTypesPayload() });
   });
 
