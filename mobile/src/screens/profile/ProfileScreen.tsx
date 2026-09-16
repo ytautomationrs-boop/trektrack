@@ -7,11 +7,22 @@ import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { getProfileStats, getStravaStatus, disconnectStrava, getAppConfig } from "../../api/client";
 import { getLeagueStandings, getLeagueHistory, lookUpRaceCode } from "../../api/raceClient";
+import {
+  acceptFriend,
+  getFriends,
+  getPlayerProfile,
+  removeFriend,
+  requestFriend,
+  searchPlayers,
+  type FriendsPayload,
+  type PlayerProfile,
+  type PlayerSummary,
+} from "../../api/socialClient";
 import { connectStravaAccount } from "../../integrations/strava";
 import { useAppState } from "../../state/useAppState";
 import { formatMetricValue } from "../../utils/metricValue";
 import type { ProfileStats, StravaStatus } from "../../api/types";
-import type { LeagueStandings, MetricStanding, RacePointEntry } from "../../api/raceTypes";
+import type { LeagueStandings, MetricStanding, RaceHistoryEntry, RacePointEntry } from "../../api/raceTypes";
 import { iconFor } from "../../theme/metricIcons";
 
 /**
@@ -52,6 +63,10 @@ export function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <IdentityCard />
 
+        {/* ── Social ─────────────────────────────────────────────────── */}
+        <ModelHeading title="Players" subtitle="Find friends, compare leagues, and follow recent race history." />
+        <SocialSection />
+
         {/* ── Race / league ───────────────────────────────────────────── */}
         <ModelHeading title="Competitions" subtitle="Fixed-prize races, ranked into leagues per metric." />
         <LeagueBadges standings={standings} />
@@ -90,6 +105,285 @@ function IdentityCard() {
       </View>
       <Text style={styles.name}>{app.session?.displayName ?? "Guest"}</Text>
       {!!app.session?.email && <Text style={styles.email}>{app.session.email}</Text>}
+    </View>
+  );
+}
+
+function SocialSection() {
+  const [friends, setFriends] = useState<FriendsPayload>({ friends: [], incoming: [], outgoing: [] });
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PlayerSummary[]>([]);
+  const [selected, setSelected] = useState<PlayerProfile | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const loadFriends = useCallback(() => {
+    getFriends().then(setFriends).catch(() => setFriends({ friends: [], incoming: [], outgoing: [] }));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadFriends();
+    }, [loadFriends])
+  );
+
+  const runSearch = async () => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+    setBusy("search");
+    try {
+      const data = await searchPlayers(q);
+      setResults(data.players);
+    } catch (err: any) {
+      showAlert("Search failed", err.message ?? "Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openPlayer = async (playerId: string) => {
+    setBusy(`open:${playerId}`);
+    try {
+      setSelected(await getPlayerProfile(playerId));
+    } catch (err: any) {
+      showAlert("Couldn't load player", err.message ?? "Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const refreshSelected = async (playerId: string) => {
+    getPlayerProfile(playerId).then(setSelected).catch(() => {});
+  };
+
+  const act = async (player: PlayerSummary, action: "request" | "accept" | "remove") => {
+    setBusy(`${action}:${player.id}`);
+    try {
+      if (action === "request") await requestFriend(player.id);
+      if (action === "accept") await acceptFriend(player.id);
+      if (action === "remove") await removeFriend(player.id);
+      loadFriends();
+      setResults((items) =>
+        items.map((item) =>
+          item.id === player.id
+            ? { ...item, friendState: action === "request" ? "pending_sent" : action === "accept" ? "friends" : "none" }
+            : item
+        )
+      );
+      if (selected?.player.id === player.id) await refreshSelected(player.id);
+    } catch (err: any) {
+      showAlert("Friends", err.message ?? "Something went wrong.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Search players</Text>
+        <View style={styles.codeRow}>
+          <TextInput
+            style={styles.codeInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Name or email"
+            placeholderTextColor={colors.sub}
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={runSearch}
+          />
+          <Pressable style={[styles.codeGo, (query.trim().length < 2 || busy === "search") && styles.disabled]} disabled={query.trim().length < 2 || busy === "search"} onPress={runSearch}>
+            {busy === "search" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="search" size={18} color={colors.bg} />}
+          </Pressable>
+        </View>
+        {results.map((player) => (
+          <PlayerRow
+            key={player.id}
+            player={player}
+            busy={busy}
+            onOpen={() => openPlayer(player.id)}
+            onRequest={() => act(player, "request")}
+            onAccept={() => act(player, "accept")}
+            onRemove={() => act(player, "remove")}
+          />
+        ))}
+      </View>
+
+      {friends.incoming.length > 0 && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Friend requests</Text>
+          {friends.incoming.map((player) => (
+            <PlayerRow
+              key={player.id}
+              player={{ ...player, friendState: "pending_received" }}
+              busy={busy}
+              onOpen={() => openPlayer(player.id)}
+              onRequest={() => act(player, "request")}
+              onAccept={() => act(player, "accept")}
+              onRemove={() => act(player, "remove")}
+            />
+          ))}
+        </View>
+      )}
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Friends</Text>
+        {friends.friends.length === 0 ? (
+          <Text style={styles.cardBody}>Search for players to add your first friends.</Text>
+        ) : (
+          friends.friends.map((player) => (
+            <PlayerRow
+              key={player.id}
+              player={{ ...player, friendState: "friends" }}
+              busy={busy}
+              onOpen={() => openPlayer(player.id)}
+              onRequest={() => act(player, "request")}
+              onAccept={() => act(player, "accept")}
+              onRemove={() => act(player, "remove")}
+            />
+          ))
+        )}
+      </View>
+
+      {selected && (
+        <PlayerProfileCard
+          profile={selected}
+          busy={busy}
+          onClose={() => setSelected(null)}
+          onRequest={() => act(selected.player, "request")}
+          onAccept={() => act(selected.player, "accept")}
+          onRemove={() => act(selected.player, "remove")}
+        />
+      )}
+    </>
+  );
+}
+
+function PlayerRow({
+  player,
+  busy,
+  onOpen,
+  onRequest,
+  onAccept,
+  onRemove,
+}: {
+  player: PlayerSummary;
+  busy: string | null;
+  onOpen: () => void;
+  onRequest: () => void;
+  onAccept: () => void;
+  onRemove: () => void;
+}) {
+  const actionBusy = busy?.endsWith(`:${player.id}`) ?? false;
+  const state = player.friendState ?? "none";
+  const action =
+    state === "pending_received"
+      ? { label: "Accept", onPress: onAccept }
+      : state === "friends"
+        ? { label: "Remove", onPress: onRemove }
+        : state === "pending_sent"
+          ? { label: "Sent", onPress: undefined }
+          : { label: "Add", onPress: onRequest };
+
+  return (
+    <View style={styles.playerRow}>
+      <Pressable style={styles.playerMain} onPress={onOpen}>
+        <View style={styles.playerAvatar}>
+          <Text style={styles.playerInitial}>{player.displayName[0]?.toUpperCase() ?? "?"}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
+          <Text style={styles.playerSub}>{state === "friends" ? "Friend" : state === "pending_received" ? "Wants to connect" : state === "pending_sent" ? "Request sent" : "View profile"}</Text>
+        </View>
+      </Pressable>
+      <Pressable style={[styles.friendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
+        {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
+      </Pressable>
+    </View>
+  );
+}
+
+function PlayerProfileCard({
+  profile,
+  busy,
+  onClose,
+  onRequest,
+  onAccept,
+  onRemove,
+}: {
+  profile: PlayerProfile;
+  busy: string | null;
+  onClose: () => void;
+  onRequest: () => void;
+  onAccept: () => void;
+  onRemove: () => void;
+}) {
+  const state = profile.friendState;
+  const actionBusy = busy?.endsWith(`:${profile.player.id}`) ?? false;
+  const action =
+    state === "pending_received"
+      ? { label: "Accept friend", onPress: onAccept }
+      : state === "friends"
+        ? { label: "Remove friend", onPress: onRemove }
+        : state === "pending_sent"
+          ? { label: "Request sent", onPress: undefined }
+          : { label: "Add friend", onPress: onRequest };
+
+  return (
+    <View style={styles.profileCard}>
+      <View style={styles.profileCardHeader}>
+        <View style={styles.playerAvatarLarge}>
+          <Text style={styles.playerInitialLarge}>{profile.player.displayName[0]?.toUpperCase() ?? "?"}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.profileCardName}>{profile.player.displayName}</Text>
+          <Text style={styles.cardBody}>{state === "friends" ? "Friend" : "Player profile"}</Text>
+        </View>
+        <Pressable onPress={onClose} hitSlop={8}>
+          <Ionicons name="close" size={20} color={colors.sub} />
+        </Pressable>
+      </View>
+
+      <Pressable style={[styles.wideFriendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
+        {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
+      </Pressable>
+
+      <Text style={styles.sectionTitle}>Leagues</Text>
+      <View style={styles.badgeGrid}>
+        {profile.leagues.standings.map((standing) => (
+          <LeagueBadge key={standing.metricKey} standing={standing} />
+        ))}
+      </View>
+
+      <Text style={styles.sectionTitle}>Recent races</Text>
+      {profile.raceHistory.length === 0 ? (
+        <Text style={styles.cardBody}>No races yet.</Text>
+      ) : (
+        profile.raceHistory.slice(0, 8).map((entry) => <RaceHistoryRow key={entry.id} entry={entry} />)
+      )}
+    </View>
+  );
+}
+
+function RaceHistoryRow({ entry }: { entry: RaceHistoryEntry }) {
+  return (
+    <View style={styles.historyRow}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.historyTitle} numberOfLines={1}>{entry.race.name}</Text>
+        <Text style={styles.historySub}>
+          {entry.race.metricKey} · {entry.race.league.name} · {entry.race.status.toLowerCase()}
+        </Text>
+      </View>
+      <View style={styles.historyRight}>
+        <Text style={styles.historyPosition}>{entry.finishPosition ? ordinal(entry.finishPosition) : "—"}</Text>
+        <Text style={[styles.historyPoints, { color: (entry.pointsAwarded ?? 0) >= 0 ? colors.sage : colors.fail }]}>
+          {entry.pointsAwarded != null && entry.pointsAwarded >= 0 ? "+" : ""}
+          {entry.pointsAwarded ?? 0}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -494,6 +788,72 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   disabled: { opacity: 0.45 },
+
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingTop: spacing.md,
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceRaised,
+  },
+  playerMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  playerAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerInitial: { fontFamily: fonts.display, fontSize: 15, color: colors.accent },
+  playerName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  playerSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
+  friendButton: {
+    minWidth: 76,
+    minHeight: 34,
+    borderRadius: radii.sm,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  friendButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.bg },
+
+  profileCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, marginTop: spacing.lg },
+  profileCardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  playerAvatarLarge: {
+    width: 54,
+    height: 54,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playerInitialLarge: { fontFamily: fonts.display, fontSize: 22, color: colors.accent },
+  profileCardName: { fontFamily: fonts.display, fontSize: 20, color: colors.text },
+  wideFriendButton: {
+    minHeight: 42,
+    borderRadius: radii.sm,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: spacing.lg,
+  },
+  historyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceRaised,
+  },
+  historyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  historySub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1, textTransform: "capitalize" },
+  historyRight: { alignItems: "flex-end", minWidth: 54 },
+  historyPosition: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  historyPoints: { fontFamily: fonts.bodySemiBold, fontSize: 12, marginTop: 1 },
 
   pointRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, paddingVertical: spacing.sm },
   pointPos: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub, width: 40 },

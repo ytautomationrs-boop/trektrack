@@ -84,6 +84,8 @@ model User {
   challengeFlagsReviewed ChallengeAnomalyFlag[] @relation("ChallengeAnomalyFlagReviewedBy")
   reportsMade            Report[]               @relation("Reporter")
   reportsReceived        Report[]               @relation("Reported")
+  friendRequestsSent     Friendship[]           @relation("FriendshipRequester")
+  friendRequestsReceived Friendship[]           @relation("FriendshipAddressee")
 
   raceEntries      RaceEntry[]
   createdRaces     Race[]            @relation("RaceCreator")
@@ -99,6 +101,28 @@ model User {
   badges                  UserBadge[]
 
   @@index([email])
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+model Friendship {
+  id          String           @id @default(cuid())
+  requesterId String
+  requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User             @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  acceptedAt  DateTime?
+
+  @@unique([requesterId, addresseeId])
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
 }
 
 // Pilot invite gate. There is no public sign-up route while this exists —

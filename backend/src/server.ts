@@ -20,6 +20,7 @@ import { walletRoutes } from "./modules/wallet/routes.js";
 import { raceRoutes } from "./modules/races/routes.js";
 import { challengeRoutes } from "./modules/challenges/routes.js";
 import { notificationRoutes } from "./modules/notifications/routes.js";
+import { socialRoutes } from "./modules/social/routes.js";
 import { startScheduler } from "./jobs/scheduler.js";
 
 /**
@@ -208,6 +209,7 @@ export async function buildServer() {
   await app.register(raceRoutes);
   await app.register(challengeRoutes);
   await app.register(notificationRoutes);
+  await app.register(socialRoutes);
 
   await registerWebApp(app);
 
