@@ -119,13 +119,16 @@ await p.\$disconnect();
 After connecting the real Hostinger HTTPS domain:
 
 - Set `WEB_APP_URL` to the final origin, for example
-  `https://streak.example.com`.
+
+  ```text
+  https://lightsteelblue-giraffe-860469.hostingersite.com
+  ```
 - If Strava is enabled, set the Strava Authorization Callback Domain to the
-  bare domain, for example `streak.example.com`, and set
+  bare domain, for example `lightsteelblue-giraffe-860469.hostingersite.com`, and set
   `STRAVA_WEB_REDIRECT_URI` to
-  `https://streak.example.com/integrations/strava/web-callback`.
+  `https://lightsteelblue-giraffe-860469.hostingersite.com/integrations/strava/web-callback`.
 - If native builds are used, set `STRAVA_REDIRECT_URI` to
-  `https://streak.example.com/integrations/strava/mobile-callback`.
+  `https://lightsteelblue-giraffe-860469.hostingersite.com/integrations/strava/mobile-callback`.
 - In Paystack, use the same HTTPS domain for web callbacks. The backend sends
   the exact per-transaction callback URL as
   `${WEB_APP_URL}/paystack-callback`.
