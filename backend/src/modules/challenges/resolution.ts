@@ -223,7 +223,7 @@ export async function resolveDueChallenges(now = new Date()) {
 async function refundEveryone(challengeId: string, currency: string, participants: ChallengeParticipant[]) {
   for (const p of participants) {
     await prisma.$transaction([
-      prisma.user.update({ where: { id: p.userId }, data: { walletBalanceCents: { increment: p.stakeCents } } }),
+      prisma.user.update({ where: { id: p.userId }, data: { walletBalanceCents: { increment: p.stakeCents } }, select: { id: true } }),
       prisma.challengeParticipant.update({ where: { id: p.id }, data: { escrowStatus: "RELEASED" } }),
       prisma.ledgerEntry.create({
         data: {
@@ -248,7 +248,7 @@ async function payFinishers(challengeId: string, title: string, currency: string
   for (const [i, p] of finishers.entries()) {
     const payoutCents = share + (i === 0 ? dust : 0);
     await prisma.$transaction([
-      prisma.user.update({ where: { id: p.userId }, data: { walletBalanceCents: { increment: payoutCents } } }),
+      prisma.user.update({ where: { id: p.userId }, data: { walletBalanceCents: { increment: payoutCents } }, select: { id: true } }),
       prisma.challengeParticipant.update({ where: { id: p.id }, data: { escrowStatus: "RELEASED", status: "FINISHED" } }),
       prisma.ledgerEntry.create({
         data: {

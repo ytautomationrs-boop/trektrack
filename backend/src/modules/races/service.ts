@@ -205,7 +205,7 @@ export async function createPrivateRaceAndEnter(params: {
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
 }) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId }, select: { timezone: true } });
 
   // The race runs in the creator's league FOR THIS RACE'S METRIC — someone
   // deep in the running leagues still creates a swimming race at their
@@ -337,7 +337,7 @@ export type EnterRaceResult = {
  * entering again.
  */
 export async function enterRace(params: EnterRaceParams): Promise<EnterRaceResult> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId }, select: { timezone: true } });
 
   return prisma.$transaction(async (tx) => {
     // Serialises every concurrent entry to THIS race behind one lock, so the
@@ -585,7 +585,7 @@ async function lockRace(tx: Prisma.TransactionClient, race: Race): Promise<Race>
   const revenueCents = entries.reduce((sum, e) => sum + e.entryFeeCents, 0);
 
   const platform = await ensurePlatformAccount(tx);
-  await tx.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { increment: revenueCents } } });
+  await tx.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { increment: revenueCents } }, select: { id: true } });
   await tx.ledgerEntry.create({
     data: {
       userId: platform.id,
@@ -697,6 +697,7 @@ export async function cancelRaceEntry(params: { userId: string; raceId: string }
     await tx.user.update({
       where: { id: params.userId },
       data: { walletBalanceCents: { increment: entry.entryFeeCents } },
+      select: { id: true },
     });
     await tx.raceEntry.update({ where: { id: entry.id }, data: { status: "WITHDRAWN" } });
     // Reverse the original debit rather than leaving it COMPLETED, so a
@@ -767,7 +768,7 @@ export async function adminCancelRace(raceId: string, reason: string, cancelledB
 
     let refundedCents = 0;
     for (const entry of race.entries) {
-      await tx.user.update({ where: { id: entry.userId }, data: { walletBalanceCents: { increment: entry.entryFeeCents } } });
+      await tx.user.update({ where: { id: entry.userId }, data: { walletBalanceCents: { increment: entry.entryFeeCents } }, select: { id: true } });
       await tx.raceEntry.update({ where: { id: entry.id }, data: { status: "REFUNDED" } });
       await tx.ledgerEntry.updateMany({
         where: { raceId, userId: entry.userId, type: "RACE_ENTRY_FEE", status: "PENDING" },

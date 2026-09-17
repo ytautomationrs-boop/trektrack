@@ -29,7 +29,7 @@ export async function getWallet(userId: string) {
  * OAuth flow). Nothing written to our DB yet.
  */
 export async function createDeposit(params: { userId: string; amountCents: number; platform?: "native" | "web" }) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId } });
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId }, select: { id: true, email: true } });
 
   // Where Paystack sends the user after checkout. Native uses the streak://
   // scheme expo-web-browser's auth session intercepts on-device; web has no
@@ -97,7 +97,7 @@ export async function confirmDeposit(params: { userId: string; reference: string
           externalProvider: "paystack",
         },
       }),
-      prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: transaction.amount } } }),
+      prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: transaction.amount } }, select: { id: true } }),
     ]);
   } catch (err) {
     const alreadyProcessed = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
@@ -175,7 +175,7 @@ export async function grantSponsoredCredit(params: {
           performedByUserId: params.grantedByUserId,
         },
       }),
-      prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: params.amountCents } } }),
+      prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: params.amountCents } }, select: { id: true } }),
       prisma.ledgerEntry.create({
         data: {
           userId: platform.id,
@@ -189,7 +189,7 @@ export async function grantSponsoredCredit(params: {
           performedByUserId: params.grantedByUserId,
         },
       }),
-      prisma.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { decrement: params.amountCents } } }),
+      prisma.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { decrement: params.amountCents } }, select: { id: true } }),
     ]);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -469,7 +469,7 @@ export async function rejectManualWithdrawal(params: { withdrawalId: string; adm
  */
 export async function reverseWithdrawal(params: { withdrawalId: string; ledgerEntryId: string; userId: string; amountCents: number; reason: string }) {
   await prisma.$transaction([
-    prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: params.amountCents } } }),
+    prisma.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: params.amountCents } }, select: { id: true } }),
     prisma.withdrawal.update({ where: { id: params.withdrawalId }, data: { status: "FAILED", failureReason: params.reason } }),
     prisma.ledgerEntry.update({ where: { id: params.ledgerEntryId }, data: { status: "FAILED" } }),
   ]);

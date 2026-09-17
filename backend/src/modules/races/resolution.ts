@@ -279,6 +279,7 @@ async function awardEntry(race: Race, row: Ranked, now: Date): Promise<{ paidCen
     await tx.user.update({
       where: { id: row.entry.userId },
       data: { walletBalanceCents: { increment: prizeCents } },
+      select: { id: true },
     });
     await tx.ledgerEntry.create({
       data: {
@@ -298,6 +299,7 @@ async function awardEntry(race: Race, row: Ranked, now: Date): Promise<{ paidCen
     await tx.user.update({
       where: { id: platform.id },
       data: { walletBalanceCents: { decrement: prizeCents } },
+      select: { id: true },
     });
     await tx.ledgerEntry.create({
       data: {
@@ -408,8 +410,8 @@ export async function releaseHeldRacePrizes(now = new Date()) {
     }
 
     await prisma.$transaction([
-      prisma.user.update({ where: { id: entry.userId }, data: { walletBalanceCents: { increment: entry.amountCents } } }),
-      prisma.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { decrement: entry.amountCents } } }),
+      prisma.user.update({ where: { id: entry.userId }, data: { walletBalanceCents: { increment: entry.amountCents } }, select: { id: true } }),
+      prisma.user.update({ where: { id: platform.id }, data: { walletBalanceCents: { decrement: entry.amountCents } }, select: { id: true } }),
       prisma.ledgerEntry.create({
         data: {
           userId: platform.id,

@@ -143,7 +143,7 @@ export async function challengeRoutes(app: FastifyInstance) {
   app.post("/challenges/:id/join", { preHandler: requireAuth }, async (req, reply) => {
     const { id } = req.params as { id: string };
     const body = JoinChallengeSchema.parse(req.body ?? {});
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: req.userId }, select: { timezone: true } });
     try {
       const { participant } = await joinChallenge({ userId: req.userId, challengeId: id, inviteCode: body.inviteCode, timezone: user.timezone });
       return reply.code(201).send({ participant, challenge: await getChallengeForUser(id, req.userId) });

@@ -8,15 +8,16 @@ const playerSelect = {
   id: true,
   displayName: true,
   avatarUrl: true,
+  bio: true,
   createdAt: true,
 } as const;
 
-function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; createdAt: Date }) {
+function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date }) {
   return {
     id: user.id,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    bio: null,
+    bio: user.bio,
     joinedAt: user.createdAt,
   };
 }

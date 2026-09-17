@@ -6,6 +6,7 @@ const { join } = require("node:path");
 
 const backendDir = __dirname;
 const schemaPath = join("prisma", "schema.prisma");
+const runtimeRepairSqlPath = join("prisma", "hostinger-runtime-repair.sql");
 const prismaCli = require.resolve("prisma/build/index.js", {
   paths: [backendDir],
 });
@@ -30,6 +31,20 @@ if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
 
   if (migration.status !== 0) {
     console.warn("[startup] Prisma migrate deploy failed; continuing to start the web app. New database-backed features may not work until migrations are applied.");
+  }
+
+  const repair = spawnSync(
+    process.execPath,
+    [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
+    {
+      cwd: backendDir,
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
+
+  if (repair.status !== 0) {
+    console.warn("[startup] Database runtime repair failed; continuing to start the web app. Social/profile/admin features may need manual migration.");
   }
 }
 

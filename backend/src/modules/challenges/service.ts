@@ -172,7 +172,7 @@ export async function withdrawFromChallenge(params: { userId: string; challengeI
     }
 
     await tx.challengeParticipant.update({ where: { id: participant.id }, data: { status: "WITHDRAWN" } });
-    await tx.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: participant.stakeCents } } });
+    await tx.user.update({ where: { id: params.userId }, data: { walletBalanceCents: { increment: participant.stakeCents } }, select: { id: true } });
     await tx.ledgerEntry.updateMany({
       where: { userId: params.userId, challengeId: params.challengeId, type: "STAKE_HOLD", status: "PENDING" },
       data: { status: "REVERSED" },
