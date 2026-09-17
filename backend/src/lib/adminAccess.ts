@@ -28,7 +28,7 @@ export function effectiveIsAdmin(user: { email: string; isAdmin: boolean }) {
 export async function ensureEffectiveAdmin(user: { id: string; email: string; isAdmin: boolean }) {
   const isAdmin = effectiveIsAdmin(user);
   if (isAdmin && !user.isAdmin) {
-    await prisma.user.update({ where: { id: user.id }, data: { isAdmin: true } });
+    await prisma.user.update({ where: { id: user.id }, data: { isAdmin: true }, select: { id: true } });
   }
   return isAdmin;
 }

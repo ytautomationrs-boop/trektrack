@@ -9,6 +9,16 @@ import { GenerateInviteCodesSchema, LoginSchema, SignUpSchema } from "./schemas.
 
 const scryptAsync = promisify(scrypt);
 
+const authUserSelect = {
+  id: true,
+  email: true,
+  passwordHash: true,
+  displayName: true,
+  avatarUrl: true,
+  walletBalanceCents: true,
+  isAdmin: true,
+} as const;
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const derived = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -62,7 +72,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/signup", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
     const body = SignUpSchema.parse(req.body);
 
-    const existing = await prisma.user.findUnique({ where: { email: body.email } });
+    const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
     if (existing) return reply.code(409).send({ error: "email_in_use", message: "An account with that email already exists — log in instead." });
 
     // No payment-provider call here on purpose: account creation shouldn't
@@ -88,6 +98,7 @@ export async function authRoutes(app: FastifyInstance) {
             timezone: body.timezone,
             isAdmin: isBootstrapAdminEmail(body.email),
           },
+          select: authUserSelect,
         });
 
         // Optimistic concurrency guard: the WHERE clause re-checks useCount
@@ -124,7 +135,7 @@ export async function authRoutes(app: FastifyInstance) {
 
   app.post("/auth/login", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
     const body = LoginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({ where: { email: body.email } });
+    const user = await prisma.user.findUnique({ where: { email: body.email }, select: authUserSelect });
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
       return reply.code(401).send({ error: "invalid_credentials" });
     }
