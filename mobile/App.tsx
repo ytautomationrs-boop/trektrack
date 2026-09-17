@@ -71,7 +71,14 @@ function AppRoot() {
     restoreSession()
       .then((user) => {
         if (user) {
-          app.setSession({ userId: user.id, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl ?? null, isAdmin: user.isAdmin });
+          app.setSession({
+            userId: user.id,
+            displayName: user.displayName,
+            email: user.email,
+            avatarUrl: user.avatarUrl ?? null,
+            bio: user.bio ?? null,
+            isAdmin: user.isAdmin,
+          });
           // A restored session skips onboarding — it only exists to gate
           // first-time health-permission setup, not every app launch.
           app.advanceOnboarding("done");

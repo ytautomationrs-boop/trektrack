@@ -2,19 +2,19 @@
 // Nothing in components/ should hardcode a hex value; import from here.
 
 export const colors = {
-  bg: "#0b0d12",
-  surface: "#17191f",
-  surfaceRaised: "#24272f",
-  text: "#ffffff",
-  sub: "#c9cbd1",
-  accent: "#ff2f3f",
-  accent2: "#ffffff",
-  glass: "rgba(23, 25, 31, 0.72)",
-  line: "rgba(255, 255, 255, 0.14)",
+  bg: "#071a27",
+  surface: "#0d2635",
+  surfaceRaised: "#143348",
+  text: "#e6dcd0",
+  sub: "#bcaea0",
+  accent: "#972541",
+  accent2: "#e6dcd0",
+  glass: "rgba(7, 26, 39, 0.78)",
+  line: "rgba(230, 220, 208, 0.16)",
   sage: "#64d48a",
   risk: "#f5c15b",
   fail: "#ff6b6b",
-  won: "#ffe06d",
+  won: "#e6dcd0",
 } as const;
 
 // Fixed status token set — applied identically across dashboard cards, the

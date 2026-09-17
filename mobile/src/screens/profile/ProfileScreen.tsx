@@ -1,19 +1,24 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking } from "react-native";
+import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
-import { getProfileStats, getStravaStatus, disconnectStrava, getAppConfig } from "../../api/client";
+import { getProfileStats, getStravaStatus, disconnectStrava, getAppConfig, updateProfile } from "../../api/client";
 import { getLeagueStandings, getLeagueHistory, lookUpRaceCode } from "../../api/raceClient";
 import {
   acceptFriend,
   getFriends,
   getPlayerProfile,
+  getConversation,
+  getConversations,
   removeFriend,
   requestFriend,
   searchPlayers,
+  sendMessage,
+  type ConversationSummary,
+  type DirectMessage,
   type FriendsPayload,
   type PlayerProfile,
   type PlayerSummary,
@@ -64,7 +69,7 @@ export function ProfileScreen() {
         <IdentityCard />
 
         {/* ── Social ─────────────────────────────────────────────────── */}
-        <ModelHeading title="Players" subtitle="Find friends, compare leagues, and follow recent race history." />
+        <ModelHeading title="Social" subtitle="Follow players, compare leagues, and send messages." />
         <SocialSection />
 
         {/* ── Race / league ───────────────────────────────────────────── */}
@@ -98,26 +103,99 @@ function ModelHeading({ title, subtitle }: { title: string; subtitle: string }) 
 
 function IdentityCard() {
   const app = useAppState();
+  const [editing, setEditing] = useState(false);
+  const [displayName, setDisplayName] = useState(app.session?.displayName ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(app.session?.avatarUrl ?? "");
+  const [bio, setBio] = useState(app.session?.bio ?? "");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (displayName.trim().length < 2) {
+      showAlert("Profile", "Your display name needs at least 2 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { user } = await updateProfile({
+        displayName: displayName.trim(),
+        avatarUrl: avatarUrl.trim() || null,
+        bio: bio.trim() || null,
+      });
+      app.setSession({
+        userId: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        avatarUrl: user.avatarUrl ?? null,
+        bio: user.bio ?? null,
+        isAdmin: user.isAdmin,
+      });
+      setEditing(false);
+    } catch (err: any) {
+      showAlert("Couldn't save profile", err.message ?? "Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <View style={styles.identityCard}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarInitial}>{app.session?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
+        {app.session?.avatarUrl ? (
+          <Image source={{ uri: app.session.avatarUrl }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.avatarInitial}>{app.session?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
+        )}
       </View>
       <Text style={styles.name}>{app.session?.displayName ?? "Guest"}</Text>
       {!!app.session?.email && <Text style={styles.email}>{app.session.email}</Text>}
+      {!!app.session?.bio && <Text style={styles.bioText}>{app.session.bio}</Text>}
+      <Pressable style={styles.editProfileButton} onPress={() => setEditing((value) => !value)}>
+        <Ionicons name="create-outline" size={14} color={colors.bg} />
+        <Text style={styles.editProfileText}>{editing ? "Close" : "Customize profile"}</Text>
+      </Pressable>
+      {editing && (
+        <View style={styles.editProfilePanel}>
+          <TextInput style={styles.codeInput} value={displayName} onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor={colors.sub} />
+          <TextInput
+            style={styles.codeInput}
+            value={avatarUrl}
+            onChangeText={setAvatarUrl}
+            placeholder="Avatar image URL"
+            placeholderTextColor={colors.sub}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <TextInput
+            style={[styles.codeInput, styles.bioInput]}
+            value={bio}
+            onChangeText={setBio}
+            placeholder="Short bio"
+            placeholderTextColor={colors.sub}
+            multiline
+            maxLength={160}
+          />
+          <Pressable style={[styles.wideFriendButton, busy && styles.disabled]} disabled={busy} onPress={save}>
+            {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>Save profile</Text>}
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
 function SocialSection() {
   const [friends, setFriends] = useState<FriendsPayload>({ friends: [], incoming: [], outgoing: [] });
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlayerSummary[]>([]);
   const [selected, setSelected] = useState<PlayerProfile | null>(null);
+  const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [messageText, setMessageText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
   const loadFriends = useCallback(() => {
     getFriends().then(setFriends).catch(() => setFriends({ friends: [], incoming: [], outgoing: [] }));
+    getConversations().then((r) => setConversations(r.conversations)).catch(() => setConversations([]));
   }, []);
 
   useFocusEffect(
@@ -146,7 +224,14 @@ function SocialSection() {
   const openPlayer = async (playerId: string) => {
     setBusy(`open:${playerId}`);
     try {
-      setSelected(await getPlayerProfile(playerId));
+      const profile = await getPlayerProfile(playerId);
+      setSelected(profile);
+      if (profile.friendState === "friends") {
+        const thread = await getConversation(playerId);
+        setMessages(thread.messages);
+      } else {
+        setMessages([]);
+      }
     } catch (err: any) {
       showAlert("Couldn't load player", err.message ?? "Try again.");
     } finally {
@@ -155,7 +240,15 @@ function SocialSection() {
   };
 
   const refreshSelected = async (playerId: string) => {
-    getPlayerProfile(playerId).then(setSelected).catch(() => {});
+    getPlayerProfile(playerId)
+      .then(async (profile) => {
+        setSelected(profile);
+        if (profile.friendState === "friends") {
+          const thread = await getConversation(playerId);
+          setMessages(thread.messages);
+        }
+      })
+      .catch(() => {});
   };
 
   const act = async (player: PlayerSummary, action: "request" | "accept" | "remove") => {
@@ -173,8 +266,24 @@ function SocialSection() {
         )
       );
       if (selected?.player.id === player.id) await refreshSelected(player.id);
+      getConversations().then((r) => setConversations(r.conversations)).catch(() => {});
     } catch (err: any) {
-      showAlert("Friends", err.message ?? "Something went wrong.");
+      showAlert("Social", err.message ?? "Something went wrong.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const sendSelectedMessage = async () => {
+    if (!selected || messageText.trim().length === 0) return;
+    setBusy(`message:${selected.player.id}`);
+    try {
+      const result = await sendMessage(selected.player.id, messageText.trim());
+      setMessages((items) => [...items, result.message]);
+      setMessageText("");
+      getConversations().then((r) => setConversations(r.conversations)).catch(() => {});
+    } catch (err: any) {
+      showAlert("Message failed", err.message ?? "Try again.");
     } finally {
       setBusy(null);
     }
@@ -182,6 +291,33 @@ function SocialSection() {
 
   return (
     <>
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Messages</Text>
+        {conversations.length === 0 ? (
+          <Text style={styles.cardBody}>Follow someone back and forth to start messaging.</Text>
+        ) : (
+          conversations.map((conversation) => (
+            <Pressable key={conversation.player.id} style={styles.conversationRow} onPress={() => openPlayer(conversation.player.id)}>
+              <View style={styles.playerAvatar}>
+                <PlayerAvatar player={conversation.player} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.playerName}>{conversation.player.displayName}</Text>
+                <Text style={styles.playerSub} numberOfLines={1}>
+                  {conversation.lastMessage.isMine ? "You: " : ""}
+                  {conversation.lastMessage.body}
+                </Text>
+              </View>
+              {conversation.unreadCount > 0 && (
+                <View style={styles.unreadPill}>
+                  <Text style={styles.unreadText}>{conversation.unreadCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          ))
+        )}
+      </View>
+
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Search players</Text>
         <View style={styles.codeRow}>
@@ -214,7 +350,7 @@ function SocialSection() {
 
       {friends.incoming.length > 0 && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Friend requests</Text>
+          <Text style={styles.cardTitle}>Follow requests</Text>
           {friends.incoming.map((player) => (
             <PlayerRow
               key={player.id}
@@ -230,9 +366,9 @@ function SocialSection() {
       )}
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Friends</Text>
+        <Text style={styles.cardTitle}>Following</Text>
         {friends.friends.length === 0 ? (
-          <Text style={styles.cardBody}>Search for players to add your first friends.</Text>
+          <Text style={styles.cardBody}>Search for players to follow your first people.</Text>
         ) : (
           friends.friends.map((player) => (
             <PlayerRow
@@ -256,6 +392,10 @@ function SocialSection() {
           onRequest={() => act(selected.player, "request")}
           onAccept={() => act(selected.player, "accept")}
           onRemove={() => act(selected.player, "remove")}
+          messages={messages}
+          messageText={messageText}
+          onMessageTextChange={setMessageText}
+          onSendMessage={sendSelectedMessage}
         />
       )}
     </>
@@ -281,28 +421,36 @@ function PlayerRow({
   const state = player.friendState ?? "none";
   const action =
     state === "pending_received"
-      ? { label: "Accept", onPress: onAccept }
+      ? { label: "Follow back", onPress: onAccept }
       : state === "friends"
-        ? { label: "Remove", onPress: onRemove }
+        ? { label: "Unfollow", onPress: onRemove }
         : state === "pending_sent"
           ? { label: "Sent", onPress: undefined }
-          : { label: "Add", onPress: onRequest };
+          : { label: "Follow", onPress: onRequest };
 
   return (
     <View style={styles.playerRow}>
       <Pressable style={styles.playerMain} onPress={onOpen}>
         <View style={styles.playerAvatar}>
-          <Text style={styles.playerInitial}>{player.displayName[0]?.toUpperCase() ?? "?"}</Text>
+          <PlayerAvatar player={player} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-          <Text style={styles.playerSub}>{state === "friends" ? "Friend" : state === "pending_received" ? "Wants to connect" : state === "pending_sent" ? "Request sent" : "View profile"}</Text>
+          <Text style={styles.playerSub}>{state === "friends" ? "Following each other" : state === "pending_received" ? "Wants to follow you" : state === "pending_sent" ? "Follow request sent" : "View profile"}</Text>
         </View>
       </Pressable>
       <Pressable style={[styles.friendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
         {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
       </Pressable>
     </View>
+  );
+}
+
+function PlayerAvatar({ player }: { player: PlayerSummary }) {
+  return player.avatarUrl ? (
+    <Image source={{ uri: player.avatarUrl }} style={styles.playerAvatarImage} />
+  ) : (
+    <Text style={styles.playerInitial}>{player.displayName[0]?.toUpperCase() ?? "?"}</Text>
   );
 }
 
@@ -313,6 +461,10 @@ function PlayerProfileCard({
   onRequest,
   onAccept,
   onRemove,
+  messages,
+  messageText,
+  onMessageTextChange,
+  onSendMessage,
 }: {
   profile: PlayerProfile;
   busy: string | null;
@@ -320,27 +472,35 @@ function PlayerProfileCard({
   onRequest: () => void;
   onAccept: () => void;
   onRemove: () => void;
+  messages: DirectMessage[];
+  messageText: string;
+  onMessageTextChange: (value: string) => void;
+  onSendMessage: () => void;
 }) {
   const state = profile.friendState;
   const actionBusy = busy?.endsWith(`:${profile.player.id}`) ?? false;
   const action =
     state === "pending_received"
-      ? { label: "Accept friend", onPress: onAccept }
+      ? { label: "Follow back", onPress: onAccept }
       : state === "friends"
-        ? { label: "Remove friend", onPress: onRemove }
+        ? { label: "Unfollow", onPress: onRemove }
         : state === "pending_sent"
           ? { label: "Request sent", onPress: undefined }
-          : { label: "Add friend", onPress: onRequest };
+          : { label: "Follow", onPress: onRequest };
 
   return (
     <View style={styles.profileCard}>
       <View style={styles.profileCardHeader}>
         <View style={styles.playerAvatarLarge}>
-          <Text style={styles.playerInitialLarge}>{profile.player.displayName[0]?.toUpperCase() ?? "?"}</Text>
+          {profile.player.avatarUrl ? (
+            <Image source={{ uri: profile.player.avatarUrl }} style={styles.playerAvatarLargeImage} />
+          ) : (
+            <Text style={styles.playerInitialLarge}>{profile.player.displayName[0]?.toUpperCase() ?? "?"}</Text>
+          )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.profileCardName}>{profile.player.displayName}</Text>
-          <Text style={styles.cardBody}>{state === "friends" ? "Friend" : "Player profile"}</Text>
+          <Text style={styles.cardBody}>{profile.player.bio ?? (state === "friends" ? "Following each other" : "Player profile")}</Text>
         </View>
         <Pressable onPress={onClose} hitSlop={8}>
           <Ionicons name="close" size={20} color={colors.sub} />
@@ -350,6 +510,41 @@ function PlayerProfileCard({
       <Pressable style={[styles.wideFriendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
         {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
       </Pressable>
+
+      {state === "friends" && (
+        <>
+          <Text style={styles.sectionTitle}>Messages</Text>
+          <View style={styles.messageBox}>
+            {messages.length === 0 ? (
+              <Text style={styles.cardBody}>No messages yet.</Text>
+            ) : (
+              messages.slice(-12).map((message) => (
+                <View key={message.id} style={[styles.messageBubble, message.isMine ? styles.messageMine : styles.messageTheirs]}>
+                  <Text style={[styles.messageText, message.isMine && styles.messageMineText]}>{message.body}</Text>
+                </View>
+              ))
+            )}
+          </View>
+          <View style={styles.messageComposer}>
+            <TextInput
+              style={styles.messageInput}
+              value={messageText}
+              onChangeText={onMessageTextChange}
+              placeholder="Send a message"
+              placeholderTextColor={colors.sub}
+              maxLength={500}
+              multiline
+            />
+            <Pressable
+              style={[styles.messageSend, (!messageText.trim() || busy === `message:${profile.player.id}`) && styles.disabled]}
+              disabled={!messageText.trim() || busy === `message:${profile.player.id}`}
+              onPress={onSendMessage}
+            >
+              {busy === `message:${profile.player.id}` ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={16} color={colors.bg} />}
+            </Pressable>
+          </View>
+        </>
+      )}
 
       <Text style={styles.sectionTitle}>Leagues</Text>
       <View style={styles.badgeGrid}>
@@ -713,8 +908,23 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarInitial: { fontFamily: fonts.display, fontSize: 30, color: colors.accent },
+  avatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   name: { fontFamily: fonts.bodySemiBold, fontSize: 18, color: colors.text, marginTop: spacing.md },
   email: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
+  bioText: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", lineHeight: 18, marginTop: spacing.sm },
+  editProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.accent2,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  editProfileText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
+  editProfilePanel: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
+  bioInput: { minHeight: 78, textAlignVertical: "top" },
 
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   statCard: {
@@ -789,6 +999,26 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.45 },
 
+  conversationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingTop: spacing.md,
+    marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceRaised,
+  },
+  unreadPill: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: radii.pill,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  unreadText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.bg },
+
   playerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -808,6 +1038,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playerInitial: { fontFamily: fonts.display, fontSize: 15, color: colors.accent },
+  playerAvatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   playerName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   playerSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
   friendButton: {
@@ -832,6 +1063,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playerInitialLarge: { fontFamily: fonts.display, fontSize: 22, color: colors.accent },
+  playerAvatarLargeImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   profileCardName: { fontFamily: fonts.display, fontSize: 20, color: colors.text },
   wideFriendButton: {
     minHeight: 42,
@@ -840,6 +1072,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: spacing.lg,
+  },
+  messageBox: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  messageBubble: {
+    maxWidth: "86%",
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  messageMine: { alignSelf: "flex-end", backgroundColor: colors.accent },
+  messageTheirs: { alignSelf: "flex-start", backgroundColor: colors.surface },
+  messageText: { fontFamily: fonts.body, fontSize: 13, color: colors.text, lineHeight: 18 },
+  messageMineText: { color: colors.bg },
+  messageComposer: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  messageInput: {
+    flex: 1,
+    minHeight: 42,
+    maxHeight: 96,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.text,
+    fontFamily: fonts.body,
+    fontSize: 13,
+    padding: spacing.md,
+  },
+  messageSend: {
+    width: 46,
+    borderRadius: radii.sm,
+    backgroundColor: colors.accent2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   historyRow: {
     flexDirection: "row",

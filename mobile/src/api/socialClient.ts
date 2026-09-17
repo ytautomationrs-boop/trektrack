@@ -7,6 +7,7 @@ export type PlayerSummary = {
   id: string;
   displayName: string;
   avatarUrl: string | null;
+  bio: string | null;
   joinedAt: string;
   friendState?: FriendState;
 };
@@ -22,6 +23,22 @@ export type PlayerProfile = {
   friendState: FriendState;
   leagues: LeagueStandings;
   raceHistory: RaceHistoryEntry[];
+};
+
+export type DirectMessage = {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+  isMine: boolean;
+};
+
+export type ConversationSummary = {
+  player: PlayerSummary;
+  lastMessage: DirectMessage;
+  unreadCount: number;
 };
 
 export function searchPlayers(q: string) {
@@ -46,4 +63,19 @@ export function acceptFriend(playerId: string) {
 
 export function removeFriend(playerId: string) {
   return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}`, { method: "DELETE" });
+}
+
+export function getConversations() {
+  return request<{ conversations: ConversationSummary[] }>("/messages/conversations");
+}
+
+export function getConversation(playerId: string) {
+  return request<{ messages: DirectMessage[] }>(`/messages/${encodeURIComponent(playerId)}`);
+}
+
+export function sendMessage(playerId: string, body: string) {
+  return request<{ message: DirectMessage }>(`/messages/${encodeURIComponent(playerId)}`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
 }

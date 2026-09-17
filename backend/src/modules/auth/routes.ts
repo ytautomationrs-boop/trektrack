@@ -108,7 +108,15 @@ export async function authRoutes(app: FastifyInstance) {
       const isAdmin = await ensureEffectiveAdmin(user);
       return reply.code(201).send({
         token,
-        user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin },
+        user: {
+          id: user.id,
+          email: user.email,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          bio: user.bio,
+          walletBalanceCents: user.walletBalanceCents,
+          isAdmin,
+        },
       });
     } catch (err) {
       return sendAuthError(reply, err);
@@ -125,7 +133,15 @@ export async function authRoutes(app: FastifyInstance) {
     const isAdmin = await ensureEffectiveAdmin(user);
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, displayName: user.displayName, walletBalanceCents: user.walletBalanceCents, isAdmin },
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        walletBalanceCents: user.walletBalanceCents,
+        isAdmin,
+      },
     });
   });
 
@@ -135,7 +151,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: requireAuth }, async (req, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, displayName: true, avatarUrl: true, walletBalanceCents: true, isAdmin: true },
+      select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
     });
     if (!user) return reply.code(404).send({ error: "not_found" });
     const isAdmin = await ensureEffectiveAdmin(user);

@@ -14,7 +14,15 @@ import type { LedgerEntry, MetricTypeDefinition, PaystackBank, PaystackDepositIn
 
 // isAdmin gates whether Create is a live action or a "coming soon" state
 // during the pilot — see screens/create/CreateRaceScreen.tsx.
-type SessionUser = { id: string; email: string; displayName: string; avatarUrl?: string | null; walletBalanceCents: number; isAdmin: boolean };
+type SessionUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  walletBalanceCents: number;
+  isAdmin: boolean;
+};
 
 export async function login(email: string, password: string) {
   const data = await request<{ token: string; user: SessionUser }>("/auth/login", {
@@ -59,6 +67,10 @@ export async function logout() {
 /** Support address and legal links, set per-deployment. Any of them may be null — the UI hides what isn't configured rather than showing a dead link. */
 export function getAppConfig() {
   return request<{ supportEmail: string | null; termsUrl: string | null; privacyUrl: string | null }>("/config");
+}
+
+export function updateProfile(input: { displayName?: string; avatarUrl?: string | null; bio?: string | null }) {
+  return request<{ user: SessionUser }>("/me/profile", { method: "PATCH", body: JSON.stringify(input) });
 }
 
 /** Registers this device's Expo push token. Upserts server-side, so re-registering the same device moves it to the current account rather than duplicating. */

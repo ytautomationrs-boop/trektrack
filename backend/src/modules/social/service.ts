@@ -8,14 +8,16 @@ const playerSelect = {
   id: true,
   displayName: true,
   avatarUrl: true,
+  bio: true,
   createdAt: true,
 } as const;
 
-function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; createdAt: Date }) {
+function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date }) {
   return {
     id: user.id,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
+    bio: user.bio,
     joinedAt: user.createdAt,
   };
 }
@@ -143,6 +145,86 @@ export async function removeFriend(viewerId: string, playerId: string) {
     },
   });
   return { friendState: "none" as const };
+}
+
+async function assertCanMessage(viewerId: string, playerId: string) {
+  if (viewerId === playerId) {
+    throw Object.assign(new Error("You can't message yourself."), { statusCode: 400, code: "self_message" });
+  }
+  const state = await friendshipState(viewerId, playerId);
+  if (state !== "friends") {
+    throw Object.assign(new Error("You can only message people you follow back and forth."), {
+      statusCode: 403,
+      code: "not_connected",
+    });
+  }
+}
+
+export async function listConversations(viewerId: string) {
+  const messages = await prisma.directMessage.findMany({
+    where: { OR: [{ senderId: viewerId }, { recipientId: viewerId }] },
+    include: {
+      sender: { select: playerSelect },
+      recipient: { select: playerSelect },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 150,
+  });
+
+  const seen = new Set<string>();
+  const conversations = [];
+  for (const message of messages) {
+    const other = message.senderId === viewerId ? message.recipient : message.sender;
+    if (seen.has(other.id)) continue;
+    seen.add(other.id);
+    conversations.push({
+      player: serializePlayer(other),
+      lastMessage: serializeMessage(message, viewerId),
+      unreadCount: messages.filter((m) => m.senderId === other.id && m.recipientId === viewerId && !m.readAt).length,
+    });
+  }
+  return conversations;
+}
+
+function serializeMessage(message: { id: string; senderId: string; recipientId: string; body: string; createdAt: Date; readAt: Date | null }, viewerId: string) {
+  return {
+    id: message.id,
+    senderId: message.senderId,
+    recipientId: message.recipientId,
+    body: message.body,
+    createdAt: message.createdAt,
+    readAt: message.readAt,
+    isMine: message.senderId === viewerId,
+  };
+}
+
+export async function getConversation(viewerId: string, playerId: string) {
+  await assertCanMessage(viewerId, playerId);
+  const messages = await prisma.directMessage.findMany({
+    where: {
+      OR: [
+        { senderId: viewerId, recipientId: playerId },
+        { senderId: playerId, recipientId: viewerId },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    take: 100,
+  });
+
+  await prisma.directMessage.updateMany({
+    where: { senderId: playerId, recipientId: viewerId, readAt: null },
+    data: { readAt: new Date() },
+  });
+
+  return { messages: messages.map((message) => serializeMessage(message, viewerId)) };
+}
+
+export async function sendMessage(viewerId: string, playerId: string, body: string) {
+  await assertCanMessage(viewerId, playerId);
+  const message = await prisma.directMessage.create({
+    data: { senderId: viewerId, recipientId: playerId, body: body.trim() },
+  });
+  return { message: serializeMessage(message, viewerId) };
 }
 
 export async function getPlayerProfile(viewerId: string, playerId: string) {

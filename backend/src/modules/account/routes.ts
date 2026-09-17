@@ -1,6 +1,13 @@
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
+
+const UpdateProfileSchema = z.object({
+  displayName: z.string().trim().min(2).max(40).optional(),
+  avatarUrl: z.string().trim().url().max(500).nullable().optional(),
+  bio: z.string().trim().max(160).nullable().optional(),
+});
 
 /**
  * A user's own money and record.
@@ -11,6 +18,20 @@ import { requireAuth } from "../../middleware/auth.js";
  * points, which live in modules/races.
  */
 export async function accountRoutes(app: FastifyInstance) {
+  app.patch("/me/profile", { preHandler: requireAuth }, async (req, reply) => {
+    const body = UpdateProfileSchema.parse(req.body ?? {});
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: {
+        ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
+        ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl || null } : {}),
+        ...(body.bio !== undefined ? { bio: body.bio || null } : {}),
+      },
+      select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
+    });
+    return reply.send({ user });
+  });
+
   // Full wallet transaction history — shared across both models. `model` is
   // computed here, not stored (see the comment on LedgerEntry in
   // schema.prisma): raceId set means "race", challengeId set means

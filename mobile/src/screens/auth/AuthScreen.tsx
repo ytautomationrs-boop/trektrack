@@ -35,7 +35,14 @@ export function AuthScreen() {
         mode === "signup"
           ? await signUp({ email, password, displayName, timezone: resolveTimezone(), inviteCode: inviteCode.trim() })
           : await login(email, password);
-      app.setSession({ userId: user.id, displayName: user.displayName, email: user.email, avatarUrl: user.avatarUrl ?? null, isAdmin: user.isAdmin });
+      app.setSession({
+        userId: user.id,
+        displayName: user.displayName,
+        email: user.email,
+        avatarUrl: user.avatarUrl ?? null,
+        bio: user.bio ?? null,
+        isAdmin: user.isAdmin,
+      });
     } catch (err: any) {
       setError(err.message ?? "Something went wrong");
     } finally {

@@ -49,6 +49,7 @@ model User {
   passwordHash String
   displayName  String
   avatarUrl    String?
+  bio          String?
   timezone     String  @default("UTC") // IANA tz; updated on each app foreground
 
   // Pilot-only content-creation gate: regular users cannot create races or
@@ -86,6 +87,8 @@ model User {
   reportsReceived        Report[]               @relation("Reported")
   friendRequestsSent     Friendship[]           @relation("FriendshipRequester")
   friendRequestsReceived Friendship[]           @relation("FriendshipAddressee")
+  messagesSent           DirectMessage[]        @relation("DirectMessageSender")
+  messagesReceived       DirectMessage[]        @relation("DirectMessageRecipient")
 
   raceEntries      RaceEntry[]
   createdRaces     Race[]            @relation("RaceCreator")
@@ -123,6 +126,20 @@ model Friendship {
   @@unique([requesterId, addresseeId])
   @@index([requesterId, status])
   @@index([addresseeId, status])
+}
+
+model DirectMessage {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String
+  recipient   User     @relation("DirectMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime @default(now())
+  readAt      DateTime?
+
+  @@index([senderId, recipientId, createdAt])
+  @@index([recipientId, senderId, createdAt])
 }
 
 // Pilot invite gate. There is no public sign-up route while this exists —
