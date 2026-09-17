@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SignUpSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8),
   displayName: z.string().min(2).max(40),
   timezone: z.string().min(1), // IANA tz string from the device, e.g. Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -24,7 +24,7 @@ export const GenerateInviteCodesSchema = z.object({
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
 });
 

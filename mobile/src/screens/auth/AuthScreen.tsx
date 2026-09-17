@@ -31,10 +31,11 @@ export function AuthScreen() {
     setSubmitting(true);
     setError(null);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       const user =
         mode === "signup"
-          ? await signUp({ email, password, displayName, timezone: resolveTimezone(), inviteCode: inviteCode.trim() })
-          : await login(email, password);
+          ? await signUp({ email: normalizedEmail, password, displayName: displayName.trim(), timezone: resolveTimezone(), inviteCode: inviteCode.trim() })
+          : await login(normalizedEmail, password);
       app.setSession({
         userId: user.id,
         displayName: user.displayName,
