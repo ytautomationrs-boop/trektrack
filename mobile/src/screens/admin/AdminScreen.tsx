@@ -17,9 +17,23 @@ import {
   mintInviteCodes,
   createCustomInviteCode,
   getAdminOverview,
+  revokeInviteCode,
+  getRaceFillReport,
+  getLeagueReadiness,
+  openLeague,
+  getRaceReviewQueue,
+  getOpenReports,
+  resolveRaceFlag,
+  disqualifyRaceEntry,
+  cancelRace,
+  forfeitHeldPrize,
   type PendingWithdrawal,
   type InviteCode,
   type AdminOverview,
+  type RaceFillBucket,
+  type LeagueReadiness,
+  type RaceReviewQueue,
+  type OpenReport,
 } from "../../api/adminClient";
 
 /**
@@ -46,7 +60,7 @@ function formatWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-type Tab = "overview" | "fund" | "payouts" | "invites";
+type Tab = "overview" | "controls" | "fund" | "payouts" | "invites" | "leagues" | "review";
 
 export function AdminScreen() {
   const navigation = useNavigation<any>();
@@ -76,14 +90,31 @@ export function AdminScreen() {
         <Text style={styles.title}>Admin console</Text>
       </View>
 
-      <View style={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         <TabChip label="Overview" active={tab === "overview"} onPress={() => setTab("overview")} />
+        <TabChip label="Controls" active={tab === "controls"} onPress={() => setTab("controls")} />
         <TabChip label="Fund" active={tab === "fund"} onPress={() => setTab("fund")} />
         <TabChip label="Payouts" active={tab === "payouts"} onPress={() => setTab("payouts")} />
         <TabChip label="Invites" active={tab === "invites"} onPress={() => setTab("invites")} />
-      </View>
+        <TabChip label="Leagues" active={tab === "leagues"} onPress={() => setTab("leagues")} />
+        <TabChip label="Review" active={tab === "review"} onPress={() => setTab("review")} />
+      </ScrollView>
 
-      {tab === "overview" ? <OverviewPanel /> : tab === "fund" ? <FundPanel /> : tab === "payouts" ? <PayoutsPanel /> : <InvitesPanel />}
+      {tab === "overview" ? (
+        <OverviewPanel />
+      ) : tab === "controls" ? (
+        <ControlsPanel onSelect={setTab} />
+      ) : tab === "fund" ? (
+        <FundPanel />
+      ) : tab === "payouts" ? (
+        <PayoutsPanel />
+      ) : tab === "invites" ? (
+        <InvitesPanel />
+      ) : tab === "leagues" ? (
+        <LeaguesPanel />
+      ) : (
+        <ReviewPanel />
+      )}
     </SafeAreaView>
   );
 }
@@ -175,6 +206,35 @@ function TabChip({ label, active, onPress }: { label: string; active: boolean; o
     <Pressable style={[styles.tabChip, active && styles.tabChipActive]} onPress={onPress}>
       <Text style={[styles.tabChipText, active && styles.tabChipTextActive]}>{label}</Text>
     </Pressable>
+  );
+}
+
+function ControlsPanel({ onSelect }: { onSelect: (tab: Tab) => void }) {
+  const features: Array<{ title: string; body: string; icon: keyof typeof Ionicons.glyphMap; tab: Tab }> = [
+    { title: "Pilot health", body: "Live totals for users, races, wallets, reports, and recent account activity.", icon: "pulse", tab: "overview" },
+    { title: "Fund users", body: "Grant sponsored wallet credit with an idempotent daily reference.", icon: "wallet", tab: "fund" },
+    { title: "Payout queue", body: "Mark EFT withdrawals as paid or refuse and refund them.", icon: "cash", tab: "payouts" },
+    { title: "Invite codes", body: "Create, share, and revoke signup codes for the closed pilot.", icon: "ticket", tab: "invites" },
+    { title: "League operations", body: "Check fill rates, readiness, and open sport-specific league levels.", icon: "podium", tab: "leagues" },
+    { title: "Race review", body: "Resolve flags, disqualify entries, cancel stuck races, and forfeit held prizes.", icon: "shield-checkmark", tab: "review" },
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.panelHint}>Admin controls available in this console. Each item opens the live tool for that job.</Text>
+      {features.map((feature) => (
+        <Pressable key={feature.title} style={styles.featureCard} onPress={() => onSelect(feature.tab)}>
+          <View style={styles.featureIcon}>
+            <Ionicons name={feature.icon} size={18} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.featureTitle}>{feature.title}</Text>
+            <Text style={styles.featureBody}>{feature.body}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.sub} />
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
@@ -406,6 +466,7 @@ function InvitesPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [minting, setMinting] = useState(false);
+  const [busyCodeId, setBusyCodeId] = useState<string | null>(null);
   const [customCode, setCustomCode] = useState("");
   const [customLabel, setCustomLabel] = useState("");
 
@@ -454,6 +515,27 @@ function InvitesPanel() {
     } finally {
       setMinting(false);
     }
+  }
+
+  function confirmRevoke(code: InviteCode) {
+    showAlert("Revoke invite code?", `${code.code} will stop working immediately. Accounts already created with it stay active.`, [
+      { text: "Keep it", style: "cancel" },
+      {
+        text: "Revoke",
+        style: "destructive",
+        onPress: async () => {
+          setBusyCodeId(code.id);
+          try {
+            await revokeInviteCode(code.id);
+            await load();
+          } catch (err: any) {
+            showAlert("Couldn't revoke it", err.message ?? "Something went wrong.");
+          } finally {
+            setBusyCodeId(null);
+          }
+        },
+      },
+    ]);
   }
 
   const unused = codes.filter((c) => !c.revokedAt && c.useCount < c.maxUses);
@@ -520,9 +602,253 @@ function InvitesPanel() {
             </View>
             <Text style={styles.codeState}>{c.revokedAt ? "revoked" : spent ? "used" : "unused"}</Text>
             {!dead ? <Ionicons name="share-outline" size={15} color={colors.accent} /> : null}
+            {!dead ? (
+              <Pressable
+                style={styles.smallDanger}
+                disabled={busyCodeId === c.id}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  confirmRevoke(c);
+                }}
+              >
+                <Text style={styles.smallDangerText}>{busyCodeId === c.id ? "..." : "Revoke"}</Text>
+              </Pressable>
+            ) : null}
           </Pressable>
         );
       })}
+    </ScrollView>
+  );
+}
+
+// ── Leagues ─────────────────────────────────────────────────────────────
+
+function LeaguesPanel() {
+  const [levels, setLevels] = useState<LeagueReadiness[]>([]);
+  const [buckets, setBuckets] = useState<RaceFillBucket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [readiness, fillReport] = await Promise.all([getLeagueReadiness(), getRaceFillReport()]);
+      setLevels(readiness.levels);
+      setBuckets(fillReport.buckets);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function doOpen(level: LeagueReadiness, force: boolean) {
+    const key = `${level.metricKey}:${level.level}`;
+    setBusyKey(key);
+    try {
+      const result = await openLeague(level.metricKey, level.level, force);
+      showAlert(
+        result.opened ? "League opened" : "Already open",
+        `${result.metricKey} ${result.name}: ${result.promotedUsers ?? 0} users promoted.`
+      );
+      await load();
+    } catch (err: any) {
+      showAlert("Couldn't open league", err.message ?? "Something went wrong.");
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+    >
+      <Text style={styles.panelHint}>
+        Open a league only when enough users have qualified to fill its largest active race format.
+      </Text>
+      {loading && levels.length === 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} /> : null}
+      {!loading && loadError ? <LoadError error={loadError} onRetry={load} /> : null}
+
+      <Text style={styles.sectionTitle}>League readiness</Text>
+      {levels.map((level) => {
+        const key = `${level.metricKey}:${level.level}`;
+        return (
+          <View key={key} style={styles.opsCard}>
+            <View style={styles.opsTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.userName}>{level.metricKey} · {level.name}</Text>
+                <Text style={styles.userMeta}>
+                  {level.qualifiedCount}/{level.recommendedMinimum} qualified · needs {level.requiredEntrants} entrants
+                </Text>
+                <Text style={styles.userMeta} numberOfLines={2}>
+                  Active: {level.activeRaceTypes.length ? level.activeRaceTypes.join(", ") : "none"}
+                </Text>
+              </View>
+              <View style={[styles.statePill, level.isOpen ? styles.stateGood : level.ready ? styles.stateWarn : styles.stateMuted]}>
+                <Text style={styles.statePillText}>{level.isOpen ? "open" : level.ready ? "ready" : "closed"}</Text>
+              </View>
+            </View>
+            {!level.isOpen ? (
+              <View style={styles.payoutActions}>
+                <Pressable
+                  style={[styles.cta, styles.payoutCta, (!level.ready || busyKey === key) && styles.ctaDisabled]}
+                  disabled={!level.ready || busyKey === key}
+                  onPress={() => doOpen(level, false)}
+                >
+                  <Text style={styles.ctaText}>{busyKey === key ? "Opening..." : "Open"}</Text>
+                </Pressable>
+                <Pressable style={[styles.secondaryCta, styles.payoutCta]} disabled={busyKey === key} onPress={() => doOpen(level, true)}>
+                  <Text style={styles.secondaryCtaText}>Force open</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+
+      <Text style={styles.sectionTitle}>Fill report</Text>
+      {buckets.length === 0 ? <Text style={styles.emptyText}>No race fill history yet.</Text> : null}
+      {buckets.map((bucket) => (
+        <View key={`${bucket.raceTypeKey}:${bucket.leagueLevel}`} style={styles.reportRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{bucket.raceTypeKey} · L{bucket.leagueLevel}</Text>
+            <Text style={styles.userMeta}>filled {bucket.filled} · cancelled {bucket.cancelled} · filling {bucket.filling}</Text>
+          </View>
+          <Text style={styles.userBalance}>{bucket.fillRate == null ? "n/a" : `${Math.round(bucket.fillRate * 100)}%`}</Text>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+// ── Review ──────────────────────────────────────────────────────────────
+
+function ReviewPanel() {
+  const [queue, setQueue] = useState<RaceReviewQueue | null>(null);
+  const [reports, setReports] = useState<OpenReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [reviewQueue, reportResult] = await Promise.all([getRaceReviewQueue(), getOpenReports()]);
+      setQueue(reviewQueue);
+      setReports(reportResult.reports);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function runAction(id: string, action: () => Promise<unknown>, success: string) {
+    setBusyId(id);
+    try {
+      await action();
+      showAlert(success, "The review queue has been refreshed.");
+      await load();
+    } catch (err: any) {
+      showAlert("Action failed", err.message ?? "Something went wrong.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const flags = queue?.flags ?? [];
+  const heldPrizes = queue?.heldPrizes ?? [];
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+    >
+      <Text style={styles.panelHint}>
+        These controls affect results and money. Use them only after checking the user, race, and evidence.
+      </Text>
+      {loading && !queue ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} /> : null}
+      {!loading && loadError ? <LoadError error={loadError} onRetry={load} /> : null}
+
+      <Text style={styles.sectionTitle}>Race flags</Text>
+      {flags.length === 0 ? <Text style={styles.emptyText}>No open race flags.</Text> : null}
+      {flags.map((flag) => {
+        const entry = flag.sample?.raceEntry;
+        const race = entry?.race;
+        return (
+          <View key={flag.id} style={styles.opsCard}>
+            <Text style={styles.userName}>{entry?.user?.displayName ?? "Unknown racer"}</Text>
+            <Text style={styles.userMeta}>{race?.name ?? "Unknown race"} · severity {flag.severity}</Text>
+            <Text style={styles.reviewReason}>{flag.reason}</Text>
+            <View style={styles.payoutActions}>
+              <Pressable
+                style={[styles.cta, styles.payoutCta, busyId === flag.id && styles.ctaDisabled]}
+                disabled={busyId === flag.id}
+                onPress={() => runAction(flag.id, () => resolveRaceFlag(flag.id, "DISMISSED"), "Flag dismissed")}
+              >
+                <Text style={styles.ctaText}>Dismiss</Text>
+              </Pressable>
+              {entry?.id ? (
+                <Pressable
+                  style={[styles.secondaryCta, styles.payoutCta]}
+                  disabled={busyId === flag.id}
+                  onPress={() =>
+                    runAction(flag.id, () => disqualifyRaceEntry(entry.id, "Confirmed by admin review"), "Entry disqualified")
+                  }
+                >
+                  <Text style={styles.secondaryCtaText}>Disqualify</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {race?.id ? (
+              <Pressable
+                style={[styles.dangerCta, busyId === `${flag.id}:cancel` && styles.ctaDisabled]}
+                disabled={busyId === `${flag.id}:cancel`}
+                onPress={() => runAction(`${flag.id}:cancel`, () => cancelRace(race.id, "Cancelled by admin review"), "Race cancelled")}
+              >
+                <Text style={styles.dangerCtaText}>Cancel race and refund entrants</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
+
+      <Text style={styles.sectionTitle}>Held prizes</Text>
+      {heldPrizes.length === 0 ? <Text style={styles.emptyText}>No held race prizes.</Text> : null}
+      {heldPrizes.map((prize) => (
+        <View key={prize.id} style={styles.reportRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{prize.user?.displayName ?? "Unknown user"}</Text>
+            <Text style={styles.userMeta}>{prize.race?.name ?? "Unknown race"} · {formatWhen(prize.createdAt)}</Text>
+          </View>
+          <Text style={styles.userBalance}>{formatCents(prize.amountCents)}</Text>
+          <Pressable
+            style={styles.smallDanger}
+            disabled={busyId === prize.id}
+            onPress={() => runAction(prize.id, () => forfeitHeldPrize(prize.id, "Forfeited by admin review"), "Prize forfeited")}
+          >
+            <Text style={styles.smallDangerText}>Forfeit</Text>
+          </Pressable>
+        </View>
+      ))}
+
+      <Text style={styles.sectionTitle}>User reports</Text>
+      {reports.length === 0 ? <Text style={styles.emptyText}>No open user reports.</Text> : null}
+      {reports.map((report) => (
+        <View key={report.id} style={styles.opsCard}>
+          <Text style={styles.userName}>{report.reported.displayName}</Text>
+          <Text style={styles.userMeta}>Reported by {report.reporter.displayName}{report.race ? ` · ${report.race.name}` : ""}</Text>
+          <Text style={styles.reviewReason}>{report.reason}</Text>
+        </View>
+      ))}
     </ScrollView>
   );
 }
@@ -535,7 +861,7 @@ const styles = StyleSheet.create({
   backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, marginBottom: spacing.md },
 
-  tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   tabChip: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.pill, backgroundColor: colors.surface },
   tabChipActive: { backgroundColor: colors.accent },
   tabChipText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
@@ -568,6 +894,34 @@ const styles = StyleSheet.create({
   ctaText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },
   secondaryCta: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   secondaryCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
+  dangerCta: { backgroundColor: colors.fail, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.sm },
+  dangerCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  smallDanger: {
+    backgroundColor: colors.fail + "22",
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+  },
+  smallDangerText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.fail },
+
+  featureCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.lg,
+  },
+  featureIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  featureBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17, marginTop: 2 },
 
   payoutCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm },
   payoutTop: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" },
@@ -595,6 +949,22 @@ const styles = StyleSheet.create({
   codeLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
   codeState: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
   customInviteCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm },
+  opsCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm },
+  opsTop: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
+  statePill: { borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 5 },
+  stateGood: { backgroundColor: colors.sage + "22" },
+  stateWarn: { backgroundColor: colors.risk + "22" },
+  stateMuted: { backgroundColor: colors.surfaceRaised },
+  statePillText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
+  reportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  reviewReason: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17 },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   statCard: { width: "31%", minWidth: 94, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   statValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },

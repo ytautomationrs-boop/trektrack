@@ -59,16 +59,17 @@ export function MyRacesScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [mine, leagues] = await Promise.all([getMyRaces(), getLeagueStandings()]);
-      setEntries(mine.entries);
-      setStandings(leagues);
+    const [mine, leagues] = await Promise.allSettled([getMyRaces(), getLeagueStandings()]);
+
+    if (mine.status === "fulfilled") {
+      setEntries(mine.value.entries);
       setLoadError(null);
-    } catch (err) {
-      setLoadError(err as Error);
-    } finally {
-      setLoading(false);
+    } else {
+      setLoadError(mine.reason as Error);
     }
+
+    setStandings(leagues.status === "fulfilled" ? leagues.value : null);
+    setLoading(false);
   }, []);
 
   // Refresh on focus: entering a race from the Competitions list should show
@@ -88,6 +89,10 @@ export function MyRacesScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
+        <Pressable style={styles.backRow} onPress={() => navigation.navigate("RacesList")}>
+          <Ionicons name="chevron-back" size={18} color={colors.sub} />
+          <Text style={styles.backText}>Competitions</Text>
+        </Pressable>
         <Text style={styles.header}>Your races</Text>
 
         {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={() => navigation.navigate("Profile")} />}
@@ -166,6 +171,8 @@ function RaceRow({ entry, onPress }: { entry: RaceHistoryEntry; onPress: () => v
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
+  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text, marginBottom: spacing.lg },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
 

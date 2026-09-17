@@ -56,6 +56,7 @@ export function RacesScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
@@ -162,6 +163,16 @@ export function RacesScreen() {
           </Pressable>
         </View>
 
+        <Pressable style={styles.howToggle} onPress={() => setShowHowItWorks((value) => !value)}>
+          <View style={styles.howIcon}>
+            <Ionicons name="help" size={15} color={colors.bg} />
+          </View>
+          <Text style={styles.howToggleText}>How competitions work</Text>
+          <Ionicons name={showHowItWorks ? "chevron-up" : "chevron-down"} size={16} color={colors.sub} />
+        </Pressable>
+
+        {showHowItWorks && <HowItWorksCard />}
+
         {/* Hidden once the load has failed — its own null state says "Loading
             your leagues…" forever, which contradicts the retry state below. */}
         {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={setMetricFilter} />}
@@ -221,6 +232,28 @@ export function RacesScreen() {
         ))}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function HowItWorksCard() {
+  const steps = [
+    "Pick one sport metric and enter or create a 10-person solo race. Squad races are two squads of four.",
+    "Your entry fee is held from your wallet while the race is filling. You can pull out for a full refund before it fills.",
+    "When the exact headcount is reached, the race locks and starts at the next local midnight. After that, entries are final.",
+    "Sync your activity data during the race. Final positions decide fixed prizes and sport-specific trophies.",
+  ];
+
+  return (
+    <View style={styles.howCard}>
+      {steps.map((step, index) => (
+        <View key={step} style={styles.howStep}>
+          <View style={styles.howNumber}>
+            <Text style={styles.howNumberText}>{index + 1}</Text>
+          </View>
+          <Text style={styles.howStepText}>{step}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -361,6 +394,36 @@ const styles = StyleSheet.create({
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
   myRacesLink: { flexDirection: "row", alignItems: "center", gap: 2 },
   myRacesLinkText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accent },
+  howToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  howIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  howToggleText: { flex: 1, fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  howCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
+  howStep: { flexDirection: "row", gap: spacing.md },
+  howNumber: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  howNumberText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.accent },
+  howStepText: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17 },
   scopeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
   metricRow: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.lg },
   chip: {

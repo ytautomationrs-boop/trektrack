@@ -57,6 +57,59 @@ export type AdminOverview = {
   }>;
 };
 
+export type RaceFillBucket = {
+  raceTypeKey: string;
+  leagueLevel: number;
+  filled: number;
+  cancelled: number;
+  filling: number;
+  fillRate: number | null;
+};
+
+export type LeagueReadiness = {
+  metricKey: string;
+  level: number;
+  name: string;
+  isOpen: boolean;
+  qualifiedCount: number;
+  requiredEntrants: number;
+  recommendedMinimum: number;
+  ready: boolean;
+  activeRaceTypes: string[];
+};
+
+export type RaceReviewQueue = {
+  flags: Array<{
+    id: string;
+    reason: string;
+    severity: number;
+    createdAt: string;
+    sample?: {
+      raceEntry?: {
+        id: string;
+        user?: { id: string; displayName: string };
+        race?: { id: string; name: string; metricKey: string; status: string };
+      };
+    };
+  }>;
+  heldPrizes: Array<{
+    id: string;
+    amountCents: number;
+    createdAt: string;
+    user?: { id: string; displayName: string };
+    race?: { id: string; name: string; metricKey: string; status: string };
+  }>;
+};
+
+export type OpenReport = {
+  id: string;
+  reason: string;
+  createdAt: string;
+  reporter: { id: string; displayName: string };
+  reported: { id: string; displayName: string };
+  race: { id: string; name: string } | null;
+};
+
 /**
  * Funds a sponsored account — the pilot's only way money enters a wallet.
  *
@@ -106,4 +159,57 @@ export function createCustomInviteCode(code: string, label?: string) {
 
 export function getAdminOverview() {
   return request<AdminOverview>("/admin/overview");
+}
+
+export function revokeInviteCode(id: string) {
+  return request<{ ok: boolean }>(`/admin/invite-codes/${id}/revoke`, { method: "POST" });
+}
+
+export function getRaceFillReport() {
+  return request<{ buckets: RaceFillBucket[]; note: string }>("/admin/races/fill-report");
+}
+
+export function getLeagueReadiness(metricKey?: string) {
+  const suffix = metricKey ? `?metricKey=${encodeURIComponent(metricKey)}` : "";
+  return request<{ levels: LeagueReadiness[] }>(`/admin/leagues/readiness${suffix}`);
+}
+
+export function openLeague(metricKey: string, level: number, force = false) {
+  return request<LeagueReadiness & { opened: boolean; promotedUsers: number; reason: string | null }>(
+    `/admin/leagues/${encodeURIComponent(metricKey)}/${level}/open`,
+    { method: "POST", body: JSON.stringify({ force }) }
+  );
+}
+
+export function getRaceReviewQueue() {
+  return request<RaceReviewQueue>("/admin/races/review-queue");
+}
+
+export function getOpenReports() {
+  return request<{ reports: OpenReport[] }>("/admin/reports");
+}
+
+export function resolveRaceFlag(flagId: string, decision: "DISMISSED" | "CONFIRMED_CHEAT") {
+  return request<{ ok: boolean; decision: string }>(`/admin/race-flags/${flagId}`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}
+
+export function disqualifyRaceEntry(entryId: string, reason: string) {
+  return request<{ ok?: boolean }>(`/admin/race-entries/${entryId}/disqualify`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function cancelRace(raceId: string, reason: string) {
+  return request<{ ok?: boolean }>(`/admin/races/${raceId}/cancel`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function forfeitHeldPrize(ledgerEntryId: string, reason: string) {
+  return request<{ ok?: boolean }>(`/admin/race-prizes/${ledgerEntryId}/forfeit`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }

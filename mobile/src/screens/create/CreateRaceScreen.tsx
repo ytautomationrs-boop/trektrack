@@ -286,6 +286,13 @@ export function CreateRaceScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <Pressable
+          style={styles.backRow}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Competitions"))}
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.sub} />
+          <Text style={styles.backText}>Back</Text>
+        </Pressable>
         <Text style={styles.header}>Create a race</Text>
         <Text style={styles.subheader}>
           Private race in your {metricStanding?.metricName ?? ""} league — you invite the entrants.
@@ -491,6 +498,8 @@ export function CreateRaceScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
+  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2, marginBottom: spacing.lg },
 
