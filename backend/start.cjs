@@ -29,7 +29,7 @@ if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
   );
 
   if (migration.status !== 0) {
-    process.exit(migration.status ?? 1);
+    console.warn("[startup] Prisma migrate deploy failed; continuing to start the web app. New database-backed features may not work until migrations are applied.");
   }
 }
 
