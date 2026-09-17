@@ -250,12 +250,16 @@ export type RaceHistoryEntry = {
   race: {
     id: string;
     name: string;
+    visibility: RaceVisibility;
+    createdByUserId: string | null;
+    inviteCode: string | null;
     metricKey: string;
     format: RaceFormat;
     status: RaceStatus;
     entrantCount: number;
     durationDays: number;
     raceType: { displayName: string };
+    leagueLevel: number;
     /** The league this race ran in — always within the race's own metric. */
     league: { level: number; name: string };
   };

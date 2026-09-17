@@ -994,7 +994,7 @@ export async function resolveSquadByCode(code: string, userId: string) {
 
 /** A user's own race history, for the profile. */
 export async function listUserRaceEntries(userId: string, limit = 30) {
-  return prisma.raceEntry.findMany({
+  const entries = await prisma.raceEntry.findMany({
     where: { userId },
     include: {
       race: { include: { raceType: { select: { displayName: true } }, league: { select: { level: true, name: true } } } },
@@ -1003,6 +1003,14 @@ export async function listUserRaceEntries(userId: string, limit = 30) {
     orderBy: { joinedAt: "desc" },
     take: limit,
   });
+
+  return entries.map((entry) => ({
+    ...entry,
+    race: {
+      ...entry.race,
+      inviteCode: entry.race.createdByUserId === userId ? entry.race.inviteCode : null,
+    },
+  }));
 }
 
 export type { Race, RaceEntry, RaceType };

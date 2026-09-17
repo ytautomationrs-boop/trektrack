@@ -9,6 +9,8 @@ import { iconFor } from "../../theme/metricIcons";
 import { getMyRaces, getLeagueStandings } from "../../api/raceClient";
 import type { LeagueStandings, RaceHistoryEntry } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
+import { shareCode } from "../../lib/shareCode";
+import { useAppState } from "../../state/useAppState";
 
 /**
  * "Your races" — the races this user is actually in.
@@ -38,7 +40,8 @@ function subtitleFor(entry: RaceHistoryEntry): string {
   const metric = entry.race.metricKey.charAt(0).toUpperCase() + entry.race.metricKey.slice(1);
   const days = `${entry.race.durationDays} day${entry.race.durationDays === 1 ? "" : "s"}`;
   const format = entry.race.format === "SQUAD" ? "Squad" : "Solo";
-  return `${metric} ${entry.race.league.name} · ${days} · ${format}`;
+  const leagueName = entry.race.league?.name ?? `League ${entry.race.league?.level ?? entry.race.leagueLevel ?? 1}`;
+  return `${metric} ${leagueName} · ${days} · ${format}`;
 }
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
@@ -52,6 +55,7 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 
 export function MyRacesScreen() {
   const navigation = useNavigation<any>();
+  const app = useAppState();
   const [entries, setEntries] = useState<RaceHistoryEntry[]>([]);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +93,7 @@ export function MyRacesScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
-        <Pressable style={styles.backRow} onPress={() => navigation.navigate("RacesList")}>
+        <Pressable style={styles.backRow} onPress={() => navigation.navigate("Competitions")}>
           <Ionicons name="chevron-back" size={18} color={colors.sub} />
           <Text style={styles.backText}>Competitions</Text>
         </Pressable>
@@ -107,7 +111,7 @@ export function MyRacesScreen() {
             <Text style={styles.emptyBody}>
               Browse the open races and enter one — every race pays a fixed prize that's published before you join.
             </Text>
-            <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("RacesList")}>
+            <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("Competitions")}>
               <Text style={styles.emptyCtaText}>Browse races</Text>
             </Pressable>
           </View>
@@ -115,21 +119,31 @@ export function MyRacesScreen() {
 
         {active.length > 0 && <Text style={styles.sectionTitle}>Active</Text>}
         {active.map((e) => (
-          <RaceRow key={e.id} entry={e} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
+          <RaceRow key={e.id} entry={e} viewerUserId={app.session?.userId ?? null} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
         ))}
 
         {past.length > 0 && <Text style={styles.sectionTitle}>Past</Text>}
         {past.map((e) => (
-          <RaceRow key={e.id} entry={e} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
+          <RaceRow key={e.id} entry={e} viewerUserId={app.session?.userId ?? null} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
         ))}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function RaceRow({ entry, onPress }: { entry: RaceHistoryEntry; onPress: () => void }) {
+function RaceRow({ entry, viewerUserId, onPress }: { entry: RaceHistoryEntry; viewerUserId: string | null; onPress: () => void }) {
   const meta = STATUS_META[entry.race.status] ?? { label: entry.race.status, color: colors.sub };
   const finished = entry.finishPosition != null;
+  const canShareRace = entry.race.visibility === "PRIVATE" && entry.race.createdByUserId === viewerUserId && entry.race.inviteCode != null;
+
+  const shareRace = () => {
+    if (!entry.race.inviteCode) return;
+    void shareCode({
+      message: `Join my TrackTrek competition "${entry.race.name}" — race code: ${entry.race.inviteCode}`,
+      title: "Race code",
+      code: entry.race.inviteCode,
+    });
+  };
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
@@ -163,6 +177,19 @@ function RaceRow({ entry, onPress }: { entry: RaceHistoryEntry; onPress: () => v
             <Text style={styles.resultPrize}>{formatCents(entry.prizeCents)}</Text>
           )}
         </View>
+      )}
+
+      {canShareRace && (
+        <Pressable
+          style={styles.shareButton}
+          onPress={(event) => {
+            event.stopPropagation();
+            shareRace();
+          }}
+        >
+          <Ionicons name="share-outline" size={16} color={colors.bg} />
+          <Text style={styles.shareButtonText}>Share race</Text>
+        </Pressable>
       )}
     </Pressable>
   );
@@ -207,4 +234,15 @@ const styles = StyleSheet.create({
   resultPos: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
   resultPoints: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
   resultPrize: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.won, marginLeft: "auto" },
+  shareButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+  },
+  shareButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
 });

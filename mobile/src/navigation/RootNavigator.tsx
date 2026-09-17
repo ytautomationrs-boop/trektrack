@@ -16,6 +16,7 @@ import { useAppState } from "../state/useAppState";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
+const MyRaceStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
 /**
@@ -30,10 +31,16 @@ function RacesStackScreen() {
     <RaceStack.Navigator screenOptions={{ headerShown: false }}>
       <RaceStack.Screen name="RacesList" component={RacesScreen} />
       <RaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
-      {/* "Your races" — reachable from Competitions and from Profile, so it
-          lives in this stack rather than owning a tab of its own. */}
-      <RaceStack.Screen name="MyRaces" component={MyRacesScreen} />
     </RaceStack.Navigator>
+  );
+}
+
+function MyRacesStackScreen() {
+  return (
+    <MyRaceStack.Navigator screenOptions={{ headerShown: false }}>
+      <MyRaceStack.Screen name="MyRacesHome" component={MyRacesScreen} />
+      <MyRaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
+    </MyRaceStack.Navigator>
   );
 }
 
@@ -63,6 +70,7 @@ const navTheme = {
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Competitions: "trophy-outline",
+  "Your Races": "flag-outline",
   Wallet: "wallet-outline",
   Profile: "person-outline",
 };
@@ -101,6 +109,7 @@ export function RootNavigator() {
       >
         {/* The race/league browse screen — what used to be "Discover". */}
         <Tab.Screen name="Competitions" component={RacesStackScreen} />
+        <Tab.Screen name="Your Races" component={MyRacesStackScreen} />
         {/* Hidden from the bar: a stable target for navigating into the race
             stack by name from Profile or Create. */}
         <Tab.Screen

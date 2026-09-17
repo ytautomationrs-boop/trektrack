@@ -155,9 +155,9 @@ export function RacesScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={styles.header}>Competitions</Text>
-          {/* "Your races" lost its own tab when StreakPot came back and the
-              tabs became one-per-model — this is its entry point now. */}
-          <Pressable style={styles.myRacesLink} onPress={() => navigation.navigate("MyRaces")}>
+          {/* Also a bottom tab, but kept here as a shortcut for people who
+              enter from the competitions list and want their active races. */}
+          <Pressable style={styles.myRacesLink} onPress={() => navigation.navigate("Your Races")}>
             <Text style={styles.myRacesLinkText}>Your races</Text>
             <Ionicons name="chevron-forward" size={14} color={colors.accent} />
           </Pressable>
