@@ -23,6 +23,7 @@ import {
   openLeague,
   getRaceReviewQueue,
   getOpenReports,
+  getAdminUsers,
   resolveRaceFlag,
   disqualifyRaceEntry,
   cancelRace,
@@ -31,6 +32,7 @@ import {
   type PendingWithdrawal,
   type InviteCode,
   type AdminOverview,
+  type AdminUser,
   type RaceFillBucket,
   type LeagueReadiness,
   type RaceReviewQueue,
@@ -222,7 +224,7 @@ function OverviewPanel() {
 }
 
 function UsersPanel() {
-  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<Error | null>(null);
@@ -230,7 +232,8 @@ function UsersPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setOverview(await getAdminOverview());
+      const result = await getAdminUsers();
+      setUsers(result.users);
       setLoadError(null);
     } catch (err) {
       setLoadError(err as Error);
@@ -241,7 +244,7 @@ function UsersPanel() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  async function setStatus(user: AdminOverview["users"][number], status: "ACTIVE" | "SUSPENDED" | "BANNED") {
+  async function setStatus(user: AdminUser, status: "ACTIVE" | "SUSPENDED" | "BANNED") {
     setBusyId(user.id);
     try {
       await updateUserStatus(user.id, status, status === "ACTIVE" ? undefined : `${status.toLowerCase()} by admin`);
@@ -259,9 +262,9 @@ function UsersPanel() {
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
     >
       <Text style={styles.panelHint}>All signed-up users. Suspend blocks login and app actions temporarily; ban blocks the account until restored.</Text>
-      {loading && !overview ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} /> : null}
+      {loading && users.length === 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} /> : null}
       {!loading && loadError ? <LoadError error={loadError} onRetry={load} /> : null}
-      {overview?.users.map((user) => {
+      {users.map((user) => {
         const disabled = !!user.bannedAt || !!user.suspendedAt;
         return (
           <View key={user.id} style={styles.opsCard}>

@@ -12,7 +12,7 @@ import { prizeScheduleForEntryFee } from "../modules/races/pricing.js";
 const METRIC_TYPES = [
   {
     key: "steps",
-    displayName: "Steps",
+    displayName: "Walking",
     unit: "steps",
     valueType: "COUNT" as const,
     dataSourceCategory: "STEPS" as const,
@@ -127,7 +127,7 @@ function buildRaceTypes(): RaceTypeSeed[] {
     for (const durationDays of [1, 7] as const) {
       for (const format of ["INDIVIDUAL", "SQUAD"] as const) {
         const key = `${metric}_${durationDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
-        const label = metric.charAt(0).toUpperCase() + metric.slice(1);
+        const label = metric === "steps" ? "Walking" : metric.charAt(0).toUpperCase() + metric.slice(1);
         types.push({
           key,
           displayName: `${label} · ${durationDays} day${durationDays === 1 ? "" : "s"} · ${format === "SQUAD" ? "Squad" : "Solo"}`,
@@ -154,7 +154,7 @@ function raceTypeSeedFor(metricKey: string, durationDays: number, format: "INDIV
     throw new Error("Race duration must be between 1 and 30 days.");
   }
   const key = `${metricKey}_${normalizedDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
-  const label = metricKey.charAt(0).toUpperCase() + metricKey.slice(1);
+  const label = metricKey === "steps" ? "Walking" : metricKey.charAt(0).toUpperCase() + metricKey.slice(1);
   return {
     key,
     displayName: `${label} · ${normalizedDays} day${normalizedDays === 1 ? "" : "s"} · ${format === "SQUAD" ? "Squad" : "Solo"}`,
@@ -206,9 +206,6 @@ async function seedCompetitionCatalog() {
   ]);
   const expectedSchedules = buildRaceTypes().length * LEAGUE_LEVELS_SEEDED;
   const expectedLeagues = METRIC_TYPES.length * LEAGUE_LEVELS_SEEDED;
-  if (metricCount >= METRIC_TYPES.length && leagueCount >= expectedLeagues && raceTypeCount >= buildRaceTypes().length && scheduleCount >= expectedSchedules) {
-    return;
-  }
 
   await ensurePlatformAccount(prisma);
 
@@ -221,6 +218,14 @@ async function seedCompetitionCatalog() {
       update: metric,
       create: metric,
     });
+  }
+
+  for (const type of buildRaceTypes()) {
+    await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
+  }
+
+  if (metricCount >= METRIC_TYPES.length && leagueCount >= expectedLeagues && raceTypeCount >= buildRaceTypes().length && scheduleCount >= expectedSchedules) {
+    return;
   }
 
   for (const metric of METRIC_TYPES) {

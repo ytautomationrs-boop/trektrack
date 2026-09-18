@@ -60,6 +60,8 @@ export type AdminOverview = {
   }>;
 };
 
+export type AdminUser = AdminOverview["users"][number];
+
 export type RaceFillBucket = {
   raceTypeKey: string;
   leagueLevel: number;
@@ -164,8 +166,12 @@ export function getAdminOverview() {
   return request<AdminOverview>("/admin/overview");
 }
 
+export function getAdminUsers() {
+  return request<{ users: AdminUser[] }>("/admin/users");
+}
+
 export function updateUserStatus(userId: string, status: "ACTIVE" | "SUSPENDED" | "BANNED", reason?: string) {
-  return request<{ user: AdminOverview["users"][number] }>(`/admin/users/${encodeURIComponent(userId)}/status`, {
+  return request<{ user: AdminUser }>(`/admin/users/${encodeURIComponent(userId)}/status`, {
     method: "POST",
     body: JSON.stringify({ status, reason }),
   });

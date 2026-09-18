@@ -17,7 +17,7 @@ import { sportImageFor } from "../../theme/sportImages";
 // stay close to live on a screen with no deadline to countdown against.
 const POLL_INTERVAL_MS = 15_000;
 const DEFAULT_METRIC_FILTERS = [
-  { metricKey: "steps", metricName: "Steps" },
+  { metricKey: "steps", metricName: "Walking" },
   { metricKey: "running", metricName: "Running" },
   { metricKey: "swimming", metricName: "Swimming" },
   { metricKey: "cycling", metricName: "Cycling" },

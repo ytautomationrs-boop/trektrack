@@ -32,7 +32,7 @@ import type { MetricKey } from "../../api/types";
  */
 
 const METRICS: Array<{ key: MetricKey; label: string; icon: string }> = [
-  { key: "steps", label: "Steps", icon: "footprints" },
+  { key: "steps", label: "Walking", icon: "footprints" },
   { key: "running", label: "Running", icon: "running" },
   { key: "cycling", label: "Cycling", icon: "bike" },
   { key: "swimming", label: "Swimming", icon: "waves" },
@@ -56,14 +56,14 @@ const PRIZE_MULTIPLIERS = [
 const TROPHY_SCALE = [6, 4, 3, 2, 1, 0, -1, -2, -3, -4] as const;
 
 const TROPHY_META: Record<MetricKey, { label: string; icon: string; color: string }> = {
-  steps: { label: "Steps trophies", icon: "footprints", color: "#ffffff" },
+  steps: { label: "Walking trophies", icon: "footprints", color: "#e6dcd0" },
   running: { label: "Running trophies", icon: "running", color: "#ff2f3f" },
   cycling: { label: "Cycling trophies", icon: "bike", color: "#64d48a" },
   swimming: { label: "Swimming trophies", icon: "waves", color: "#38bdf8" },
 };
 
 const METRIC_META: Record<MetricKey, RaceType["metricType"]> = {
-  steps: { key: "steps", displayName: "Steps", unit: "steps", valueType: "COUNT", icon: "footprints" },
+  steps: { key: "steps", displayName: "Walking", unit: "steps", valueType: "COUNT", icon: "footprints" },
   running: { key: "running", displayName: "Running", unit: "km", valueType: "DISTANCE_METERS", icon: "running" },
   cycling: { key: "cycling", displayName: "Cycling", unit: "km", valueType: "DISTANCE_METERS", icon: "bike" },
   swimming: { key: "swimming", displayName: "Swimming", unit: "m", valueType: "DISTANCE_METERS", icon: "waves" },

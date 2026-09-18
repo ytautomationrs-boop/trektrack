@@ -27,7 +27,7 @@ const SLIDES = [
 // Which metric to set up health permissions for first. Not a race, and not
 // a commitment — races are entered from Discover once onboarding is done.
 const STARTER_METRICS: Array<{ metricKey: string; icon: string; title: string; sub: string }> = [
-  { metricKey: "steps", icon: "footprints", title: "Steps", sub: "Everyday walking" },
+  { metricKey: "steps", icon: "footprints", title: "Walking", sub: "Everyday steps" },
   { metricKey: "running", icon: "running", title: "Running", sub: "Distance on foot" },
   { metricKey: "cycling", icon: "bike", title: "Cycling", sub: "Distance on the bike" },
   { metricKey: "swimming", icon: "waves", title: "Swimming", sub: "Distance in the pool" },

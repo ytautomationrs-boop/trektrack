@@ -30,6 +30,19 @@ const AdminUserStatusSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
+async function adminFallback<T>(label: string, run: () => Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    appLogAdminWarning(label, err);
+    return fallback;
+  }
+}
+
+function appLogAdminWarning(label: string, err: unknown) {
+  console.warn(`[admin] ${label} failed`, err);
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const derived = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -229,13 +242,17 @@ export async function authRoutes(app: FastifyInstance) {
       recentUsers,
       recentLedger,
     ] = await Promise.all([
-      prisma.user.count({ where: { email: { not: "platform@streak.demo" } } }),
-      prisma.user.aggregate({ where: { email: { not: "platform@streak.demo" } }, _sum: { walletBalanceCents: true } }),
-      prisma.race.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.challenge.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.withdrawal.count({ where: { status: "PENDING" } }),
-      prisma.report.count({ where: { status: "OPEN" } }),
-      prisma.user.findMany({
+      adminFallback("total users", () => prisma.user.count({ where: { email: { not: "platform@streak.demo" } } }), 0),
+      adminFallback(
+        "wallet aggregate",
+        () => prisma.user.aggregate({ where: { email: { not: "platform@streak.demo" } }, _sum: { walletBalanceCents: true } }),
+        { _sum: { walletBalanceCents: 0 } }
+      ),
+      adminFallback("race status counts", () => prisma.race.groupBy({ by: ["status"], _count: { _all: true } }), []),
+      adminFallback("competition status counts", () => prisma.challenge.groupBy({ by: ["status"], _count: { _all: true } }), []),
+      adminFallback("pending withdrawals", () => prisma.withdrawal.count({ where: { status: "PENDING" } }), 0),
+      adminFallback("open reports", () => prisma.report.count({ where: { status: "OPEN" } }), 0),
+      adminFallback("recent users", () => prisma.user.findMany({
         where: { email: { not: "platform@streak.demo" } },
         orderBy: { createdAt: "desc" },
         take: 25,
@@ -251,8 +268,8 @@ export async function authRoutes(app: FastifyInstance) {
           createdAt: true,
           _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
         },
-      }),
-      prisma.ledgerEntry.findMany({
+      }), []),
+      adminFallback("recent ledger", () => prisma.ledgerEntry.findMany({
         orderBy: { createdAt: "desc" },
         take: 20,
         select: {
@@ -264,7 +281,7 @@ export async function authRoutes(app: FastifyInstance) {
           createdAt: true,
           user: { select: { displayName: true, email: true } },
         },
-      }),
+      }), []),
     ]);
 
     return reply.send({
@@ -297,6 +314,47 @@ export async function authRoutes(app: FastifyInstance) {
         },
       })),
       ledger: recentLedger,
+    });
+  });
+
+  app.get("/admin/users", { preHandler: [requireAuth, requireAdmin] }, async (_req, reply) => {
+    const users = await prisma.user.findMany({
+      where: { email: { not: "platform@streak.demo" } },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        isAdmin: true,
+        walletBalanceCents: true,
+        suspendedAt: true,
+        suspendedReason: true,
+        bannedAt: true,
+        createdAt: true,
+        _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
+      },
+    });
+
+    return reply.send({
+      users: users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        isAdmin: u.isAdmin,
+        walletBalanceCents: u.walletBalanceCents,
+        suspendedAt: u.suspendedAt,
+        suspendedReason: u.suspendedReason,
+        bannedAt: u.bannedAt,
+        createdAt: u.createdAt,
+        lastSeenAt: null,
+        counts: {
+          races: u._count.raceEntries,
+          challenges: u._count.challengeParticipations,
+          withdrawals: u._count.withdrawals,
+          deposits: u._count.depositIntents,
+        },
+      })),
     });
   });
 
@@ -338,8 +396,28 @@ export async function authRoutes(app: FastifyInstance) {
         suspendedReason: true,
         bannedAt: true,
         createdAt: true,
+        _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
       },
     });
-    return reply.send({ user });
+    return reply.send({
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        isAdmin: user.isAdmin,
+        walletBalanceCents: user.walletBalanceCents,
+        suspendedAt: user.suspendedAt,
+        suspendedReason: user.suspendedReason,
+        bannedAt: user.bannedAt,
+        createdAt: user.createdAt,
+        lastSeenAt: null,
+        counts: {
+          races: user._count.raceEntries,
+          challenges: user._count.challengeParticipations,
+          withdrawals: user._count.withdrawals,
+          deposits: user._count.depositIntents,
+        },
+      },
+    });
   });
 }
