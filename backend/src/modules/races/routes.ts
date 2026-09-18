@@ -24,6 +24,7 @@ import {
 } from "./service.js";
 import { ingestRaceSamples, liveStandings, syncStravaForEntry } from "./scoring.js";
 import { parseWorkoutFile, workoutToSample, WorkoutFileError } from "../imports/workoutFile.js";
+import { WalletError } from "../wallet/service.js";
 import {
   LeagueError,
   getAllLeagueStates,
@@ -38,6 +39,10 @@ import { disqualifyEntry, forfeitHeldPrize } from "./resolution.js";
 function sendRaceError(reply: FastifyReply, err: unknown) {
   if (err instanceof RaceError) {
     const status = err.code === "insufficient_balance" ? 402 : err.code === "not_found" ? 404 : 400;
+    return reply.code(status).send({ error: err.code, message: err.message });
+  }
+  if (err instanceof WalletError) {
+    const status = err.code === "insufficient_balance" ? 402 : 400;
     return reply.code(status).send({ error: err.code, message: err.message });
   }
   if (err instanceof LeagueError) {

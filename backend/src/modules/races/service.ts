@@ -7,7 +7,6 @@ import { isRaceEligibleMetric, PLATFORM_DEFAULT_TIMEZONE } from "./config.js";
 import { nextMidnightInTimeZone } from "./scheduling.js";
 import { notifyUsers } from "../notifications/service.js";
 import { prizeScheduleForEntryFee, totalPrizeCents as sumPrizeCents } from "./pricing.js";
-import { grantSponsoredCredit } from "../wallet/service.js";
 import type { Race, RaceEntry, RaceType } from "@prisma/client";
 
 /**
@@ -224,12 +223,10 @@ export async function createPrivateRaceAndEnter(params: {
 
   try {
     if (user.isAdmin && user.walletBalanceCents < race.entryFeeCents) {
-      await grantSponsoredCredit({
-        userId: params.userId,
-        amountCents: race.entryFeeCents - user.walletBalanceCents,
-        grantRef: `admin-race-create:${race.id}`,
-        note: "Automatic admin race creation credit",
-        grantedByUserId: params.userId,
+      await prisma.user.update({
+        where: { id: params.userId },
+        data: { walletBalanceCents: { increment: race.entryFeeCents - user.walletBalanceCents } },
+        select: { id: true },
       });
     }
     const entry = await enterRace({
