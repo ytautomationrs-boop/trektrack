@@ -7,6 +7,7 @@ import { isRaceEligibleMetric, PLATFORM_DEFAULT_TIMEZONE } from "./config.js";
 import { nextMidnightInTimeZone } from "./scheduling.js";
 import { notifyUsers } from "../notifications/service.js";
 import { prizeScheduleForEntryFee, totalPrizeCents as sumPrizeCents } from "./pricing.js";
+import { grantSponsoredCredit } from "../wallet/service.js";
 import type { Race, RaceEntry, RaceType } from "@prisma/client";
 
 /**
@@ -199,7 +200,10 @@ export async function createPrivateRaceAndEnter(params: {
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
 }) {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId }, select: { timezone: true } });
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: params.userId },
+    select: { timezone: true, isAdmin: true, walletBalanceCents: true },
+  });
 
   // The race runs in the creator's league FOR THIS RACE'S METRIC — someone
   // deep in the running leagues still creates a swimming race at their
@@ -219,6 +223,15 @@ export async function createPrivateRaceAndEnter(params: {
   });
 
   try {
+    if (user.isAdmin && user.walletBalanceCents < race.entryFeeCents) {
+      await grantSponsoredCredit({
+        userId: params.userId,
+        amountCents: race.entryFeeCents - user.walletBalanceCents,
+        grantRef: `admin-race-create:${race.id}`,
+        note: "Automatic admin race creation credit",
+        grantedByUserId: params.userId,
+      });
+    }
     const entry = await enterRace({
       userId: params.userId,
       raceId: race.id,

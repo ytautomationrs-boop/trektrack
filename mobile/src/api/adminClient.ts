@@ -42,6 +42,9 @@ export type AdminOverview = {
     displayName: string;
     isAdmin: boolean;
     walletBalanceCents: number;
+    suspendedAt: string | null;
+    suspendedReason: string | null;
+    bannedAt: string | null;
     createdAt: string;
     lastSeenAt: string | null;
     counts: { races: number; challenges: number; withdrawals: number; deposits: number };
@@ -159,6 +162,13 @@ export function createCustomInviteCode(code: string, label?: string) {
 
 export function getAdminOverview() {
   return request<AdminOverview>("/admin/overview");
+}
+
+export function updateUserStatus(userId: string, status: "ACTIVE" | "SUSPENDED" | "BANNED", reason?: string) {
+  return request<{ user: AdminOverview["users"][number] }>(`/admin/users/${encodeURIComponent(userId)}/status`, {
+    method: "POST",
+    body: JSON.stringify({ status, reason }),
+  });
 }
 
 export function revokeInviteCode(id: string) {

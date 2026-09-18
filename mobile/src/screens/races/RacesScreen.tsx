@@ -16,6 +16,12 @@ import { sportImageFor } from "../../theme/sportImages";
 // No websocket infra exists yet — this is how fill counts and lock states
 // stay close to live on a screen with no deadline to countdown against.
 const POLL_INTERVAL_MS = 15_000;
+const DEFAULT_METRIC_FILTERS = [
+  { metricKey: "steps", metricName: "Steps" },
+  { metricKey: "running", metricName: "Running" },
+  { metricKey: "swimming", metricName: "Swimming" },
+  { metricKey: "cycling", metricName: "Cycling" },
+];
 
 function formatCents(cents: number) {
   return `R${(cents / 100).toLocaleString()}`;
@@ -86,8 +92,9 @@ export function RacesScreen() {
   }, [load]);
 
   const visibleRaces = metricFilter ? races.filter((r) => r.metricKey === metricFilter) : races;
+  const metricFilters = standings?.standings.length ? standings.standings : DEFAULT_METRIC_FILTERS;
   const metricFilterName =
-    standings?.standings.find((s) => s.metricKey === metricFilter)?.metricName.toLowerCase() ?? metricFilter ?? "";
+    metricFilters.find((s) => s.metricKey === metricFilter)?.metricName.toLowerCase() ?? metricFilter ?? "";
 
   const doEnter = async (race: Race, acceptLowerLeague: boolean) => {
     setEntering(race.id);
@@ -181,7 +188,7 @@ export function RacesScreen() {
             THAT metric's league level — never a combined or unrelated one. */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricRow}>
           <ScopeChip label="All" active={metricFilter === null} onPress={() => setMetricFilter(null)} />
-          {(standings?.standings ?? []).map((s) => (
+          {metricFilters.map((s) => (
             <ScopeChip
               key={s.metricKey}
               label={s.metricName}

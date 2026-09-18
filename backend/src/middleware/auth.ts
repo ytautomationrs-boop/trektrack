@@ -29,9 +29,21 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   // handlers dereference a user that isn't there and the caller gets a 500
   // (or a 404 from whichever findUniqueOrThrow ran first) on every request,
   // forever, instead of simply being signed out.
-  const user = await prisma.user.findUnique({ where: { id: payload.sub }, select: { id: true } });
+  const user = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { id: true, suspendedAt: true, suspendedReason: true, bannedAt: true },
+  });
   if (!user) {
     return reply.code(401).send({ error: "unauthorized", message: "That account no longer exists. Please sign in again." });
+  }
+  if (user.bannedAt) {
+    return reply.code(403).send({ error: "account_banned", message: "This account has been banned." });
+  }
+  if (user.suspendedAt) {
+    return reply.code(403).send({
+      error: "account_suspended",
+      message: user.suspendedReason ? `This account is suspended: ${user.suspendedReason}` : "This account is suspended.",
+    });
   }
 
   req.userId = user.id;

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { z } from "zod";
 import { ensureEffectiveAdmin, isBootstrapAdminEmail } from "../../lib/adminAccess.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
@@ -15,9 +16,18 @@ const authUserSelect = {
   passwordHash: true,
   displayName: true,
   avatarUrl: true,
+  bio: true,
   walletBalanceCents: true,
   isAdmin: true,
+  suspendedAt: true,
+  suspendedReason: true,
+  bannedAt: true,
 } as const;
+
+const AdminUserStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]),
+  reason: z.string().trim().max(500).optional(),
+});
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -123,9 +133,10 @@ export async function authRoutes(app: FastifyInstance) {
           id: user.id,
           email: user.email,
           displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
-          walletBalanceCents: user.walletBalanceCents,
-          isAdmin,
+            avatarUrl: user.avatarUrl,
+            bio: user.bio,
+            walletBalanceCents: user.walletBalanceCents,
+            isAdmin,
         },
       });
     } catch (err) {
@@ -139,6 +150,15 @@ export async function authRoutes(app: FastifyInstance) {
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
       return reply.code(401).send({ error: "invalid_credentials" });
     }
+    if (user.bannedAt) {
+      return reply.code(403).send({ error: "account_banned", message: "This account has been banned." });
+    }
+    if (user.suspendedAt) {
+      return reply.code(403).send({
+        error: "account_suspended",
+        message: user.suspendedReason ? `This account is suspended: ${user.suspendedReason}` : "This account is suspended.",
+      });
+    }
     const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
     const isAdmin = await ensureEffectiveAdmin(user);
     return reply.send({
@@ -148,6 +168,7 @@ export async function authRoutes(app: FastifyInstance) {
         email: user.email,
         displayName: user.displayName,
         avatarUrl: user.avatarUrl,
+        bio: user.bio,
         walletBalanceCents: user.walletBalanceCents,
         isAdmin,
       },
@@ -160,7 +181,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: requireAuth }, async (req, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, displayName: true, avatarUrl: true, walletBalanceCents: true, isAdmin: true },
+      select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
     });
     if (!user) return reply.code(404).send({ error: "not_found" });
     const isAdmin = await ensureEffectiveAdmin(user);
@@ -221,6 +242,9 @@ export async function authRoutes(app: FastifyInstance) {
           displayName: true,
           isAdmin: true,
           walletBalanceCents: true,
+          suspendedAt: true,
+          suspendedReason: true,
+          bannedAt: true,
           createdAt: true,
           _count: { select: { raceEntries: true, challengeParticipations: true, withdrawals: true, depositIntents: true } },
         },
@@ -257,6 +281,9 @@ export async function authRoutes(app: FastifyInstance) {
         displayName: u.displayName,
         isAdmin: u.isAdmin,
         walletBalanceCents: u.walletBalanceCents,
+        suspendedAt: u.suspendedAt,
+        suspendedReason: u.suspendedReason,
+        bannedAt: u.bannedAt,
         createdAt: u.createdAt,
         lastSeenAt: null,
         counts: {
@@ -279,5 +306,37 @@ export async function authRoutes(app: FastifyInstance) {
     const { id } = req.params as { id: string };
     const code = await prisma.inviteCode.update({ where: { id }, data: { revokedAt: new Date() } });
     return reply.send({ code });
+  });
+
+  app.post("/admin/users/:id/status", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const body = AdminUserStatusSchema.parse(req.body ?? {});
+    if (id === req.userId && body.status !== "ACTIVE") {
+      return reply.code(400).send({ error: "cannot_disable_self", message: "You cannot suspend or ban your own admin session." });
+    }
+
+    const data =
+      body.status === "ACTIVE"
+        ? { suspendedAt: null, suspendedReason: null, bannedAt: null }
+        : body.status === "SUSPENDED"
+          ? { suspendedAt: new Date(), suspendedReason: body.reason ?? "Suspended by admin", bannedAt: null }
+          : { suspendedAt: null, suspendedReason: body.reason ?? "Banned by admin", bannedAt: new Date() };
+
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        isAdmin: true,
+        walletBalanceCents: true,
+        suspendedAt: true,
+        suspendedReason: true,
+        bannedAt: true,
+        createdAt: true,
+      },
+    });
+    return reply.send({ user });
   });
 }

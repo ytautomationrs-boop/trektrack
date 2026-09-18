@@ -57,6 +57,9 @@ model User {
   // check). Everyone still enters/joins normally — this only gates the
   // CREATE side. Intended to be dropped once public creation reopens.
   isAdmin Boolean @default(false)
+  suspendedAt     DateTime?
+  suspendedReason String?
+  bannedAt        DateTime?
 
   // Real money only ever touches this balance at two points: DEPOSIT
   // (Paystack) and WITHDRAWAL (Paystack Transfer / PayPal Payout). Every
@@ -104,6 +107,8 @@ model User {
   badges                  UserBadge[]
 
   @@index([email])
+  @@index([suspendedAt])
+  @@index([bannedAt])
 }
 
 enum FriendshipStatus {

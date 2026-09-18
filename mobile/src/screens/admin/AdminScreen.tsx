@@ -27,6 +27,7 @@ import {
   disqualifyRaceEntry,
   cancelRace,
   forfeitHeldPrize,
+  updateUserStatus,
   type PendingWithdrawal,
   type InviteCode,
   type AdminOverview,
@@ -60,7 +61,7 @@ function formatWhen(iso: string) {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-type Tab = "overview" | "controls" | "fund" | "payouts" | "invites" | "leagues" | "review";
+type Tab = "overview" | "users" | "controls" | "fund" | "payouts" | "invites" | "leagues" | "review";
 
 export function AdminScreen() {
   const navigation = useNavigation<any>();
@@ -92,6 +93,7 @@ export function AdminScreen() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
         <TabChip label="Overview" active={tab === "overview"} onPress={() => setTab("overview")} />
+        <TabChip label="Users" active={tab === "users"} onPress={() => setTab("users")} />
         <TabChip label="Controls" active={tab === "controls"} onPress={() => setTab("controls")} />
         <TabChip label="Fund" active={tab === "fund"} onPress={() => setTab("fund")} />
         <TabChip label="Payouts" active={tab === "payouts"} onPress={() => setTab("payouts")} />
@@ -102,6 +104,8 @@ export function AdminScreen() {
 
       {tab === "overview" ? (
         <OverviewPanel />
+      ) : tab === "users" ? (
+        <UsersPanel />
       ) : tab === "controls" ? (
         <ControlsPanel onSelect={setTab} />
       ) : tab === "fund" ? (
@@ -150,10 +154,11 @@ function OverviewPanel() {
   }
   if (!overview) return null;
 
+  const suspendedUsers = overview.users.filter((u) => u.suspendedAt || u.bannedAt).length;
   const statCards = [
     { label: "Users", value: String(overview.stats.totalUsers) },
+    { label: "Suspended", value: String(suspendedUsers) },
     { label: "Races", value: String(Object.values(overview.stats.racesByStatus).reduce((sum, n) => sum + n, 0)) },
-    { label: "Pools", value: String(Object.values(overview.stats.challengesByStatus).reduce((sum, n) => sum + n, 0)) },
     { label: "Wallets", value: formatCents(overview.stats.userWalletBalanceCents) },
     { label: "Payouts", value: String(overview.stats.pendingWithdrawals) },
     { label: "Reports", value: String(overview.stats.openReports) },
@@ -173,6 +178,16 @@ function OverviewPanel() {
         ))}
       </View>
 
+      <Text style={styles.sectionTitle}>Control overview</Text>
+      <View style={styles.controlStrip}>
+        {Object.entries(overview.stats.racesByStatus).map(([status, count]) => (
+          <View key={status} style={styles.controlPill}>
+            <Text style={styles.controlPillValue}>{count}</Text>
+            <Text style={styles.controlPillLabel}>{status.toLowerCase()}</Text>
+          </View>
+        ))}
+      </View>
+
       <Text style={styles.sectionTitle}>Recent users</Text>
       {overview.users.map((user) => (
         <View key={user.id} style={styles.userRow}>
@@ -182,6 +197,11 @@ function OverviewPanel() {
             <Text style={styles.userMeta}>
               Joined {formatWhen(user.createdAt)} · {user.counts.races} races · {user.counts.challenges} challenges
             </Text>
+            {user.bannedAt || user.suspendedAt ? (
+              <Text style={styles.userStatusBad}>
+                {user.bannedAt ? "Banned" : "Suspended"}{user.suspendedReason ? ` · ${user.suspendedReason}` : ""}
+              </Text>
+            ) : null}
           </View>
           <Text style={styles.userBalance}>{formatCents(user.walletBalanceCents)}</Text>
         </View>
@@ -201,6 +221,84 @@ function OverviewPanel() {
   );
 }
 
+function UsersPanel() {
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      setOverview(await getAdminOverview());
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  async function setStatus(user: AdminOverview["users"][number], status: "ACTIVE" | "SUSPENDED" | "BANNED") {
+    setBusyId(user.id);
+    try {
+      await updateUserStatus(user.id, status, status === "ACTIVE" ? undefined : `${status.toLowerCase()} by admin`);
+      await load();
+    } catch (err: any) {
+      showAlert("Couldn't update user", err.message ?? "Try again.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+    >
+      <Text style={styles.panelHint}>All signed-up users. Suspend blocks login and app actions temporarily; ban blocks the account until restored.</Text>
+      {loading && !overview ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} /> : null}
+      {!loading && loadError ? <LoadError error={loadError} onRetry={load} /> : null}
+      {overview?.users.map((user) => {
+        const disabled = !!user.bannedAt || !!user.suspendedAt;
+        return (
+          <View key={user.id} style={styles.opsCard}>
+            <View style={styles.opsTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.userName}>{user.displayName}{user.isAdmin ? " · admin" : ""}</Text>
+                <Text style={styles.userMeta}>{user.email}</Text>
+                <Text style={styles.userMeta}>{formatCents(user.walletBalanceCents)} · {user.counts.races} races · {user.counts.withdrawals} withdrawals</Text>
+                {disabled ? <Text style={styles.userStatusBad}>{user.bannedAt ? "Banned" : "Suspended"}{user.suspendedReason ? ` · ${user.suspendedReason}` : ""}</Text> : null}
+              </View>
+              <View style={[styles.statePill, disabled ? styles.stateWarn : styles.stateGood]}>
+                <Text style={styles.statePillText}>{user.bannedAt ? "banned" : user.suspendedAt ? "suspended" : "active"}</Text>
+              </View>
+            </View>
+            <View style={styles.payoutActions}>
+              {disabled ? (
+                <Pressable style={[styles.cta, styles.payoutCta, busyId === user.id && styles.ctaDisabled]} disabled={busyId === user.id} onPress={() => setStatus(user, "ACTIVE")}>
+                  <Text style={styles.ctaText}>Restore</Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable style={[styles.secondaryCta, styles.payoutCta, busyId === user.id && styles.ctaDisabled]} disabled={busyId === user.id} onPress={() => setStatus(user, "SUSPENDED")}>
+                    <Text style={styles.secondaryCtaText}>Suspend</Text>
+                  </Pressable>
+                  <Pressable style={[styles.dangerCtaInline, styles.payoutCta, busyId === user.id && styles.ctaDisabled]} disabled={busyId === user.id} onPress={() => setStatus(user, "BANNED")}>
+                    <Text style={styles.dangerCtaText}>Ban</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 function TabChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
     <Pressable style={[styles.tabChip, active && styles.tabChipActive]} onPress={onPress}>
@@ -212,6 +310,7 @@ function TabChip({ label, active, onPress }: { label: string; active: boolean; o
 function ControlsPanel({ onSelect }: { onSelect: (tab: Tab) => void }) {
   const features: Array<{ title: string; body: string; icon: keyof typeof Ionicons.glyphMap; tab: Tab }> = [
     { title: "Pilot health", body: "Live totals for users, races, wallets, reports, and recent account activity.", icon: "pulse", tab: "overview" },
+    { title: "User control", body: "See signed-up users, balances, race counts, and suspend or ban accounts.", icon: "people", tab: "users" },
     { title: "Fund users", body: "Grant sponsored wallet credit with an idempotent daily reference.", icon: "wallet", tab: "fund" },
     { title: "Payout queue", body: "Mark EFT withdrawals as paid or refuse and refund them.", icon: "cash", tab: "payouts" },
     { title: "Invite codes", body: "Create, share, and revoke signup codes for the closed pilot.", icon: "ticket", tab: "invites" },
@@ -895,6 +994,7 @@ const styles = StyleSheet.create({
   secondaryCta: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   secondaryCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
   dangerCta: { backgroundColor: colors.fail, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.sm },
+  dangerCtaInline: { backgroundColor: colors.fail, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   dangerCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   smallDanger: {
     backgroundColor: colors.fail + "22",
@@ -970,9 +1070,14 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },
   statLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.md },
+  controlStrip: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  controlPill: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minWidth: 92 },
+  controlPillValue: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },
+  controlPillLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   userRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   ledgerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.line, paddingVertical: spacing.md },
   userName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   userMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
+  userStatusBad: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.risk, marginTop: 4 },
   userBalance: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text },
 });

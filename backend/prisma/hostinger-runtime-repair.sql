@@ -1,4 +1,10 @@
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "bio" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "suspendedAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "suspendedReason" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "bannedAt" TIMESTAMP(3);
+
+CREATE INDEX IF NOT EXISTS "User_suspendedAt_idx" ON "User"("suspendedAt");
+CREATE INDEX IF NOT EXISTS "User_bannedAt_idx" ON "User"("bannedAt");
 
 DO $$
 BEGIN
