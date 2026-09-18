@@ -96,6 +96,11 @@ export function RacesScreen() {
   const metricFilterName =
     metricFilters.find((s) => s.metricKey === metricFilter)?.metricName.toLowerCase() ?? metricFilter ?? "";
 
+  const selectMetric = (metricKey: string) => {
+    setMetricFilter(metricKey);
+    setStandings((current) => (current ? { ...current, primaryMetricKey: metricKey } : current));
+  };
+
   const doEnter = async (race: Race, acceptLowerLeague: boolean) => {
     setEntering(race.id);
     try {
@@ -182,7 +187,7 @@ export function RacesScreen() {
 
         {/* Hidden once the load has failed — its own null state says "Loading
             your leagues…" forever, which contradicts the retry state below. */}
-        {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={setMetricFilter} />}
+        {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={selectMetric} />}
 
         {/* Metric filter. Selecting one narrows to that metric's races at
             THAT metric's league level — never a combined or unrelated one. */}

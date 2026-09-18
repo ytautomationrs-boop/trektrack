@@ -8,8 +8,9 @@ import type { LeagueStandings, MetricStanding } from "../../api/raceTypes";
 /**
  * League standing, per metric.
  *
- * Leads with the metric the user actually races — the progression they're
- * pushing — and shows the other three compactly beneath it. There is
+ * Leads with the selected metric — the progression they're inspecting — and
+ * shows all four compactly beneath it so the large panel can be switched
+ * directly. There is
  * deliberately no combined total and no global rank: a user's running league
  * says nothing about their swimming, so summing them would invent a number
  * that means nothing, and a rank that slides backwards during a bad run is
@@ -40,7 +41,6 @@ export function LeagueHeader({
 
   const primary =
     standings.standings.find((s) => s.metricKey === standings.primaryMetricKey) ?? standings.standings[0];
-  const others = standings.standings.filter((s) => s.metricKey !== primary?.metricKey);
 
   if (!primary) return null;
 
@@ -48,10 +48,15 @@ export function LeagueHeader({
     <View style={styles.card}>
       <PrimaryStanding standing={primary} />
 
-      {others.length > 0 && (
+      {standings.standings.length > 0 && (
         <View style={styles.otherRow}>
-          {others.map((s) => (
-            <CompactStanding key={s.metricKey} standing={s} onPress={() => onSelectMetric?.(s.metricKey)} />
+          {standings.standings.map((s) => (
+            <CompactStanding
+              key={s.metricKey}
+              standing={s}
+              active={s.metricKey === primary.metricKey}
+              onPress={() => onSelectMetric?.(s.metricKey)}
+            />
           ))}
         </View>
       )}
@@ -112,16 +117,19 @@ function PrimaryStanding({ standing }: { standing: MetricStanding }) {
 }
 
 /**
- * One of the three non-primary metrics.
+ * One of the four metric selector blocks.
  *
  * Shown even at zero, because "you have a swimming league and it starts at
  * Bronze" is information — hiding untouched metrics would make the four
  * independent progressions invisible until you happened to race one.
  */
-function CompactStanding({ standing, onPress }: { standing: MetricStanding; onPress?: () => void }) {
+function CompactStanding({ standing, active, onPress }: { standing: MetricStanding; active: boolean; onPress?: () => void }) {
   return (
-    <Pressable style={styles.compact} onPress={onPress} disabled={!onPress}>
-      <Ionicons name={iconFor(METRIC_ICON[standing.metricKey] ?? "")} size={14} color={colors.sub} />
+    <Pressable style={[styles.compact, active && styles.compactActive]} onPress={onPress} disabled={!onPress}>
+      <Ionicons name={iconFor(METRIC_ICON[standing.metricKey] ?? "")} size={14} color={active ? colors.accent : colors.sub} />
+      <Text style={[styles.compactMetric, active && styles.compactMetricActive]} numberOfLines={1}>
+        {standing.metricName}
+      </Text>
       <Text style={styles.compactLeague} numberOfLines={1}>
         {standing.currentLeague?.name ?? "—"}
       </Text>
@@ -162,6 +170,7 @@ const styles = StyleSheet.create({
 
   otherRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginTop: spacing.lg,
     borderTopWidth: 1,
@@ -170,6 +179,7 @@ const styles = StyleSheet.create({
   },
   compact: {
     flex: 1,
+    minWidth: 118,
     alignItems: "center",
     gap: 2,
     backgroundColor: colors.surfaceRaised,
@@ -177,6 +187,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: 4,
   },
+  compactActive: { borderWidth: 1, borderColor: colors.accent },
+  compactMetric: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.sub, textTransform: "uppercase" },
+  compactMetricActive: { color: colors.accent },
   compactLeague: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.text },
   compactPoints: { fontFamily: fonts.body, fontSize: 10, color: colors.sub },
 });
