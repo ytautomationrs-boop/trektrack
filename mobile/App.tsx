@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, StatusBar, Platform } from "react-native";
+import { View, StatusBar, Platform, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useFonts, Caprasimo_400Regular } from "@expo-google-fonts/caprasimo";
 import { Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold, Figtree_700Bold } from "@expo-google-fonts/figtree";
@@ -87,7 +87,7 @@ function AppRoot() {
       .finally(() => setRestoring(false));
   }, []);
 
-  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+  if (!fontsLoaded) return <Splash message="Loading TrackTrek" />;
 
   // Takes priority over the restoring spinner below — the user is mid-flow
   // on a URL that isn't meant to show the normal app shell at all.
@@ -105,9 +105,19 @@ function AppRoot() {
     );
   }
 
-  if (restoring) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+  if (restoring) return <Splash message="Restoring your session" />;
 
   return <AppShell />;
+}
+
+function Splash({ message }: { message: string }) {
+  return (
+    <View style={styles.splash}>
+      <Text style={styles.splashTitle}>TrackTrek</Text>
+      <ActivityIndicator color={colors.accent} style={styles.splashSpinner} />
+      <Text style={styles.splashMessage}>{message}</Text>
+    </View>
+  );
 }
 
 /**
@@ -142,3 +152,10 @@ function AppShell() {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  splash: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, padding: 24 },
+  splashTitle: { fontFamily: "Caprasimo_400Regular", fontSize: 34, color: colors.text },
+  splashSpinner: { marginTop: 18 },
+  splashMessage: { marginTop: 12, fontFamily: "Figtree_600SemiBold", fontSize: 14, color: colors.sub },
+});

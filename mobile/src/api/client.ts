@@ -52,7 +52,7 @@ export async function restoreSession() {
   const token = await getToken();
   if (!token) return null;
   try {
-    const data = await request<{ user: SessionUser }>("/me");
+    const data = await request<{ user: SessionUser }>("/me", { timeoutMs: 8_000 });
     return data.user;
   } catch {
     await clearToken();
