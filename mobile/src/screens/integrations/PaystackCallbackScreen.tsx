@@ -65,7 +65,7 @@ export function PaystackCallbackScreen({ onDone }: { onDone: () => void }) {
           <Text style={styles.title}>{state === "done" ? "Deposit complete" : "Deposit didn't go through"}</Text>
           <Text style={styles.text}>{message}</Text>
           <Pressable style={styles.button} onPress={continueToApp}>
-            <Text style={styles.buttonText}>Back to Streak</Text>
+            <Text style={styles.buttonText}>Back to TrackTrek</Text>
           </Pressable>
         </>
       )}

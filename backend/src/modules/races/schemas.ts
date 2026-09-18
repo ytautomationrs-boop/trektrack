@@ -82,16 +82,15 @@ export type ListRacesQuery = z.infer<typeof ListRacesQuerySchema>;
 export const CreateRaceSchema = z.object({
   name: z.string().trim().min(3).max(50),
   metricKey: z.enum(["steps", "running", "cycling", "swimming"]),
-  // Exactly two options. There is no custom duration: every extra duration
-  // is another pool that has to reach its own exact headcount.
-  durationDays: z.union([z.literal(1), z.literal(7)]),
+  // Host chooses a day count. The backend creates missing private/public
+  // catalog rows lazily, so race creation is not limited to pre-seeded
+  // launch presets.
+  durationDays: z.coerce.number().int().min(1).max(30),
   format: z.enum(["INDIVIDUAL", "SQUAD"]),
   // Custom entry fee for a user-created/private race, in cents.
   entryFeeCents: z.coerce.number().int().min(100).max(1_000_000).optional(),
-  // PUBLIC is accepted but rejected server-side with a clear message —
-  // public races are platform-opened so that one shared queue per league
-  // actually fills. Modelled here rather than omitted so the client can
-  // show the option and explain why it is unavailable.
+  // PRIVATE races get an invite code. PUBLIC races are visible in the
+  // competition list to anyone in the matching league.
   visibility: z.enum(["PUBLIC", "PRIVATE"]).default("PRIVATE"),
   // Squad races only: the creator founds the first squad.
   squadName: z.string().trim().min(2).max(30).optional(),

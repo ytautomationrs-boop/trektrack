@@ -48,7 +48,7 @@ export async function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
   if (!user || !(await ensureEffectiveAdmin(user))) {
     reply.code(403).send({
       error: "admin_only",
-      message: "Streak is invite-only right now — only the team can create races or challenges during the pilot.",
+      message: "TrackTrek is invite-only right now — only the team can create competitions during the pilot.",
     });
   }
 }

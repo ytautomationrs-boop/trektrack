@@ -180,7 +180,7 @@ function OverviewPanel() {
             <Text style={styles.userName} numberOfLines={1}>{user.displayName}{user.isAdmin ? " · admin" : ""}</Text>
             <Text style={styles.userMeta} numberOfLines={1}>{user.email}</Text>
             <Text style={styles.userMeta}>
-              Joined {formatWhen(user.createdAt)} · {user.counts.races} races · {user.counts.challenges} pools
+              Joined {formatWhen(user.createdAt)} · {user.counts.races} races · {user.counts.challenges} challenges
             </Text>
           </View>
           <Text style={styles.userBalance}>{formatCents(user.walletBalanceCents)}</Text>
@@ -594,7 +594,7 @@ function InvitesPanel() {
             key={c.id}
             style={styles.codeRow}
             disabled={dead}
-            onPress={() => void shareCode({ message: `Your Streak invite code: ${c.code}`, title: "Invite code", code: c.code })}
+            onPress={() => void shareCode({ message: `Your TrackTrek invite code: ${c.code}`, title: "Invite code", code: c.code })}
           >
             <View style={styles.codeBody}>
               <Text style={[styles.codeText, dead && styles.codeSpent]}>{c.code}</Text>

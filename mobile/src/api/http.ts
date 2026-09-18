@@ -72,7 +72,7 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
     const wrapped: ApiError = new Error(
       aborted
         ? "That took too long to respond. Check your connection and try again."
-        : "Couldn't reach Streak. Check your connection and try again."
+        : "Couldn't reach TrackTrek. Check your connection and try again."
     );
     wrapped.isNetworkError = true;
     throw wrapped;

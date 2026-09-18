@@ -1,8 +1,8 @@
 {
-  "name": "streak",
+  "name": "tracktrek",
   "version": "0.1.0",
   "private": true,
-  "description": "Streak — fixed-prize races/leagues plus StreakPot pooled challenges. Backend serves the web pilot; mobile/ also builds native.",
+  "description": "TrackTrek fixed-prize competitions and leagues. Backend serves the web pilot; mobile/ also builds native.",
   "engines": {
     "node": ">=22.12.0"
   },

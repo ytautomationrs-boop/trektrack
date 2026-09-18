@@ -337,7 +337,7 @@ export function RaceDetailScreen() {
           <View style={styles.warningCard}>
             <Ionicons name="warning-outline" size={18} color={colors.risk} />
             <Text style={styles.warningText}>
-              {`Streak scores from a workout file you export from your watch, and there's no such file for ${race.metricKey} — it's a daily total rather than a recorded activity. `}
+              {`TrackTrek scores from a workout file you export from your watch, and there's no such file for ${race.metricKey} — it's a daily total rather than a recorded activity. `}
               {race.hasEntered ? "Your total will stay at zero." : "Your total would stay at zero."}
             </Text>
           </View>
@@ -351,7 +351,7 @@ export function RaceDetailScreen() {
           <View style={styles.importCard}>
             <Text style={styles.importTitle}>Add your activity</Text>
             <Text style={styles.importBody}>
-              Export the workout from your watch or training app and upload it here. Streak reads{" "}
+              Export the workout from your watch or training app and upload it here. TrackTrek reads{" "}
               {ACCEPTED_EXTENSIONS.join(", ")} files. Upload as many as you like — the same file twice only counts once.
             </Text>
             <Pressable style={[styles.cta, importing && styles.ctaDisabled]} disabled={importing} onPress={() => doImport(myEntryId)}>
@@ -420,7 +420,7 @@ export function RaceDetailScreen() {
                           // straight to whichever app they'd send it in.
                           void shareCode({
                             message:
-                              "Join my squad \"" + squad.name + "\" on Streak — squad code: " + squad.inviteCode,
+                              "Join my squad \"" + squad.name + "\" on TrackTrek — squad code: " + squad.inviteCode,
                             title: "Squad code",
                             code: squad.inviteCode as string,
                           });

@@ -1,4 +1,4 @@
-# Streak
+# TrackTrek
 
 Two competition models in one app, deliberately kept separate because they
 do different things with people's money.

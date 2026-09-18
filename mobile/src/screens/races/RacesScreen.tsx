@@ -210,7 +210,7 @@ export function RacesScreen() {
             </Text>
             <Text style={styles.emptyText}>
               {metricFilter
-                ? `Streak isn't running public ${metricFilterName} races at this level yet — there need to be enough racers to fill one. You can start a private ${metricFilterName} race and invite your own entrants.`
+                ? `TrackTrek isn't running public ${metricFilterName} races at this level yet — there need to be enough racers to fill one. You can start a ${metricFilterName} race and choose public or invite-only.`
                 : "A new one opens as soon as the current one fills."}
             </Text>
             {metricFilter && (

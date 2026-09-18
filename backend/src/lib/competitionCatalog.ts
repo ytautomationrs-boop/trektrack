@@ -145,6 +145,29 @@ function buildRaceTypes(): RaceTypeSeed[] {
   return types;
 }
 
+function raceTypeSeedFor(metricKey: string, durationDays: number, format: "INDIVIDUAL" | "SQUAD"): RaceTypeSeed {
+  if (!isRaceEligibleMetric(metricKey)) {
+    throw new Error(`Metric "${metricKey}" is not race-eligible.`);
+  }
+  const normalizedDays = Math.trunc(durationDays);
+  if (normalizedDays < 1 || normalizedDays > 30) {
+    throw new Error("Race duration must be between 1 and 30 days.");
+  }
+  const key = `${metricKey}_${normalizedDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
+  const label = metricKey.charAt(0).toUpperCase() + metricKey.slice(1);
+  return {
+    key,
+    displayName: `${label} · ${normalizedDays} day${normalizedDays === 1 ? "" : "s"} · ${format === "SQUAD" ? "Squad" : "Solo"}`,
+    format,
+    metricKey,
+    durationDays: normalizedDays,
+    entrantCount: format === "SQUAD" ? SQUAD_COUNT : INDIVIDUAL_ENTRANTS,
+    squadSize: format === "SQUAD" ? SQUAD_SIZE : null,
+    isActive: false,
+    allowUserCreated: true,
+  };
+}
+
 function baseScheduleFor(type: RaceTypeSeed): ScheduleSeed {
   const entryFeeCents =
     type.format === "SQUAD"
@@ -248,4 +271,33 @@ async function seedCompetitionCatalog() {
       });
     }
   }
+}
+
+export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durationDays: number, format: "INDIVIDUAL" | "SQUAD") {
+  await ensureCompetitionCatalog();
+  const type = raceTypeSeedFor(metricKey, durationDays, format);
+
+  await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
+
+  const base = baseScheduleFor(type);
+  for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+    const scaled = scaleSchedule(base, level, type.entrantCount);
+    assertViable(type, scaled);
+    const schedule = await prisma.racePrizeSchedule.upsert({
+      where: { raceTypeKey_leagueLevel: { raceTypeKey: type.key, leagueLevel: level } },
+      update: { metricKey: type.metricKey, entryFeeCents: scaled.entryFeeCents },
+      create: {
+        raceTypeKey: type.key,
+        metricKey: type.metricKey,
+        leagueLevel: level,
+        entryFeeCents: scaled.entryFeeCents,
+      },
+    });
+    await prisma.racePrizeTier.deleteMany({ where: { scheduleId: schedule.id } });
+    await prisma.racePrizeTier.createMany({
+      data: scaled.prizes.map((p) => ({ scheduleId: schedule.id, position: p.position, amountCents: p.amountCents })),
+    });
+  }
+
+  return type;
 }

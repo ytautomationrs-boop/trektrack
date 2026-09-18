@@ -81,7 +81,7 @@ export type CreateRaceOptions = {
    * PRIVATE races are user-created and bring their own entrants.
    */
   visibility?: "PUBLIC" | "PRIVATE";
-  /** Set for user-created races. Requires visibility PRIVATE. */
+  /** Set for user-created races. */
   createdByUserId?: string;
   /**
    * The timezone "next midnight" is computed against once this race LOCKS.
@@ -115,12 +115,6 @@ export async function createRace(
   const now = options.now ?? new Date();
   const visibility = options.visibility ?? "PUBLIC";
 
-  if (options.createdByUserId && visibility !== "PRIVATE") {
-    // A user-created public race would fragment the one shared entrant pool
-    // its league depends on. Public races are platform-opened only.
-    throw new RaceError("public_race_not_user_creatable", "User-created races are always private.");
-  }
-
   const schedule = await prisma.racePrizeSchedule.findUnique({
     where: { raceTypeKey_leagueLevel: { raceTypeKey, leagueLevel } },
     include: { raceType: true, tiers: { orderBy: { position: "asc" } }, league: true },
@@ -131,14 +125,13 @@ export async function createRace(
   if (!schedule.league.isOpen) {
     throw new RaceError("league_closed", `League ${leagueLevel} is not open.`);
   }
-  // isActive governs whether the PLATFORM runs this format publicly;
-  // allowUserCreated governs whether a user may run it privately. A private
-  // race brings its own entrants, so it does not need the format to be one
-  // the platform is currently pooling people into.
-  if (visibility === "PUBLIC" && !schedule.raceType.isActive) {
+  // isActive governs whether the PLATFORM runs this format publicly.
+  // allowUserCreated governs whether a host may create it, whether they make
+  // that hosted race public or invite-only.
+  if (visibility === "PUBLIC" && !options.createdByUserId && !schedule.raceType.isActive) {
     throw new RaceError("race_type_inactive", `Race type "${raceTypeKey}" is not active.`);
   }
-  if (visibility === "PRIVATE" && !schedule.raceType.allowUserCreated) {
+  if (options.createdByUserId && !schedule.raceType.allowUserCreated) {
     throw new RaceError("race_type_not_user_creatable", `Race type "${raceTypeKey}" can't be created by users.`);
   }
   if (!isRaceEligibleMetric(schedule.raceType.metricKey)) {
@@ -201,6 +194,7 @@ export async function createPrivateRaceAndEnter(params: {
   userId: string;
   raceTypeKey: string;
   name: string;
+  visibility?: "PUBLIC" | "PRIVATE";
   entryFeeCents?: number;
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
@@ -218,7 +212,7 @@ export async function createPrivateRaceAndEnter(params: {
 
   const race = await createRace(params.raceTypeKey, leagueState.currentLevel, {
     name: params.name,
-    visibility: "PRIVATE",
+    visibility: params.visibility ?? "PRIVATE",
     createdByUserId: params.userId,
     anchorTimezone: user.timezone,
     entryFeeCents: params.entryFeeCents,

@@ -38,9 +38,11 @@ const METRICS: Array<{ key: MetricKey; label: string; icon: string }> = [
   { key: "swimming", label: "Swimming", icon: "waves" },
 ];
 
-const DURATIONS: Array<{ days: 1 | 7; label: string; hint: string }> = [
+const DURATIONS: Array<{ days: number; label: string; hint: string }> = [
   { days: 1, label: "1 day", hint: "One big push" },
   { days: 7, label: "7 days", hint: "A full week" },
+  { days: 14, label: "14 days", hint: "Two-week test" },
+  { days: 30, label: "30 days", hint: "Month-long" },
 ];
 
 const LEAGUE_NAMES = ["Bronze", "Iron", "Steel", "Silver", "Gold", "Platinum"];
@@ -87,7 +89,7 @@ function scaleSchedule(baseEntryFeeCents: number, level: number, rankedPositions
   return { entryFeeCents, prizes };
 }
 
-function baseScheduleFor(format: RaceFormat, durationDays: 1 | 7) {
+function baseScheduleFor(format: RaceFormat, durationDays: number) {
   if (format === "SQUAD") return durationDays === 1 ? BASE_FEES.squad1 : BASE_FEES.squad7;
   return durationDays === 1 ? BASE_FEES.individual1 : BASE_FEES.individual7;
 }
@@ -167,7 +169,7 @@ function ordinal(n: number) {
   return `${n}${suffix}`;
 }
 
-function defaultRaceName(metricKey: MetricKey, durationDays: 1 | 7, format: RaceFormat) {
+function defaultRaceName(metricKey: MetricKey, durationDays: number, format: RaceFormat) {
   const metric = METRICS.find((m) => m.key === metricKey)?.label ?? "Competition";
   return `${metric} ${durationDays}-day ${format === "SQUAD" ? "squad" : "solo"} race`;
 }
@@ -177,8 +179,10 @@ export function CreateRaceScreen() {
 
   const [name, setName] = useState("");
   const [metricKey, setMetricKey] = useState<MetricKey>("steps");
-  const [durationDays, setDurationDays] = useState<1 | 7>(7);
+  const [durationDays, setDurationDays] = useState(7);
+  const [durationText, setDurationText] = useState("7");
   const [format, setFormat] = useState<RaceFormat>("INDIVIDUAL");
+  const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC">("PRIVATE");
   const [entryFeeText, setEntryFeeText] = useState("");
   const [squadName, setSquadName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -214,10 +218,39 @@ export function CreateRaceScreen() {
   const selected = useMemo(() => {
     const key = `${metricKey}_${durationDays}d_${format === "SQUAD" ? "squad" : "individual"}`;
     const type = raceTypes.find((t) => t.key === key);
-    if (!type || !league) return null;
-    const schedule = type.schedules.find((s) => s.leagueLevel === league.level);
-    if (!schedule) return null;
-    return { type, schedule };
+    if (!league) return null;
+    if (type) {
+      const schedule = type.schedules.find((s) => s.leagueLevel === league.level);
+      if (schedule) return { type, schedule };
+    }
+    const entrantCount = format === "SQUAD" ? 2 : 10;
+    const squadSize = format === "SQUAD" ? 4 : null;
+    const entryFeeCents = baseScheduleFor(format, durationDays) + (league.level - 1) * 500;
+    return {
+      type: {
+        key,
+        displayName: defaultRaceName(metricKey, durationDays, format),
+        isActive: false,
+        allowUserCreated: true,
+        format,
+        metricKey,
+        metricType: METRIC_META[metricKey],
+        durationDays,
+        entrantCount,
+        squadSize,
+        totalEntrants: entrantCount * (squadSize ?? 1),
+        schedules: [],
+      },
+      schedule: {
+        leagueLevel: league.level,
+        leagueName: league.name,
+        leagueIsOpen: true,
+        entryFeeCents,
+        currency: "zar",
+        prizes: prizesForEntryFee(entryFeeCents, entrantCount),
+        totalPrizeCents: prizesForEntryFee(entryFeeCents, entrantCount).reduce((sum, prize) => sum + prize.amountCents, 0),
+      },
+    };
   }, [raceTypes, metricKey, durationDays, format, league]);
 
   const peopleNeeded = selected ? selected.type.totalEntrants : format === "SQUAD" ? 16 : 10;
@@ -246,20 +279,22 @@ export function CreateRaceScreen() {
         durationDays,
         format,
         entryFeeCents: resolvedEntryFeeCents,
+        visibility,
         squadName: format === "SQUAD" ? resolvedSquadName : undefined,
       });
       const code = result.inviteCode;
       showAlert(
         "Race created",
-        `You're entrant 1 of ${peopleNeeded}. Share your code — the race starts the moment it's full, and if it doesn't fill everyone gets their entry back in full.` +
-          (code ? `\n\nCode: ${code}` : ""),
+        `You're entrant 1 of ${peopleNeeded}. ${
+          visibility === "PRIVATE" ? "Share your code with the people you invite." : "Anyone in your league can now find and join it."
+        } The race starts the moment it's full, and if it doesn't fill everyone gets their entry back in full.` + (code ? `\n\nCode: ${code}` : ""),
         [
           code
             ? {
                 text: "Share code",
                 onPress: () =>
                   void shareCode({
-                    message: `Join my race "${resolvedRaceName}" on Streak — race code: ${code}`,
+                    message: `Join my race "${resolvedRaceName}" on TrackTrek — race code: ${code}`,
                     title: "Race code",
                     code,
                   }),
@@ -281,7 +316,7 @@ export function CreateRaceScreen() {
     } finally {
       setBusy(false);
     }
-  }, [selected, resolvedRaceName, metricKey, durationDays, format, resolvedEntryFeeCents, resolvedSquadName, peopleNeeded, navigation]);
+  }, [selected, resolvedRaceName, metricKey, durationDays, format, resolvedEntryFeeCents, resolvedSquadName, visibility, peopleNeeded, navigation]);
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -328,13 +363,37 @@ export function CreateRaceScreen() {
           })}
         </View>
 
-        {/* c) DURATION — exactly two options */}
+        {/* c) DURATION */}
         <Text style={styles.label}>Duration</Text>
-        <View style={styles.row}>
+        <Text style={styles.labelHint}>Choose how many days the competition lasts. Whole days only.</Text>
+        <View style={styles.durationInputRow}>
+          <TextInput
+            style={[styles.input, styles.durationInput]}
+            value={durationText}
+            onChangeText={(value) => {
+              const sanitized = value.replace(/[^\d]/g, "").slice(0, 2);
+              setDurationText(sanitized);
+              const days = Number(sanitized);
+              if (Number.isInteger(days) && days >= 1 && days <= 30) setDurationDays(days);
+            }}
+            placeholder="7"
+            placeholderTextColor={colors.sub}
+            keyboardType="number-pad"
+          />
+          <Text style={styles.durationSuffix}>days</Text>
+        </View>
+        <View style={styles.rowWrap}>
           {DURATIONS.map((d) => {
             const active = durationDays === d.days;
             return (
-              <Pressable key={d.days} style={[styles.rowItem, active && styles.rowItemActive]} onPress={() => setDurationDays(d.days)}>
+              <Pressable
+                key={d.days}
+                style={[styles.durationChip, active && styles.rowItemActive]}
+                onPress={() => {
+                  setDurationDays(d.days);
+                  setDurationText(String(d.days));
+                }}
+              >
                 <Text style={[styles.rowItemText, active && styles.rowItemTextActive]}>{d.label}</Text>
                 <Text style={[styles.rowItemHint, active && styles.rowItemHintActive]}>{d.hint}</Text>
               </Pressable>
@@ -374,24 +433,21 @@ export function CreateRaceScreen() {
 
         {/* e) VISIBILITY */}
         <Text style={styles.label}>Who can join</Text>
-        <View style={styles.visibilityCard}>
-          <View style={styles.visibilityRow}>
-            <Ionicons name="lock-closed" size={16} color={colors.sage} />
-            <Text style={styles.visibilityTitle}>Invite only</Text>
-          </View>
-          <Text style={styles.visibilityBody}>
-            You'll get a code to share. Only people with the code can enter.
-          </Text>
-          {/*
-            Public races exist, but Streak opens them — not users. Everyone in
-            a league queues for the same public races, which is what lets them
-            reach their exact headcount at all. Explaining that beats hiding
-            the option and leaving the absence unexplained.
-          */}
-          <Text style={styles.visibilityNote}>
-            Public races are opened by Streak so everyone in the same {metricStanding?.metricName ?? ""}{" "}
-            league queues for the same ones. Browse those under Discover.
-          </Text>
+        <View style={styles.row}>
+          <Pressable
+            style={[styles.rowItem, visibility === "PRIVATE" && styles.rowItemActive]}
+            onPress={() => setVisibility("PRIVATE")}
+          >
+            <Text style={[styles.rowItemText, visibility === "PRIVATE" && styles.rowItemTextActive]}>Invite only</Text>
+            <Text style={[styles.rowItemHint, visibility === "PRIVATE" && styles.rowItemHintActive]}>Only people with your code</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.rowItem, visibility === "PUBLIC" && styles.rowItemActive]}
+            onPress={() => setVisibility("PUBLIC")}
+          >
+            <Text style={[styles.rowItemText, visibility === "PUBLIC" && styles.rowItemTextActive]}>Public</Text>
+            <Text style={[styles.rowItemHint, visibility === "PUBLIC" && styles.rowItemHintActive]}>Anyone in your league</Text>
+          </Pressable>
         </View>
 
         {/* Entry fee controls the fixed prize snapshot. */}
@@ -405,7 +461,7 @@ export function CreateRaceScreen() {
             {configLoading && <ActivityIndicator color={colors.accent} style={styles.inlineLoader} />}
             <Text style={styles.inputLabel}>Entry fee (R)</Text>
             <TextInput
-              style={[styles.input, !entryFeeIsValid && styles.inputError]}
+              style={[styles.input, styles.entryFeeInput, !entryFeeIsValid && styles.inputError]}
               value={entryFeeText}
               onChangeText={setEntryFeeText}
               placeholder={(defaultEntryFeeCents / 100).toString()}
@@ -473,8 +529,8 @@ export function CreateRaceScreen() {
           <Text style={styles.conditionTitle}>This race needs exactly {peopleNeeded} racers</Text>
           <Text style={styles.conditionBody}>
             It doesn't start until all {peopleNeeded} are in — you'll need {peopleNeeded - 1} more
-            {format === "SQUAD" ? " people across 2 squads" : ""}. If it doesn't fill before entries close,
-            the race doesn't run and <Text style={styles.conditionStrong}>every entry fee is refunded in full</Text>.
+            {format === "SQUAD" ? " people across 2 squads" : ""}. While it is still filling, entrants can withdraw
+            and <Text style={styles.conditionStrong}>their entry fee is refunded in full</Text>.
           </Text>
           <Text style={styles.conditionBody}>
             Creating it enters you as racer 1 and charges your entry fee now.
@@ -508,11 +564,20 @@ const styles = StyleSheet.create({
 
   input: {
     backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
     borderRadius: radii.md,
     padding: spacing.lg,
     color: colors.text,
     fontFamily: fonts.body,
     fontSize: 15,
+  },
+  entryFeeInput: {
+    borderColor: colors.accent2,
+    borderWidth: 2,
+    backgroundColor: colors.surfaceRaised,
+    fontFamily: fonts.display,
+    fontSize: 18,
   },
   inputLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub, marginBottom: spacing.sm },
   inputError: { borderWidth: 1, borderColor: colors.fail },
@@ -535,6 +600,11 @@ const styles = StyleSheet.create({
   gridItemTextActive: { color: colors.bg },
 
   row: { flexDirection: "row", gap: spacing.sm },
+  rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  durationInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  durationInput: { flex: 1, fontFamily: fonts.display, fontSize: 18 },
+  durationSuffix: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  durationChip: { flexGrow: 1, flexBasis: "45%", backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   rowItem: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
   rowItemActive: { backgroundColor: colors.accent },
   rowItemText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },

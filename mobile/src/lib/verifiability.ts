@@ -67,7 +67,7 @@ export function confirmVerifiable(
       ? `there's no such file for ${listMetrics(unverifiable)} — it's a daily total rather than a recorded activity, and a browser can't read your phone's health data.`
       : `there's no such file for ${listMetrics(unverifiable)}, and this screen can't read it from Health either.`;
 
-  showAlert("This can't be scored here", `Streak scores from a workout file you export from your watch or training app, and ${reason} Your total would stay at zero.`, [
+  showAlert("This can't be scored here", `TrackTrek scores from a workout file you export from your watch or training app, and ${reason} Your total would stay at zero.`, [
     { text: "Not now", style: "cancel" },
     { text: `Enter anyway · ${costLabel}`, onPress: onProceed },
   ]);

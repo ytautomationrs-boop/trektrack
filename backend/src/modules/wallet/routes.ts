@@ -35,7 +35,7 @@ export async function walletRoutes(app: FastifyInstance) {
       if (!env.DEPOSITS_ENABLED) {
         return reply.code(403).send({
           error: "deposits_disabled",
-          message: "Streak is sponsoring the pilot — there is nothing to pay in. Your balance is credited for you.",
+          message: "TrackTrek is sponsoring the pilot — there is nothing to pay in. Your balance is credited for you.",
         });
       }
 
@@ -53,7 +53,7 @@ export async function walletRoutes(app: FastifyInstance) {
       if (!env.DEPOSITS_ENABLED) {
         return reply.code(403).send({
           error: "deposits_disabled",
-          message: "Streak is sponsoring the pilot — there is nothing to pay in. Your balance is credited for you.",
+          message: "TrackTrek is sponsoring the pilot — there is nothing to pay in. Your balance is credited for you.",
         });
       }
 

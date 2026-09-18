@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Streak",
+    "name": "TrackTrek",
     "slug": "streak",
     "scheme": "streak",
     "version": "0.1.0",
@@ -16,8 +16,8 @@
       "bundleIdentifier": "com.streak.demo",
       "supportsTablet": false,
       "infoPlist": {
-        "NSHealthShareUsageDescription": "Streak reads your steps, workouts, and sleep from Health to verify challenge check-ins — nothing is written back to Health.",
-        "NSHealthUpdateUsageDescription": "Streak does not write data to Health.",
+        "NSHealthShareUsageDescription": "TrackTrek reads your steps and workouts from Health to verify competition results. Nothing is written back to Health.",
+        "NSHealthUpdateUsageDescription": "TrackTrek does not write data to Health.",
         "UIBackgroundModes": ["fetch", "remote-notification"]
       },
       "entitlements": {
@@ -37,6 +37,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
+      "favicon": "./assets/favicon.svg",
       "backgroundColor": "#241f19"
     },
     "plugins": [

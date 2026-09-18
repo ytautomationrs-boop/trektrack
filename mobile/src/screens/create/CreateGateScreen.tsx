@@ -37,7 +37,7 @@ function ComingSoon() {
         </View>
         <Text style={styles.title}>Creating is coming soon</Text>
         <Text style={styles.body}>
-          Streak is invite-only while we run the pilot, so competitions are opened by us for now — that's what keeps each
+          TrackTrek is invite-only while we run the pilot, so competitions are opened by us for now — that's what keeps each
           one able to reach the exact number of people it needs.
         </Text>
         <Text style={styles.body}>You can still enter open competitions from the Competitions tab.</Text>

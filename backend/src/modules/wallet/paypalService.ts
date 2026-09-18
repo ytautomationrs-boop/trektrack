@@ -72,7 +72,7 @@ export async function createPayout(params: { withdrawalId: string; amountCents: 
     body: JSON.stringify({
       sender_batch_header: {
         sender_batch_id: params.withdrawalId,
-        email_subject: "You have a payout from Streak!",
+        email_subject: "You have a payout from TrackTrek!",
         email_message: params.note,
       },
       items: [

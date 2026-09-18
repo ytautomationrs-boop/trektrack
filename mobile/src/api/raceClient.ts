@@ -144,8 +144,9 @@ export function getMyRaces() {
 export function createRace(input: {
   name: string;
   metricKey: "steps" | "running" | "cycling" | "swimming";
-  durationDays: 1 | 7;
+  durationDays: number;
   format: "INDIVIDUAL" | "SQUAD";
+  visibility?: "PUBLIC" | "PRIVATE";
   entryFeeCents?: number;
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";

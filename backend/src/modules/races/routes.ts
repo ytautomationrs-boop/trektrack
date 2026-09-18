@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import { ensureCompetitionCatalog, getCompetitionRaceTypesPayload } from "../../lib/competitionCatalog.js";
+import { ensureCompetitionCatalog, ensureRaceTypeForUserCreatedRace, getCompetitionRaceTypesPayload } from "../../lib/competitionCatalog.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import {
@@ -133,20 +133,13 @@ export async function raceRoutes(app: FastifyInstance) {
     await ensureCompetitionCatalog();
     const body = CreateRaceSchema.parse(req.body);
 
-    if (body.visibility === "PUBLIC") {
-      return reply.code(400).send({
-        error: "public_race_not_user_creatable",
-        message:
-          "Public races are opened by Streak so everyone in a league queues for the same ones — that's what lets them reach their exact headcount. Create a private race and invite your own entrants.",
-      });
-    }
-
-    const raceTypeKey = `${body.metricKey}_${body.durationDays}d_${body.format === "SQUAD" ? "squad" : "individual"}`;
+    const raceType = await ensureRaceTypeForUserCreatedRace(body.metricKey, body.durationDays, body.format);
     try {
       const result = await createPrivateRaceAndEnter({
         userId: req.userId,
-        raceTypeKey,
+        raceTypeKey: raceType.key,
         name: body.name,
+        visibility: body.visibility,
         entryFeeCents: body.entryFeeCents,
         squadName: body.squadName,
         squadJoinPolicy: body.squadJoinPolicy,

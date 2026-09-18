@@ -310,7 +310,7 @@ export async function requestWithdrawal(params: { userId: string; amountCents: n
         accountNumber: destination.accountNumber,
         bankCode: destination.bankCode,
       });
-      const { transferCode, status } = await initiateTransfer({ amountCents: params.amountCents, recipientCode, reason: "Streak wallet withdrawal" });
+  const { transferCode, status } = await initiateTransfer({ amountCents: params.amountCents, recipientCode, reason: "TrackTrek wallet withdrawal" });
       if (status === "otp") {
         throw new WalletError(
           "payout_needs_otp",
@@ -332,7 +332,7 @@ export async function requestWithdrawal(params: { userId: string; amountCents: n
         withdrawalId: withdrawal.id,
         amountCents: params.amountCents,
         receiverEmail: destination.email,
-        note: "Streak wallet withdrawal",
+        note: "TrackTrek wallet withdrawal",
       });
       await prisma.$transaction([
         prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { paypalPayoutBatchId: payoutBatchId, paypalPayoutItemId: payoutItemId } }),

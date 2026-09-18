@@ -10,7 +10,7 @@ export async function ensurePlatformAccount(db: PlatformAccountClient) {
     create: {
       email: PLATFORM_ACCOUNT_EMAIL,
       passwordHash: "!platform-account-no-login!",
-      displayName: "Streak Platform",
+      displayName: "TrackTrek Platform",
       timezone: "Africa/Johannesburg",
     },
   });
