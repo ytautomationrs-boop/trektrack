@@ -135,7 +135,6 @@ export async function raceRoutes(app: FastifyInstance) {
   // Pilot: only admin-flagged accounts can create races (regular users can
   // still enter/withdraw/view normally). See middleware/auth.ts requireAdmin.
   app.post("/races", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
-    await ensureCompetitionCatalog();
     const body = CreateRaceSchema.parse(req.body);
 
     const raceType = await ensureRaceTypeForUserCreatedRace(body.metricKey, body.durationDays, body.format);

@@ -107,11 +107,19 @@ export async function requestFriend(viewerId: string, playerId: string) {
   });
 
   if (!existing) {
-    await prisma.friendship.create({ data: { requesterId: viewerId, addresseeId: playerId } });
-    return { friendState: "pending_sent" as const };
+    await prisma.friendship.create({ data: { requesterId: viewerId, addresseeId: playerId, status: "ACCEPTED", acceptedAt: new Date() } });
+    return { friendState: "friends" as const };
   }
 
   if (existing.status === "PENDING" && existing.addresseeId === viewerId) {
+    await prisma.friendship.update({
+      where: { id: existing.id },
+      data: { status: "ACCEPTED", acceptedAt: new Date() },
+    });
+    return { friendState: "friends" as const };
+  }
+
+  if (existing.status === "PENDING" && existing.requesterId === viewerId) {
     await prisma.friendship.update({
       where: { id: existing.id },
       data: { status: "ACCEPTED", acceptedAt: new Date() },

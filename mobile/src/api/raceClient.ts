@@ -151,7 +151,7 @@ export function createRace(input: {
   squadName?: string;
   squadJoinPolicy?: "INVITE_ONLY" | "OPEN";
 }) {
-  return request<CreateRaceResult>("/races", { method: "POST", body: JSON.stringify(input) });
+  return request<CreateRaceResult>("/races", { method: "POST", body: JSON.stringify(input), timeoutMs: 60_000 });
 }
 
 /** Resolves a private race's invite code so an invitee can see it before entering. */

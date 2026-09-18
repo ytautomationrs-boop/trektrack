@@ -282,6 +282,14 @@ export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durati
   await ensureCompetitionCatalog();
   const type = raceTypeSeedFor(metricKey, durationDays, format);
 
+  const existing = await prisma.raceType.findUnique({
+    where: { key: type.key },
+    select: { key: true, schedules: { select: { id: true }, take: LEAGUE_LEVELS_SEEDED } },
+  });
+  if (existing && existing.schedules.length >= LEAGUE_LEVELS_SEEDED) {
+    return type;
+  }
+
   await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
 
   const base = baseScheduleFor(type);

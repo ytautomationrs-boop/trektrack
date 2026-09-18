@@ -93,7 +93,7 @@ export function AdminScreen() {
         <Text style={styles.title}>Admin console</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroller} contentContainerStyle={styles.tabs}>
         <TabChip label="Overview" active={tab === "overview"} onPress={() => setTab("overview")} />
         <TabChip label="Users" active={tab === "users"} onPress={() => setTab("users")} />
         <TabChip label="Controls" active={tab === "controls"} onPress={() => setTab("controls")} />
@@ -963,6 +963,7 @@ const styles = StyleSheet.create({
   backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, marginBottom: spacing.md },
 
+  tabScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 54 },
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   tabChip: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.pill, backgroundColor: colors.surface },
   tabChipActive: { backgroundColor: colors.accent },

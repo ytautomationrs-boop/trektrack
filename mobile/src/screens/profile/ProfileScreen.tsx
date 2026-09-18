@@ -261,7 +261,7 @@ function SocialSection() {
       setResults((items) =>
         items.map((item) =>
           item.id === player.id
-            ? { ...item, friendState: action === "request" ? "pending_sent" : action === "accept" ? "friends" : "none" }
+            ? { ...item, friendState: action === "request" || action === "accept" ? "friends" : "none" }
             : item
         )
       );

@@ -6,11 +6,12 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { LoadError } from "../../components/LoadError";
 import { iconFor } from "../../theme/metricIcons";
-import { getMyRaces, getLeagueStandings } from "../../api/raceClient";
+import { getMyRaces, getLeagueStandings, cancelRaceEntry } from "../../api/raceClient";
 import type { LeagueStandings, RaceHistoryEntry } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
 import { shareCode } from "../../lib/shareCode";
 import { useAppState } from "../../state/useAppState";
+import { showAlert } from "../../lib/alert";
 
 /**
  * "Your races" — the races this user is actually in.
@@ -60,6 +61,7 @@ export function MyRacesScreen() {
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -84,8 +86,31 @@ export function MyRacesScreen() {
     }, [load])
   );
 
-  const active = entries.filter((e) => e.race.status === "FILLING" || e.race.status === "LOCKED" || e.race.status === "RUNNING");
-  const past = entries.filter((e) => e.race.status !== "FILLING" && e.race.status !== "LOCKED" && e.race.status !== "RUNNING");
+  const uniqueEntries = entries.filter((entry, index, all) => all.findIndex((item) => item.raceId === entry.raceId) === index);
+  const active = uniqueEntries.filter((e) => e.race.status === "FILLING" || e.race.status === "LOCKED" || e.race.status === "RUNNING");
+  const past = uniqueEntries.filter((e) => e.race.status !== "FILLING" && e.race.status !== "LOCKED" && e.race.status !== "RUNNING");
+
+  const withdraw = (entry: RaceHistoryEntry) => {
+    showAlert("Withdraw from race?", "Your entry fee will be refunded in full while the race is still waiting to fill.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Withdraw",
+        style: "destructive",
+        onPress: async () => {
+          setWithdrawingId(entry.raceId);
+          try {
+            const result = await cancelRaceEntry(entry.raceId);
+            showAlert("Refunded", `${formatCents(result.refundedCents)} is back in your wallet.`);
+            await load();
+          } catch (err: any) {
+            showAlert("Couldn't withdraw", err.message ?? "Try again.");
+          } finally {
+            setWithdrawingId(null);
+          }
+        },
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -119,22 +144,49 @@ export function MyRacesScreen() {
 
         {active.length > 0 && <Text style={styles.sectionTitle}>Active</Text>}
         {active.map((e) => (
-          <RaceRow key={e.id} entry={e} viewerUserId={app.session?.userId ?? null} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
+          <RaceRow
+            key={e.raceId}
+            entry={e}
+            viewerUserId={app.session?.userId ?? null}
+            busy={withdrawingId === e.raceId}
+            onWithdraw={() => withdraw(e)}
+            onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })}
+          />
         ))}
 
         {past.length > 0 && <Text style={styles.sectionTitle}>Past</Text>}
         {past.map((e) => (
-          <RaceRow key={e.id} entry={e} viewerUserId={app.session?.userId ?? null} onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })} />
+          <RaceRow
+            key={e.raceId}
+            entry={e}
+            viewerUserId={app.session?.userId ?? null}
+            busy={false}
+            onWithdraw={() => {}}
+            onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })}
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function RaceRow({ entry, viewerUserId, onPress }: { entry: RaceHistoryEntry; viewerUserId: string | null; onPress: () => void }) {
+function RaceRow({
+  entry,
+  viewerUserId,
+  busy,
+  onWithdraw,
+  onPress,
+}: {
+  entry: RaceHistoryEntry;
+  viewerUserId: string | null;
+  busy: boolean;
+  onWithdraw: () => void;
+  onPress: () => void;
+}) {
   const meta = STATUS_META[entry.race.status] ?? { label: entry.race.status, color: colors.sub };
   const finished = entry.finishPosition != null;
   const canShareRace = entry.race.visibility === "PRIVATE" && entry.race.createdByUserId === viewerUserId && entry.race.inviteCode != null;
+  const canWithdraw = entry.race.status === "FILLING" && entry.status === "ENTERED";
 
   const shareRace = () => {
     if (!entry.race.inviteCode) return;
@@ -179,17 +231,33 @@ function RaceRow({ entry, viewerUserId, onPress }: { entry: RaceHistoryEntry; vi
         </View>
       )}
 
-      {canShareRace && (
-        <Pressable
-          style={styles.shareButton}
-          onPress={(event) => {
-            event.stopPropagation();
-            shareRace();
-          }}
-        >
-          <Ionicons name="share-outline" size={16} color={colors.bg} />
-          <Text style={styles.shareButtonText}>Share race</Text>
-        </Pressable>
+      {(canShareRace || canWithdraw) && (
+        <View style={styles.actionRow}>
+          {canShareRace && (
+            <Pressable
+              style={[styles.actionButton, styles.shareButton]}
+              onPress={(event) => {
+                event.stopPropagation();
+                shareRace();
+              }}
+            >
+              <Ionicons name="share-outline" size={16} color={colors.bg} />
+              <Text style={styles.shareButtonText}>Share race</Text>
+            </Pressable>
+          )}
+          {canWithdraw && (
+            <Pressable
+              style={[styles.actionButton, styles.withdrawButton, busy && styles.disabled]}
+              disabled={busy}
+              onPress={(event) => {
+                event.stopPropagation();
+                onWithdraw();
+              }}
+            >
+              {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.withdrawButtonText}>Withdraw · refund</Text>}
+            </Pressable>
+          )}
+        </View>
       )}
     </Pressable>
   );
@@ -234,15 +302,19 @@ const styles = StyleSheet.create({
   resultPos: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
   resultPoints: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
   resultPrize: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.won, marginLeft: "auto" },
-  shareButton: {
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  actionButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
-    marginTop: spacing.md,
   },
+  shareButton: { backgroundColor: colors.accent },
   shareButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  withdrawButton: { borderWidth: 1, borderColor: colors.sub },
+  withdrawButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
+  disabled: { opacity: 0.5 },
 });
