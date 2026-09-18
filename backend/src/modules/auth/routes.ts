@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import { ensureEffectiveAdmin, isBootstrapAdminEmail } from "../../lib/adminAccess.js";
 import { prisma } from "../../lib/prisma.js";
+import { ensureSocialSchema } from "../../lib/runtimeRepair.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import { GenerateInviteCodesSchema, LoginSchema, SignUpSchema } from "./schemas.js";
 
@@ -80,6 +81,7 @@ const AUTH_RATE_LIMIT = {
 
 export async function authRoutes(app: FastifyInstance) {
   app.post("/auth/signup", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
+    await ensureSocialSchema();
     const body = SignUpSchema.parse(req.body);
 
     const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
@@ -145,6 +147,7 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.post("/auth/login", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
+    await ensureSocialSchema();
     const body = LoginSchema.parse(req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email }, select: authUserSelect });
     if (!user || !(await verifyPassword(body.password, user.passwordHash))) {

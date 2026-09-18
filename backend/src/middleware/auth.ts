@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { ensureEffectiveAdmin } from "../lib/adminAccess.js";
 import { prisma } from "../lib/prisma.js";
+import { ensureSocialSchema } from "../lib/runtimeRepair.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -9,6 +10,8 @@ declare module "fastify" {
 }
 
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
+  await ensureSocialSchema();
+
   let payload: { sub: string; purpose?: string };
   try {
     payload = await req.jwtVerify<{ sub: string; purpose?: string }>();
