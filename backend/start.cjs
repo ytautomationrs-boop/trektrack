@@ -11,6 +11,7 @@ const prismaCli = require.resolve("prisma/build/index.js", {
   paths: [backendDir],
 });
 const prismaEnginesDir = join(backendDir, "node_modules", "@prisma", "engines");
+const runStartupDatabaseMaintenance = process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true";
 
 for (const fileName of readdirSync(prismaEnginesDir)) {
   if (fileName.startsWith("schema-engine") || fileName.startsWith("query-engine")) {
@@ -18,7 +19,7 @@ for (const fileName of readdirSync(prismaEnginesDir)) {
   }
 }
 
-if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
+if (runStartupDatabaseMaintenance && process.env.SKIP_PRISMA_MIGRATE !== "true") {
   const migration = spawnSync(
     process.execPath,
     [prismaCli, "migrate", "deploy", "--schema", schemaPath],
@@ -34,18 +35,20 @@ if (process.env.SKIP_PRISMA_MIGRATE !== "true") {
   }
 }
 
-const repair = spawnSync(
-  process.execPath,
-  [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
-  {
-    cwd: backendDir,
-    env: process.env,
-    stdio: "inherit",
-  },
-);
+if (runStartupDatabaseMaintenance) {
+  const repair = spawnSync(
+    process.execPath,
+    [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
+    {
+      cwd: backendDir,
+      env: process.env,
+      stdio: "inherit",
+    },
+  );
 
-if (repair.status !== 0) {
-  console.warn("[startup] Database runtime repair failed; continuing to start the web app. Social/profile/admin features may need manual migration.");
+  if (repair.status !== 0) {
+    console.warn("[startup] Database runtime repair failed; continuing to start the web app. Social/profile/admin features may need manual migration.");
+  }
 }
 
 if (process.env.RUN_PRISMA_SEED_ON_START === "true") {
