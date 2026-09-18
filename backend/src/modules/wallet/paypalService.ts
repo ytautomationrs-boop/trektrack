@@ -12,6 +12,13 @@ const PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com";
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
+function getPayPalCredentials() {
+  if (!env.PAYPAL_SANDBOX_CLIENT_ID || !env.PAYPAL_SANDBOX_SECRET) {
+    throw new Error("PayPal sandbox payouts are not configured on this deployment.");
+  }
+  return { clientId: env.PAYPAL_SANDBOX_CLIENT_ID, secret: env.PAYPAL_SANDBOX_SECRET };
+}
+
 /**
  * OAuth2 client-credentials grant, cached until shortly before expiry
  * (PayPal tokens are typically valid ~9h) so a withdrawal flow doesn't
@@ -20,7 +27,8 @@ let cachedToken: { value: string; expiresAt: number } | null = null;
 async function getAccessToken(): Promise<string> {
   if (cachedToken && cachedToken.expiresAt > Date.now() + 60_000) return cachedToken.value;
 
-  const basicAuth = Buffer.from(`${env.PAYPAL_SANDBOX_CLIENT_ID}:${env.PAYPAL_SANDBOX_SECRET}`).toString("base64");
+  const { clientId, secret } = getPayPalCredentials();
+  const basicAuth = Buffer.from(`${clientId}:${secret}`).toString("base64");
   const res = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, withExternalFetchTimeout({
     method: "POST",
     headers: { Authorization: `Basic ${basicAuth}`, "Content-Type": "application/x-www-form-urlencoded" },

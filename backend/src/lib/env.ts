@@ -1,24 +1,29 @@
 import "dotenv/config";
 import { z } from "zod";
 
+const optionalNonEmptyString = z.preprocess((value) => {
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+}, z.string().optional());
+
 const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(1),
   // Wallet deposits (see modules/wallet/paystackService.ts) — Paystack TEST
   // MODE only, same demo-only guardrail Stripe used to have. Live keys
   // start with sk_live_/pk_live_ instead of sk_test_/pk_test_.
-  PAYSTACK_SECRET_KEY: z.string().startsWith("sk_test_", {
+  PAYSTACK_SECRET_KEY: optionalNonEmptyString.pipe(z.string().startsWith("sk_test_", {
     message: "PAYSTACK_SECRET_KEY must be a Paystack TEST key (sk_test_...) — this app is demo-only, never point it at live keys.",
-  }),
-  PAYSTACK_PUBLIC_KEY: z.string().startsWith("pk_test_", {
+  }).optional()),
+  PAYSTACK_PUBLIC_KEY: optionalNonEmptyString.pipe(z.string().startsWith("pk_test_", {
     message: "PAYSTACK_PUBLIC_KEY must be a Paystack TEST key (pk_test_...) — this app is demo-only, never point it at live keys.",
-  }),
+  }).optional()),
   // Wallet withdrawals (see modules/wallet/paypalService.ts) — PayPal
   // sandbox only, same demo-only posture as the Paystack keys above.
   // Required (not optional like Strava) since withdrawal is a core wallet
   // feature, not an opt-in add-on.
-  PAYPAL_SANDBOX_CLIENT_ID: z.string().min(1),
-  PAYPAL_SANDBOX_SECRET: z.string().min(1),
+  PAYPAL_SANDBOX_CLIENT_ID: optionalNonEmptyString,
+  PAYPAL_SANDBOX_SECRET: optionalNonEmptyString,
   EXPO_ACCESS_TOKEN: z.string().optional(),
   // Optional (feature: Strava integration) — the app must keep working for
   // cycling/running with HealthKit/Health Connect alone if these aren't
@@ -81,6 +86,27 @@ const EnvSchema = z.object({
 
   PORT: z.coerce.number().default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+}).superRefine((env, ctx) => {
+  if (env.DEPOSITS_ENABLED) {
+    if (!env.PAYSTACK_SECRET_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["PAYSTACK_SECRET_KEY"], message: "PAYSTACK_SECRET_KEY is required when DEPOSITS_ENABLED=true." });
+    }
+    if (!env.PAYSTACK_PUBLIC_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["PAYSTACK_PUBLIC_KEY"], message: "PAYSTACK_PUBLIC_KEY is required when DEPOSITS_ENABLED=true." });
+    }
+  }
+
+  if (env.AUTOMATED_PAYOUTS_ENABLED) {
+    if (!env.PAYSTACK_SECRET_KEY) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["PAYSTACK_SECRET_KEY"], message: "PAYSTACK_SECRET_KEY is required when AUTOMATED_PAYOUTS_ENABLED=true." });
+    }
+    if (!env.PAYPAL_SANDBOX_CLIENT_ID) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["PAYPAL_SANDBOX_CLIENT_ID"], message: "PAYPAL_SANDBOX_CLIENT_ID is required when AUTOMATED_PAYOUTS_ENABLED=true." });
+    }
+    if (!env.PAYPAL_SANDBOX_SECRET) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["PAYPAL_SANDBOX_SECRET"], message: "PAYPAL_SANDBOX_SECRET is required when AUTOMATED_PAYOUTS_ENABLED=true." });
+    }
+  }
 });
 
 export const env = EnvSchema.parse(process.env);

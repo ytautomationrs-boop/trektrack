@@ -29,11 +29,18 @@ type PaystackVerifyResponse = {
   };
 };
 
+function getPaystackSecretKey() {
+  if (!env.PAYSTACK_SECRET_KEY) {
+    throw new Error("Paystack is not configured on this deployment.");
+  }
+  return env.PAYSTACK_SECRET_KEY;
+}
+
 async function paystackFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${PAYSTACK_API_BASE}${path}`, withExternalFetchTimeout({
     ...init,
     headers: {
-      Authorization: `Bearer ${env.PAYSTACK_SECRET_KEY}`,
+      Authorization: `Bearer ${getPaystackSecretKey()}`,
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
