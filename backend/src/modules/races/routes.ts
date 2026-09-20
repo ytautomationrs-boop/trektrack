@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { ZodError } from "zod";
 import { ensureCompetitionCatalog, ensureRaceTypeForUserCreatedRace, getCompetitionRaceTypesPayload } from "../../lib/competitionCatalog.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
@@ -48,6 +49,12 @@ function sendRaceError(reply: FastifyReply, err: unknown) {
   if (err instanceof LeagueError) {
     return reply.code(400).send({ error: err.code, message: err.message });
   }
+  if (err instanceof ZodError) {
+    const first = err.issues[0];
+    const field = first?.path?.length ? first.path.join(".") : null;
+    const message = first ? (field ? `${field}: ${first.message}` : first.message) : "Invalid request.";
+    return reply.code(400).send({ error: "validation_error", message, issues: err.issues });
+  }
   throw err;
 }
 
@@ -76,7 +83,6 @@ export async function raceRoutes(app: FastifyInstance) {
   // ── Races ───────────────────────────────────────────────────────────────
 
   app.get("/races", { preHandler: requireAuth }, async (req, reply) => {
-    await ensureCompetitionCatalog();
     const q = ListRacesQuerySchema.parse(req.query);
 
     if (q.scope === "my_league") {
@@ -135,10 +141,9 @@ export async function raceRoutes(app: FastifyInstance) {
   // Pilot: only admin-flagged accounts can create races (regular users can
   // still enter/withdraw/view normally). See middleware/auth.ts requireAdmin.
   app.post("/races", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
-    const body = CreateRaceSchema.parse(req.body);
-
-    const raceType = await ensureRaceTypeForUserCreatedRace(body.metricKey, body.durationDays, body.format);
     try {
+      const body = CreateRaceSchema.parse(req.body);
+      const raceType = await ensureRaceTypeForUserCreatedRace(body.metricKey, body.durationDays, body.format);
       const result = await createPrivateRaceAndEnter({
         userId: req.userId,
         raceTypeKey: raceType.key,
@@ -354,13 +359,11 @@ export async function raceRoutes(app: FastifyInstance) {
    * league says nothing about their swimming.
    */
   app.get("/me/leagues", { preHandler: requireAuth }, async (req, reply) => {
-    await ensureCompetitionCatalog();
     return reply.send(await getLeagueStandings(req.userId));
   });
 
   /** One metric's standing on its own. */
   app.get("/me/leagues/:metricKey", { preHandler: requireAuth }, async (req, reply) => {
-    await ensureCompetitionCatalog();
     const { metricKey } = req.params as { metricKey: string };
     return reply.send(await getMetricStanding(req.userId, metricKey));
   });

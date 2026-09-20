@@ -279,7 +279,6 @@ async function seedCompetitionCatalog() {
 }
 
 export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durationDays: number, format: "INDIVIDUAL" | "SQUAD") {
-  await ensureCompetitionCatalog();
   const type = raceTypeSeedFor(metricKey, durationDays, format);
 
   const existing = await prisma.raceType.findUnique({
@@ -287,6 +286,19 @@ export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durati
     select: { key: true, schedules: { select: { id: true }, take: LEAGUE_LEVELS_SEEDED } },
   });
   if (existing && existing.schedules.length >= LEAGUE_LEVELS_SEEDED) {
+    return type;
+  }
+
+  // The deployment seed creates the normal launch catalog. Do not make every
+  // host-created race wait on that work when the exact type already exists;
+  // only fall back to a catalog repair when the requested row/schedules are
+  // genuinely missing.
+  await ensureCompetitionCatalog();
+  const afterCatalogRepair = await prisma.raceType.findUnique({
+    where: { key: type.key },
+    select: { key: true, schedules: { select: { id: true }, take: LEAGUE_LEVELS_SEEDED } },
+  });
+  if (afterCatalogRepair && afterCatalogRepair.schedules.length >= LEAGUE_LEVELS_SEEDED) {
     return type;
   }
 

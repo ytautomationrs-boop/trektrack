@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
-import { ensureSocialSchema } from "../../lib/runtimeRepair.js";
 import {
   acceptFriend,
   getPlayerProfile,
@@ -24,12 +23,6 @@ const MessageBody = z.object({
 });
 
 export async function socialRoutes(app: FastifyInstance) {
-  app.addHook("preHandler", async (req) => {
-    if (req.url.startsWith("/players") || req.url.startsWith("/friends") || req.url.startsWith("/messages")) {
-      await ensureSocialSchema();
-    }
-  });
-
   app.get("/players/search", { preHandler: requireAuth }, async (req, reply) => {
     const query = SearchQuery.parse(req.query);
     return reply.send({ players: await searchPlayers(req.userId, query.q, query.limit) });

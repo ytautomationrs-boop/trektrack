@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
-import { ensureSocialSchema } from "../../lib/runtimeRepair.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 const UpdateProfileSchema = z.object({
@@ -20,7 +19,6 @@ const UpdateProfileSchema = z.object({
  */
 export async function accountRoutes(app: FastifyInstance) {
   app.patch("/me/profile", { preHandler: requireAuth }, async (req, reply) => {
-    await ensureSocialSchema();
     const body = UpdateProfileSchema.parse(req.body ?? {});
     const user = await prisma.user.update({
       where: { id: req.userId },
