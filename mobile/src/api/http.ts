@@ -17,8 +17,8 @@ import { API_BASE_URL } from "./config";
  * is strictly better than an unbounded one that surfaces nothing.
  */
 
-/** Long enough for a cold serverless start on a bad connection, short enough that a hung request doesn't strand the UI. */
-const DEFAULT_TIMEOUT_MS = 20_000;
+/** Long enough for Hostinger cold-start/database latency, short enough that a hung request doesn't strand the UI. */
+const DEFAULT_TIMEOUT_MS = 45_000;
 
 export type ApiError = Error & {
   /** Server-supplied slug, e.g. "insufficient_balance". Absent on network/timeout failures. */
@@ -57,13 +57,14 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
 
   const auth = await authHeader();
   const wasAuthenticated = "Authorization" in auth;
+  const headers = { ...(rest.body == null ? {} : { "Content-Type": "application/json" }), ...auth, ...(rest.headers ?? {}) };
 
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...auth, ...(rest.headers ?? {}) },
+      headers,
     });
   } catch (err) {
     // Distinguish "we gave up waiting" from "the network refused" — they read

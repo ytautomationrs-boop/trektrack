@@ -71,17 +71,25 @@ export function MyRacesScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [mine, leagues] = await Promise.allSettled([getMyRaces(), getLeagueStandings()]);
+    const standingsPromise = getLeagueStandings()
+      .then((value) => {
+        setStandings(value);
+      })
+      .catch(() => {
+        setStandings(null);
+      });
 
-    if (mine.status === "fulfilled") {
-      setEntries(mine.value.entries);
+    try {
+      const mine = await getMyRaces();
+      setEntries(mine.entries);
       setLoadError(null);
-    } else {
-      setLoadError(mine.reason as Error);
+    } catch (err) {
+      setLoadError(err as Error);
+    } finally {
+      setLoading(false);
     }
 
-    setStandings(leagues.status === "fulfilled" ? leagues.value : null);
-    setLoading(false);
+    await standingsPromise;
   }, []);
 
   // Refresh on focus: entering a race from the Competitions list should show
@@ -267,7 +275,7 @@ function RaceRow({
             {participantPreview.map((participant) => (
               <View key={participant.entryId} style={[styles.participantChip, participant.isViewer && styles.participantChipMine]}>
                 <Text style={styles.participantChipText} numberOfLines={1}>
-                  {participant.isViewer ? "You" : participant.displayName}
+                  {participant.displayName}
                 </Text>
               </View>
             ))}

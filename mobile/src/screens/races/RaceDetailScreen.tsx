@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -15,7 +15,7 @@ import { formatMetricValue } from "../../utils/metricValue";
 
 // No websocket infra exists yet — this is how fill counts and live
 // standings stay close to live while a race is still changeable.
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 30_000;
 
 function formatCents(cents: number) {
   return `R${(cents / 100).toLocaleString()}`;
@@ -36,6 +36,10 @@ function creatorLabel(race: RaceDetail["race"]) {
 
 function visibilityLabel(race: RaceDetail["race"]) {
   return race.visibility === "PUBLIC" ? "Public competition" : "Invite-only competition";
+}
+
+function initialFor(name: string) {
+  return name.trim().charAt(0).toUpperCase() || "T";
 }
 
 /** Finds the viewer's own row (or squad) in the standings, if they're in this race. */
@@ -323,7 +327,7 @@ export function RaceDetailScreen() {
           )}
         </View>
 
-        <RegisterCard race={race} />
+        <RegisterCard race={race} onOpenProfile={() => navigation.navigate("Profile")} />
 
         {/* Your own live standing — the same data as the leaderboard below,
             just surfaced without scrolling to find your row. */}
@@ -623,7 +627,7 @@ export function RaceDetailScreen() {
   );
 }
 
-function RegisterCard({ race }: { race: RaceDetail["race"] }) {
+function RegisterCard({ race, onOpenProfile }: { race: RaceDetail["race"]; onOpenProfile: () => void }) {
   const participants = race.participants ?? [];
   const slotsRemaining = Math.max(0, race.entrantsRequired - race.entrantsNow);
 
@@ -648,21 +652,32 @@ function RegisterCard({ race }: { race: RaceDetail["race"] }) {
         {participants.length === 0 ? (
           <Text style={styles.emptyRegister}>Nobody has entered yet.</Text>
         ) : (
-          participants.map((participant, index) => (
-            <View key={participant.entryId} style={styles.registerRow}>
+          participants.map((participant) => (
+            <Pressable
+              key={participant.entryId}
+              style={[styles.registerRow, participant.isViewer && styles.registerRowMine]}
+              onPress={participant.isViewer ? onOpenProfile : undefined}
+              disabled={!participant.isViewer}
+            >
               <View style={[styles.registerAvatar, participant.isViewer && styles.registerAvatarMine]}>
-                <Text style={styles.registerAvatarText}>{participant.isViewer ? "Y" : String(index + 1)}</Text>
+                {participant.avatarUrl ? (
+                  <Image source={{ uri: participant.avatarUrl }} style={styles.registerAvatarImage} />
+                ) : (
+                  <Text style={styles.registerAvatarText}>{initialFor(participant.displayName)}</Text>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.registerName} numberOfLines={1}>
-                  {participant.isViewer ? "You" : participant.displayName}
+                  {participant.displayName}
                 </Text>
                 <Text style={styles.registerMeta} numberOfLines={1}>
                   {participant.squadName ? `${participant.squadName} · ` : ""}
+                  {participant.isViewer ? "Your profile · " : ""}
                   {participant.status.toLowerCase()}
                 </Text>
               </View>
-            </View>
+              {participant.isViewer && <Ionicons name="person-circle-outline" size={18} color={colors.accent} />}
+            </Pressable>
           ))
         )}
       </View>
@@ -738,6 +753,7 @@ const styles = StyleSheet.create({
   registerBadge: { backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 5 },
   registerBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
   registerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingTop: spacing.sm },
+  registerRowMine: { borderRadius: radii.md, backgroundColor: colors.surfaceRaised, padding: spacing.sm },
   registerAvatar: {
     width: 30,
     height: 30,
@@ -747,6 +763,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   registerAvatarMine: { backgroundColor: colors.accent },
+  registerAvatarImage: { width: 30, height: 30, borderRadius: 15 },
   registerAvatarText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text },
   registerName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   registerMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },

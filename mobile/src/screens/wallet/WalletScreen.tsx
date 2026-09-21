@@ -102,16 +102,26 @@ export function WalletScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
+    const ledgerPromise = getLedger()
+      .then((ledger) => {
+        setEntries(ledger.entries);
+      })
+      .catch(() => {
+        // The balance and withdrawal controls are more important than a
+        // history refresh. Keep the existing rows instead of blanking the tab.
+      });
+
     try {
-      const [w, l] = await Promise.all([getWallet(), getLedger()]);
-      setWallet(w);
-      setEntries(l.entries);
+      setWallet(await getWallet());
       setLoadError(null);
     } catch (err) {
       setLoadError(err as Error);
     } finally {
       setLoading(false);
     }
+
+    await ledgerPromise;
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));

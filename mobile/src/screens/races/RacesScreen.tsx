@@ -15,7 +15,7 @@ import { sportImageFor } from "../../theme/sportImages";
 
 // No websocket infra exists yet — this is how fill counts and lock states
 // stay close to live on a screen with no deadline to countdown against.
-const POLL_INTERVAL_MS = 15_000;
+const POLL_INTERVAL_MS = 30_000;
 const DEFAULT_METRIC_FILTERS = [
   { metricKey: "steps", metricName: "Walking" },
   { metricKey: "running", metricName: "Running" },
@@ -75,9 +75,15 @@ export function RacesScreen() {
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
       if (!opts.silent) setLoading(true);
+      const standingsPromise = getLeagueStandings()
+        .then((leagueResult) => {
+          setStandings(leagueResult);
+        })
+        .catch(() => {
+          if (!opts.silent) setStandings(null);
+        });
       try {
-        const [leagueResult, raceResult] = await Promise.all([getLeagueStandings(), getRaces({ scope })]);
-        setStandings(leagueResult);
+        const raceResult = await getRaces({ scope });
         setRaces(raceResult.races);
         setLoadError(null);
       } catch (err) {
@@ -86,6 +92,7 @@ export function RacesScreen() {
       } finally {
         if (!opts.silent) setLoading(false);
       }
+      await standingsPromise;
     },
     [scope]
   );
@@ -384,7 +391,7 @@ function RaceCard({
             {participantPreview.map((participant) => (
               <View key={participant.entryId} style={[styles.participantChip, participant.isViewer && styles.participantChipMine]}>
                 <Text style={styles.participantChipText} numberOfLines={1}>
-                  {participant.isViewer ? "You" : participant.displayName}
+                  {participant.displayName}
                 </Text>
               </View>
             ))}
