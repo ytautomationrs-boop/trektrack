@@ -12,6 +12,8 @@ const prismaCli = require.resolve("prisma/build/index.js", {
 });
 const prismaEnginesDir = join(backendDir, "node_modules", "@prisma", "engines");
 const runStartupDatabaseMaintenance = process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true";
+const forceRuntimeRepair = process.env.FORCE_DATABASE_RUNTIME_REPAIR === "true";
+let migrationFailed = false;
 
 for (const fileName of readdirSync(prismaEnginesDir)) {
   if (fileName.startsWith("schema-engine") || fileName.startsWith("query-engine")) {
@@ -27,15 +29,21 @@ if (runStartupDatabaseMaintenance && process.env.SKIP_PRISMA_MIGRATE !== "true")
       cwd: backendDir,
       env: process.env,
       stdio: "inherit",
+      timeout: 45_000,
     },
   );
 
   if (migration.status !== 0) {
+    migrationFailed = true;
     console.warn("[startup] Prisma migrate deploy failed; continuing to start the web app. New database-backed features may not work until migrations are applied.");
   }
 }
 
-if (runStartupDatabaseMaintenance) {
+// Hostinger can spin up more than one Passenger worker close together. The
+// Prisma migrations are the normal path; this repair script is only a fallback
+// for databases whose migration history is already broken. Running both on
+// every boot adds cold-start latency and can produce duplicate-object races.
+if (runStartupDatabaseMaintenance && (migrationFailed || forceRuntimeRepair)) {
   const repair = spawnSync(
     process.execPath,
     [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
@@ -43,11 +51,12 @@ if (runStartupDatabaseMaintenance) {
       cwd: backendDir,
       env: process.env,
       stdio: "inherit",
+      timeout: 30_000,
     },
   );
 
   if (repair.status !== 0) {
-    console.warn("[startup] Database runtime repair failed; continuing to start the web app. Social/profile/admin features may need manual migration.");
+    console.warn("[startup] Database runtime repair failed; continuing to start the web app. Database-backed features may need manual migration.");
   }
 }
 

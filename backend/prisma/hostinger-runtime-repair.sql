@@ -1,3 +1,6 @@
+SET lock_timeout = '5s';
+SET statement_timeout = '25s';
+
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "bio" TEXT;
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "suspendedAt" TIMESTAMP(3);
 ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "suspendedReason" TEXT;
@@ -8,9 +11,9 @@ CREATE INDEX IF NOT EXISTS "User_bannedAt_idx" ON "User"("bannedAt");
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'FriendshipStatus') THEN
-    CREATE TYPE "FriendshipStatus" AS ENUM ('PENDING', 'ACCEPTED', 'BLOCKED');
-  END IF;
+  CREATE TYPE "FriendshipStatus" AS ENUM ('PENDING', 'ACCEPTED', 'BLOCKED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS "Friendship" (
@@ -31,15 +34,23 @@ CREATE INDEX IF NOT EXISTS "Friendship_addresseeId_status_idx" ON "Friendship"("
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Friendship_requesterId_fkey') THEN
-    ALTER TABLE "Friendship"
-      ADD CONSTRAINT "Friendship_requesterId_fkey"
-      FOREIGN KEY ("requesterId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "Friendship"
+        ADD CONSTRAINT "Friendship_requesterId_fkey"
+        FOREIGN KEY ("requesterId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Friendship_addresseeId_fkey') THEN
-    ALTER TABLE "Friendship"
-      ADD CONSTRAINT "Friendship_addresseeId_fkey"
-      FOREIGN KEY ("addresseeId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "Friendship"
+        ADD CONSTRAINT "Friendship_addresseeId_fkey"
+        FOREIGN KEY ("addresseeId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 END $$;
 
@@ -59,29 +70,45 @@ CREATE INDEX IF NOT EXISTS "DirectMessage_recipientId_senderId_createdAt_idx" ON
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectMessage_senderId_fkey') THEN
-    ALTER TABLE "DirectMessage"
-      ADD CONSTRAINT "DirectMessage_senderId_fkey"
-      FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "DirectMessage"
+        ADD CONSTRAINT "DirectMessage_senderId_fkey"
+        FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'DirectMessage_recipientId_fkey') THEN
-    ALTER TABLE "DirectMessage"
-      ADD CONSTRAINT "DirectMessage_recipientId_fkey"
-      FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "DirectMessage"
+        ADD CONSTRAINT "DirectMessage_recipientId_fkey"
+        FOREIGN KEY ("recipientId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 END $$;
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SocialEventVisibility') THEN
-    CREATE TYPE "SocialEventVisibility" AS ENUM ('PUBLIC', 'PRIVATE');
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SocialEventStatus') THEN
-    CREATE TYPE "SocialEventStatus" AS ENUM ('UPCOMING', 'CANCELLED', 'COMPLETED');
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SocialEventParticipantStatus') THEN
-    CREATE TYPE "SocialEventParticipantStatus" AS ENUM ('JOINED', 'LEFT');
-  END IF;
+  CREATE TYPE "SocialEventVisibility" AS ENUM ('PUBLIC', 'PRIVATE');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "SocialEventStatus" AS ENUM ('UPCOMING', 'CANCELLED', 'COMPLETED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  CREATE TYPE "SocialEventParticipantStatus" AS ENUM ('JOINED', 'LEFT');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS "SocialEvent" (
@@ -123,20 +150,32 @@ CREATE INDEX IF NOT EXISTS "SocialEventParticipant_eventId_status_idx" ON "Socia
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SocialEvent_hostUserId_fkey') THEN
-    ALTER TABLE "SocialEvent"
-      ADD CONSTRAINT "SocialEvent_hostUserId_fkey"
-      FOREIGN KEY ("hostUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "SocialEvent"
+        ADD CONSTRAINT "SocialEvent_hostUserId_fkey"
+        FOREIGN KEY ("hostUserId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SocialEventParticipant_eventId_fkey') THEN
-    ALTER TABLE "SocialEventParticipant"
-      ADD CONSTRAINT "SocialEventParticipant_eventId_fkey"
-      FOREIGN KEY ("eventId") REFERENCES "SocialEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "SocialEventParticipant"
+        ADD CONSTRAINT "SocialEventParticipant_eventId_fkey"
+        FOREIGN KEY ("eventId") REFERENCES "SocialEvent"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SocialEventParticipant_userId_fkey') THEN
-    ALTER TABLE "SocialEventParticipant"
-      ADD CONSTRAINT "SocialEventParticipant_userId_fkey"
-      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    BEGIN
+      ALTER TABLE "SocialEventParticipant"
+        ADD CONSTRAINT "SocialEventParticipant_userId_fkey"
+        FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 END $$;
