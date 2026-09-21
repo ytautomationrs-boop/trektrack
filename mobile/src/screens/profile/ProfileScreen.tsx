@@ -19,6 +19,7 @@ import {
   sendMessage,
   type ConversationSummary,
   type DirectMessage,
+  type FriendState,
   type FriendsPayload,
   type PlayerProfile,
   type PlayerSummary,
@@ -254,18 +255,32 @@ function SocialSection() {
   const act = async (player: PlayerSummary, action: "request" | "accept" | "remove") => {
     setBusy(`${action}:${player.id}`);
     try {
-      if (action === "request") await requestFriend(player.id);
-      if (action === "accept") await acceptFriend(player.id);
-      if (action === "remove") await removeFriend(player.id);
+      let nextState: FriendState = "none";
+      if (action === "request") nextState = (await requestFriend(player.id)).friendState;
+      if (action === "accept") nextState = (await acceptFriend(player.id)).friendState;
+      if (action === "remove") nextState = (await removeFriend(player.id)).friendState;
       loadFriends();
       setResults((items) =>
         items.map((item) =>
           item.id === player.id
-            ? { ...item, friendState: action === "request" || action === "accept" ? "friends" : "none" }
+            ? { ...item, friendState: nextState }
             : item
         )
       );
-      if (selected?.player.id === player.id) await refreshSelected(player.id);
+      if (selected?.player.id === player.id) {
+        setSelected((current) =>
+          current?.player.id === player.id
+            ? { ...current, friendState: nextState, player: { ...current.player, friendState: nextState } }
+            : current
+        );
+        if (nextState === "friends") {
+          const thread = await getConversation(player.id);
+          setMessages(thread.messages);
+        } else {
+          setMessages([]);
+        }
+        await refreshSelected(player.id);
+      }
       getConversations().then((r) => setConversations(r.conversations)).catch(() => {});
     } catch (err: any) {
       showAlert("Social", err.message ?? "Something went wrong.");

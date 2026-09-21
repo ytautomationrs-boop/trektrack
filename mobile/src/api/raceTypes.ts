@@ -85,6 +85,24 @@ export type RaceSquadSummary = {
 /** The subset of MetricTypeDefinition a race payload carries — enough to pick the right glyph and format a total. */
 export type RaceMetricType = Pick<MetricTypeDefinition, "key" | "displayName" | "unit" | "valueType"> & { icon: string };
 
+export type RaceCreator = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type RaceParticipant = {
+  entryId: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  squadId: string | null;
+  squadName: string | null;
+  status: RaceEntryStatus;
+  isViewer: boolean;
+  joinedAt: string | null;
+};
+
 export type Race = {
   id: string;
   /** Display name. Creator-supplied for private races, generated for public. */
@@ -92,6 +110,8 @@ export type Race = {
   visibility: RaceVisibility;
   /** Null for platform-opened races. */
   createdByUserId: string | null;
+  /** Null for platform-opened races. */
+  createdBy: RaceCreator | null;
   /** Only present on a private race the viewer is in — share it to invite. */
   inviteCode: string | null;
   raceTypeKey: string;
@@ -124,6 +144,7 @@ export type Race = {
   entrantsNow: number;
   entrantsRequired: number;
   slotsRemaining: number;
+  participants: RaceParticipant[];
   hasEntered: boolean;
   mySquadId: string | null;
   squads: RaceSquadSummary[];
@@ -247,7 +268,7 @@ export type RaceHistoryEntry = {
   /** See Race.isLowerLeagueOption — mirrors it onto the entry so history can label it. */
   lowerLeagueOptIn: boolean;
   joinedAt: string;
-  race: {
+  race: Race & {
     id: string;
     name: string;
     visibility: RaceVisibility;
@@ -258,7 +279,7 @@ export type RaceHistoryEntry = {
     status: RaceStatus;
     entrantCount: number;
     durationDays: number;
-    raceType: { displayName: string };
+    raceType: { displayName: string; metricType?: RaceMetricType };
     leagueLevel: number;
     /** The league this race ran in — always within the race's own metric. */
     league: { level: number; name: string };

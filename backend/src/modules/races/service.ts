@@ -818,7 +818,17 @@ const raceListInclude = {
     },
   },
   league: { select: { level: true, name: true } },
-  entries: { select: { id: true, userId: true, squadId: true, status: true } },
+  createdBy: { select: { id: true, displayName: true, avatarUrl: true } },
+  entries: {
+    select: {
+      id: true,
+      userId: true,
+      squadId: true,
+      status: true,
+      joinedAt: true,
+      user: { select: { id: true, displayName: true, avatarUrl: true } },
+    },
+  },
   squads: { select: { id: true, name: true, slotIndex: true, captainUserId: true, joinPolicy: true, inviteCode: true } },
 } as const;
 
@@ -878,6 +888,21 @@ type DecoratableSquad = {
   inviteCode?: string;
 };
 
+type DecoratableUser = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+type DecoratableEntry = {
+  id: string;
+  userId: string;
+  squadId: string | null;
+  status?: string;
+  joinedAt?: Date | string | null;
+  user?: DecoratableUser;
+};
+
 /**
  * Adds the derived fields every client surface needs — the frozen prize list,
  * fill counts, and per-squad membership — to a raw race row.
@@ -898,7 +923,8 @@ type DecoratableSquad = {
  */
 export function decorateRace(
   race: Race & {
-    entries: Array<{ id: string; userId: string; squadId: string | null; status?: string }>;
+    createdBy?: DecoratableUser | null;
+    entries: DecoratableEntry[];
     squads?: DecoratableSquad[];
   },
   userId: string
@@ -906,9 +932,25 @@ export function decorateRace(
   const activeEntries = race.entries.filter((e) => e.status === undefined || e.status === "ENTERED" || e.status === "SCORED" || e.status === "DISQUALIFIED");
   const required = requiredEntrantBodies(race);
   const myEntry = race.entries.find((e) => e.userId === userId && (e.status === undefined || e.status === "ENTERED"));
+  const squadById = new Map((race.squads ?? []).map((squad) => [squad.id, squad]));
   return {
     ...race,
     prizes: prizeSnapshotOf(race),
+    createdBy: race.createdBy ?? null,
+    participants: activeEntries.map((entry) => {
+      const squad = entry.squadId ? squadById.get(entry.squadId) : null;
+      return {
+        entryId: entry.id,
+        userId: entry.userId,
+        displayName: entry.user?.displayName ?? "TrackTrek racer",
+        avatarUrl: entry.user?.avatarUrl ?? null,
+        squadId: entry.squadId,
+        squadName: squad?.name ?? null,
+        status: entry.status ?? "ENTERED",
+        isViewer: entry.userId === userId,
+        joinedAt: entry.joinedAt ?? null,
+      };
+    }),
     entrantsNow: activeEntries.length,
     entrantsRequired: required,
     slotsRemaining: Math.max(0, required - activeEntries.length),
@@ -1002,7 +1044,7 @@ export async function listUserRaceEntries(userId: string, limit = 30) {
   const entries = await prisma.raceEntry.findMany({
     where: { userId },
     include: {
-      race: { include: { raceType: { select: { displayName: true } }, league: { select: { level: true, name: true } } } },
+      race: { include: raceListInclude },
       squad: { select: { id: true, name: true, finishPosition: true } },
     },
     orderBy: { joinedAt: "desc" },
@@ -1012,7 +1054,7 @@ export async function listUserRaceEntries(userId: string, limit = 30) {
   return entries.map((entry) => ({
     ...entry,
     race: {
-      ...entry.race,
+      ...decorateRace(entry.race, userId),
       inviteCode: entry.race.createdByUserId === userId ? entry.race.inviteCode : null,
     },
   }));

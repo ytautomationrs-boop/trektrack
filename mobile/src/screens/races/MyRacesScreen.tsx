@@ -10,7 +10,6 @@ import { getMyRaces, getLeagueStandings, cancelRaceEntry } from "../../api/raceC
 import type { LeagueStandings, RaceHistoryEntry } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
 import { shareCode } from "../../lib/shareCode";
-import { useAppState } from "../../state/useAppState";
 import { showAlert } from "../../lib/alert";
 
 /**
@@ -45,6 +44,14 @@ function subtitleFor(entry: RaceHistoryEntry): string {
   return `${metric} ${leagueName} · ${days} · ${format}`;
 }
 
+function creatorLabel(entry: RaceHistoryEntry) {
+  return entry.race.createdBy?.displayName ?? (entry.race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+}
+
+function visibilityLabel(entry: RaceHistoryEntry) {
+  return entry.race.visibility === "PUBLIC" ? "Public" : "Invite only";
+}
+
 const STATUS_META: Record<string, { label: string; color: string }> = {
   FILLING: { label: "Waiting for racers", color: colors.risk },
   LOCKED: { label: "Locked — starts at midnight", color: colors.accent },
@@ -56,7 +63,6 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 
 export function MyRacesScreen() {
   const navigation = useNavigation<any>();
-  const app = useAppState();
   const [entries, setEntries] = useState<RaceHistoryEntry[]>([]);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,8 +93,9 @@ export function MyRacesScreen() {
   );
 
   const uniqueEntries = entries.filter((entry, index, all) => all.findIndex((item) => item.raceId === entry.raceId) === index);
-  const active = uniqueEntries.filter((e) => e.race.status === "FILLING" || e.race.status === "LOCKED" || e.race.status === "RUNNING");
-  const past = uniqueEntries.filter((e) => e.race.status !== "FILLING" && e.race.status !== "LOCKED" && e.race.status !== "RUNNING");
+  const isActiveRaceStatus = (status: string) => status === "FILLING" || status === "LOCKED" || status === "RUNNING";
+  const active = uniqueEntries.filter((e) => e.status === "ENTERED" && isActiveRaceStatus(e.race.status));
+  const past = uniqueEntries.filter((e) => e.status !== "ENTERED" || !isActiveRaceStatus(e.race.status));
 
   const withdraw = (entry: RaceHistoryEntry) => {
     showAlert("Withdraw from race?", "Your entry fee will be refunded in full while the race is still waiting to fill.", [
@@ -100,6 +107,23 @@ export function MyRacesScreen() {
           setWithdrawingId(entry.raceId);
           try {
             const result = await cancelRaceEntry(entry.raceId);
+            setEntries((items) =>
+              items.map((item) =>
+                item.raceId === entry.raceId
+                  ? {
+                      ...item,
+                      status: "WITHDRAWN",
+                      race: {
+                        ...item.race,
+                        hasEntered: false,
+                        entrantsNow: Math.max(0, item.race.entrantsNow - 1),
+                        slotsRemaining: Math.min(item.race.entrantsRequired, item.race.slotsRemaining + 1),
+                        participants: item.race.participants.filter((participant) => !participant.isViewer),
+                      },
+                    }
+                  : item
+              )
+            );
             showAlert("Refunded", `${formatCents(result.refundedCents)} is back in your wallet.`);
             await load();
           } catch (err: any) {
@@ -147,7 +171,6 @@ export function MyRacesScreen() {
           <RaceRow
             key={e.raceId}
             entry={e}
-            viewerUserId={app.session?.userId ?? null}
             busy={withdrawingId === e.raceId}
             onWithdraw={() => withdraw(e)}
             onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })}
@@ -159,7 +182,6 @@ export function MyRacesScreen() {
           <RaceRow
             key={e.raceId}
             entry={e}
-            viewerUserId={app.session?.userId ?? null}
             busy={false}
             onWithdraw={() => {}}
             onPress={() => navigation.navigate("RaceDetail", { raceId: e.raceId })}
@@ -172,29 +194,35 @@ export function MyRacesScreen() {
 
 function RaceRow({
   entry,
-  viewerUserId,
   busy,
   onWithdraw,
   onPress,
 }: {
   entry: RaceHistoryEntry;
-  viewerUserId: string | null;
   busy: boolean;
   onWithdraw: () => void;
   onPress: () => void;
 }) {
   const meta = STATUS_META[entry.race.status] ?? { label: entry.race.status, color: colors.sub };
   const finished = entry.finishPosition != null;
-  const canShareRace = entry.race.visibility === "PRIVATE" && entry.race.createdByUserId === viewerUserId && entry.race.inviteCode != null;
   const canWithdraw = entry.race.status === "FILLING" && entry.status === "ENTERED";
+  const participants = entry.race.participants ?? [];
+  const participantPreview = participants.slice(0, 3);
 
   const shareRace = () => {
-    if (!entry.race.inviteCode) return;
-    void shareCode({
-      message: `Join my TrackTrek competition "${entry.race.name}" — race code: ${entry.race.inviteCode}`,
-      title: "Race code",
-      code: entry.race.inviteCode,
-    });
+    if (entry.race.inviteCode) {
+      void shareCode({
+        message: `Join my TrackTrek competition "${entry.race.name}" — race code: ${entry.race.inviteCode}`,
+        title: "Race code",
+        code: entry.race.inviteCode,
+      });
+      return;
+    }
+    const message =
+      entry.race.visibility === "PUBLIC"
+        ? `I'm racing in "${entry.race.name}" on TrackTrek. Open TrackTrek and find it under public competitions.`
+        : `I'm racing in "${entry.race.name}" on TrackTrek. Ask the host for the invite code.`;
+    void shareCode({ message, title: "Race", code: message });
   };
 
   return (
@@ -212,10 +240,44 @@ function RaceRow({
               string rather than split text nodes: textTransform capitalize
               applies per node, which turned "7 days" into "7 DayS". */}
           <Text style={styles.cardSub}>{subtitleFor(entry)}</Text>
+          <View style={styles.metaRow}>
+            <View style={styles.visibilityPill}>
+              <Ionicons name={entry.race.visibility === "PUBLIC" ? "earth" : "lock-closed"} size={10} color={colors.text} />
+              <Text style={styles.visibilityPillText}>{visibilityLabel(entry)}</Text>
+            </View>
+            <Text style={styles.creatorText} numberOfLines={1}>
+              Created by {creatorLabel(entry)}
+            </Text>
+          </View>
         </View>
         <View style={[styles.statusPill, { backgroundColor: meta.color + "22" }]}>
           <Text style={[styles.statusPillText, { color: meta.color }]}>{meta.label}</Text>
         </View>
+      </View>
+
+      <View style={styles.registerPreview}>
+        <View style={styles.registerTop}>
+          <Text style={styles.registerTitle}>Participants</Text>
+          <Text style={styles.registerCount}>
+            {entry.race.entrantsNow}/{entry.race.entrantsRequired} · {entry.race.slotsRemaining} open
+          </Text>
+        </View>
+        {participantPreview.length > 0 ? (
+          <View style={styles.participantChips}>
+            {participantPreview.map((participant) => (
+              <View key={participant.entryId} style={[styles.participantChip, participant.isViewer && styles.participantChipMine]}>
+                <Text style={styles.participantChipText} numberOfLines={1}>
+                  {participant.isViewer ? "You" : participant.displayName}
+                </Text>
+              </View>
+            ))}
+            {participants.length > participantPreview.length && (
+              <Text style={styles.moreParticipants}>+{participants.length - participantPreview.length}</Text>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.noParticipants}>No active entrants.</Text>
+        )}
       </View>
 
       {finished && (
@@ -231,34 +293,30 @@ function RaceRow({
         </View>
       )}
 
-      {(canShareRace || canWithdraw) && (
-        <View style={styles.actionRow}>
-          {canShareRace && (
-            <Pressable
-              style={[styles.actionButton, styles.shareButton]}
-              onPress={(event) => {
-                event.stopPropagation();
-                shareRace();
-              }}
-            >
-              <Ionicons name="share-outline" size={16} color={colors.bg} />
-              <Text style={styles.shareButtonText}>Share race</Text>
-            </Pressable>
-          )}
-          {canWithdraw && (
-            <Pressable
-              style={[styles.actionButton, styles.withdrawButton, busy && styles.disabled]}
-              disabled={busy}
-              onPress={(event) => {
-                event.stopPropagation();
-                onWithdraw();
-              }}
-            >
-              {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.withdrawButtonText}>Withdraw · refund</Text>}
-            </Pressable>
-          )}
-        </View>
-      )}
+      <View style={styles.actionRow}>
+        <Pressable
+          style={[styles.actionButton, styles.shareButton]}
+          onPress={(event) => {
+            event.stopPropagation();
+            shareRace();
+          }}
+        >
+          <Ionicons name="share-outline" size={16} color={colors.bg} />
+          <Text style={styles.shareButtonText}>Share race</Text>
+        </Pressable>
+        {canWithdraw && (
+          <Pressable
+            style={[styles.actionButton, styles.withdrawButton, busy && styles.disabled]}
+            disabled={busy}
+            onPress={(event) => {
+              event.stopPropagation();
+              onWithdraw();
+            }}
+          >
+            {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.withdrawButtonText}>Withdraw · refund</Text>}
+          </Pressable>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -295,8 +353,37 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.sm },
+  visibilityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  visibilityPillText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },
+  creatorText: { flexShrink: 1, fontFamily: fonts.body, fontSize: 11, color: colors.sub },
   statusPill: { borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 4 },
   statusPillText: { fontFamily: fonts.bodyMedium, fontSize: 10 },
+
+  registerPreview: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
+  registerTop: { flexDirection: "row", justifyContent: "space-between", gap: spacing.md },
+  registerTitle: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.text },
+  registerCount: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
+  participantChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  participantChip: {
+    maxWidth: 110,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  participantChipMine: { backgroundColor: colors.accent },
+  participantChipText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.text },
+  moreParticipants: { alignSelf: "center", fontFamily: fonts.body, fontSize: 11, color: colors.sub },
+  noParticipants: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.sm },
 
   resultRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
   resultPos: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },

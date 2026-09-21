@@ -30,6 +30,14 @@ function formatScheduledStart(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
 }
 
+function creatorLabel(race: RaceDetail["race"]) {
+  return race.createdBy?.displayName ?? (race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+}
+
+function visibilityLabel(race: RaceDetail["race"]) {
+  return race.visibility === "PUBLIC" ? "Public competition" : "Invite-only competition";
+}
+
 /** Finds the viewer's own row (or squad) in the standings, if they're in this race. */
 function findMyStanding(standings: RaceStandings, myEntryId: string) {
   if (standings.format === "INDIVIDUAL") {
@@ -260,6 +268,15 @@ export function RaceDetailScreen() {
         <Text style={styles.subtitle}>
           {race.durationDays} {race.durationDays === 1 ? "day" : "days"} · {formatCents(race.entryFeeCents)} entry
         </Text>
+        <View style={styles.raceMetaRow}>
+          <View style={styles.metaPill}>
+            <Ionicons name={race.visibility === "PUBLIC" ? "earth" : "lock-closed"} size={12} color={colors.text} />
+            <Text style={styles.metaPillText}>{visibilityLabel(race)}</Text>
+          </View>
+          <Text style={styles.creatorLine} numberOfLines={1}>
+            Created by {creatorLabel(race)}
+          </Text>
+        </View>
 
         {/* The existence condition, stated plainly. This is the single most
             important thing to communicate honestly: entering does not mean
@@ -305,6 +322,8 @@ export function RaceDetailScreen() {
             </>
           )}
         </View>
+
+        <RegisterCard race={race} />
 
         {/* Your own live standing — the same data as the leaderboard below,
             just surfaced without scrolling to find your row. */}
@@ -604,6 +623,53 @@ export function RaceDetailScreen() {
   );
 }
 
+function RegisterCard({ race }: { race: RaceDetail["race"] }) {
+  const participants = race.participants ?? [];
+  const slotsRemaining = Math.max(0, race.entrantsRequired - race.entrantsNow);
+
+  return (
+    <>
+      <Text style={styles.sectionTitle}>Register</Text>
+      <View style={styles.registerCard}>
+        <View style={styles.registerTop}>
+          <View>
+            <Text style={styles.registerHeadline}>
+              {race.entrantsNow} of {race.entrantsRequired} places filled
+            </Text>
+            <Text style={styles.registerBody}>
+              {slotsRemaining} {slotsRemaining === 1 ? "place" : "places"} still open.
+            </Text>
+          </View>
+          <View style={styles.registerBadge}>
+            <Text style={styles.registerBadgeText}>{race.visibility === "PUBLIC" ? "Public" : "Invite only"}</Text>
+          </View>
+        </View>
+
+        {participants.length === 0 ? (
+          <Text style={styles.emptyRegister}>Nobody has entered yet.</Text>
+        ) : (
+          participants.map((participant, index) => (
+            <View key={participant.entryId} style={styles.registerRow}>
+              <View style={[styles.registerAvatar, participant.isViewer && styles.registerAvatarMine]}>
+                <Text style={styles.registerAvatarText}>{participant.isViewer ? "Y" : String(index + 1)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.registerName} numberOfLines={1}>
+                  {participant.isViewer ? "You" : participant.displayName}
+                </Text>
+                <Text style={styles.registerMeta} numberOfLines={1}>
+                  {participant.squadName ? `${participant.squadName} · ` : ""}
+                  {participant.status.toLowerCase()}
+                </Text>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
@@ -611,6 +677,18 @@ const styles = StyleSheet.create({
   backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, textTransform: "capitalize" },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
+  raceMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.md },
+  metaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  metaPillText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
+  creatorLine: { flexShrink: 1, fontFamily: fonts.body, fontSize: 12, color: colors.sub },
 
   statusCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.lg },
   importCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm, marginTop: spacing.md },
@@ -653,6 +731,26 @@ const styles = StyleSheet.create({
   withdrawBtnText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
 
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
+  registerCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md },
+  registerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.md },
+  registerHeadline: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text },
+  registerBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
+  registerBadge: { backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 5 },
+  registerBadgeText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
+  registerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingTop: spacing.sm },
+  registerAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  registerAvatarMine: { backgroundColor: colors.accent },
+  registerAvatarText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text },
+  registerName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  registerMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
+  emptyRegister: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, lineHeight: 18 },
   prizeCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   prizeLine: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
   prizeLinePos: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },

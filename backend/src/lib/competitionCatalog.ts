@@ -278,14 +278,30 @@ async function seedCompetitionCatalog() {
   }
 }
 
+async function leagueLevelsForMetric(metricKey: string) {
+  const levels = await prisma.leagueLevel.findMany({
+    where: { metricKey },
+    select: { level: true },
+    orderBy: { level: "asc" },
+  });
+  return levels.length ? levels.map((item) => item.level) : Array.from({ length: LEAGUE_LEVELS_SEEDED }, (_, index) => index + 1);
+}
+
+function coversAllLevels(existing: { schedules: Array<{ leagueLevel: number }> } | null, levels: number[]) {
+  if (!existing) return false;
+  const covered = new Set(existing.schedules.map((schedule) => schedule.leagueLevel));
+  return levels.every((level) => covered.has(level));
+}
+
 export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durationDays: number, format: "INDIVIDUAL" | "SQUAD") {
   const type = raceTypeSeedFor(metricKey, durationDays, format);
+  const targetLevels = await leagueLevelsForMetric(type.metricKey);
 
   const existing = await prisma.raceType.findUnique({
     where: { key: type.key },
-    select: { key: true, schedules: { select: { id: true }, take: LEAGUE_LEVELS_SEEDED } },
+    select: { key: true, schedules: { where: { leagueLevel: { in: targetLevels } }, select: { leagueLevel: true } } },
   });
-  if (existing && existing.schedules.length >= LEAGUE_LEVELS_SEEDED) {
+  if (coversAllLevels(existing, targetLevels)) {
     return type;
   }
 
@@ -294,18 +310,19 @@ export async function ensureRaceTypeForUserCreatedRace(metricKey: string, durati
   // only fall back to a catalog repair when the requested row/schedules are
   // genuinely missing.
   await ensureCompetitionCatalog();
+  const repairedTargetLevels = await leagueLevelsForMetric(type.metricKey);
   const afterCatalogRepair = await prisma.raceType.findUnique({
     where: { key: type.key },
-    select: { key: true, schedules: { select: { id: true }, take: LEAGUE_LEVELS_SEEDED } },
+    select: { key: true, schedules: { where: { leagueLevel: { in: repairedTargetLevels } }, select: { leagueLevel: true } } },
   });
-  if (afterCatalogRepair && afterCatalogRepair.schedules.length >= LEAGUE_LEVELS_SEEDED) {
+  if (coversAllLevels(afterCatalogRepair, repairedTargetLevels)) {
     return type;
   }
 
   await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
 
   const base = baseScheduleFor(type);
-  for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+  for (const level of repairedTargetLevels) {
     const scaled = scaleSchedule(base, level, type.entrantCount);
     assertViable(type, scaled);
     const schedule = await prisma.racePrizeSchedule.upsert({

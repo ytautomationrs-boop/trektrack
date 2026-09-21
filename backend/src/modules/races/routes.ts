@@ -97,13 +97,24 @@ export async function raceRoutes(app: FastifyInstance) {
     const races = await prisma.race.findMany({
       where: {
         status: "FILLING",
+        visibility: "PUBLIC",
         ...(q.metricKey ? { metricKey: q.metricKey } : {}),
         ...(q.format ? { format: q.format } : {}),
       },
       include: {
-        entries: { select: { id: true, userId: true, squadId: true, status: true } },
+        entries: {
+          select: {
+            id: true,
+            userId: true,
+            squadId: true,
+            status: true,
+            joinedAt: true,
+            user: { select: { id: true, displayName: true, avatarUrl: true } },
+          },
+        },
         squads: { select: { id: true, name: true, slotIndex: true, captainUserId: true, joinPolicy: true, inviteCode: true } },
         league: { select: { level: true, name: true } },
+        createdBy: { select: { id: true, displayName: true, avatarUrl: true } },
         raceType: {
           select: {
             key: true,
@@ -223,9 +234,19 @@ export async function raceRoutes(app: FastifyInstance) {
     const race = await prisma.race.findUnique({
       where: { inviteCode: code.trim().toLowerCase() },
       include: {
-        entries: { select: { id: true, userId: true, squadId: true, status: true } },
+        entries: {
+          select: {
+            id: true,
+            userId: true,
+            squadId: true,
+            status: true,
+            joinedAt: true,
+            user: { select: { id: true, displayName: true, avatarUrl: true } },
+          },
+        },
         squads: { select: { id: true, name: true, slotIndex: true, captainUserId: true, joinPolicy: true, inviteCode: true } },
         league: { select: { level: true, name: true } },
+        createdBy: { select: { id: true, displayName: true, avatarUrl: true } },
         raceType: {
           select: {
             key: true,

@@ -343,6 +343,25 @@ function ControlsPanel({ onSelect }: { onSelect: (tab: Tab) => void }) {
 // ── Fund ────────────────────────────────────────────────────────────────
 
 const PRESET_AMOUNTS_CENTS = [10000, 25000, 50000];
+const MAX_SPONSORED_CREDIT_CENTS = 500_000;
+
+function parseRandAmountToCents(value: string) {
+  const raw = value.trim().replace(/[rR\s]/g, "");
+  if (!raw) return null;
+
+  let normalized = raw;
+  if (raw.includes(",") && raw.includes(".")) {
+    normalized = raw.replace(/,/g, "");
+  } else if (raw.includes(",")) {
+    const parts = raw.split(",");
+    normalized = parts.length === 2 && parts[1].length <= 2 ? parts.join(".") : raw.replace(/,/g, "");
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  if (!Number.isFinite(amount)) return null;
+  return Math.round(amount * 100);
+}
 
 function FundPanel() {
   const [email, setEmail] = useState("");
@@ -351,11 +370,13 @@ function FundPanel() {
   const [busy, setBusy] = useState(false);
   const [lastGrant, setLastGrant] = useState<string | null>(null);
 
-  const amountCents = amountText.trim() ? Math.round(parseFloat(amountText) * 100) : null;
+  const amountCents = parseRandAmountToCents(amountText);
+  const amountIsValid =
+    amountCents != null && amountCents > 0 && amountCents <= MAX_SPONSORED_CREDIT_CENTS;
 
   async function doGrant() {
-    if (!email.trim() || !amountCents || amountCents <= 0 || Number.isNaN(amountCents)) {
-      showAlert("Check the details", "Enter the account's email and an amount above zero.");
+    if (!email.trim() || !amountIsValid || amountCents == null) {
+      showAlert("Check the details", "Enter the account's email and a Rand amount from R0.01 to R5,000.");
       return;
     }
 
@@ -411,13 +432,16 @@ function FundPanel() {
       </View>
 
       <TextInput
-        style={styles.input}
+        style={[styles.input, amountText.trim().length > 0 && !amountIsValid && styles.inputError]}
         placeholder="Amount (R)"
         placeholderTextColor={colors.sub}
         keyboardType="decimal-pad"
         value={amountText}
         onChangeText={setAmountText}
       />
+      {amountText.trim() && !amountIsValid ? (
+        <Text style={styles.errorText}>Use any Rand amount from R0.01 to R5,000.</Text>
+      ) : null}
       <TextInput
         style={styles.input}
         placeholder="Note (e.g. pilot wave 1)"
@@ -426,7 +450,7 @@ function FundPanel() {
         onChangeText={setNote}
       />
 
-      <Pressable style={[styles.cta, busy && styles.ctaDisabled]} disabled={busy} onPress={doGrant}>
+      <Pressable style={[styles.cta, (busy || !amountIsValid) && styles.ctaDisabled]} disabled={busy || !amountIsValid} onPress={doGrant}>
         {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Fund {amountCents ? formatCents(amountCents) : ""}</Text>}
       </Pressable>
 
@@ -985,6 +1009,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
+  inputError: { borderWidth: 1, borderColor: colors.fail },
+  errorText: { fontFamily: fonts.body, fontSize: 12, color: colors.fail, marginTop: -spacing.sm },
 
   presetRow: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
   preset: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.pill, backgroundColor: colors.surface },

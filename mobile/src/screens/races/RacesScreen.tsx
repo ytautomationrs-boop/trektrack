@@ -31,6 +31,14 @@ function formatScheduledStart(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
 }
 
+function creatorLabel(race: Race) {
+  return race.createdBy?.displayName ?? (race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+}
+
+function visibilityLabel(race: Race) {
+  return race.visibility === "PUBLIC" ? "Public" : "Invite only";
+}
+
 /**
  * The races tab.
  *
@@ -293,6 +301,8 @@ function RaceCard({
   const leagueGated = race.enterable === false;
   const isLocked = race.status === "LOCKED";
   const fillPct = Math.round((race.entrantsNow / race.entrantsRequired) * 100);
+  const participants = race.participants ?? [];
+  const participantPreview = participants.slice(0, 4);
 
   return (
     <Pressable style={styles.card} onPress={onOpen}>
@@ -315,6 +325,15 @@ function RaceCard({
               {race.league?.name ? `${race.league.name} · ` : ""}
               {formatCents(race.entryFeeCents)} to enter
             </Text>
+            <View style={styles.cardMetaRow}>
+              <View style={styles.visibilityPill}>
+                <Ionicons name={race.visibility === "PUBLIC" ? "earth" : "lock-closed"} size={10} color={colors.text} />
+                <Text style={styles.visibilityPillText}>{visibilityLabel(race)}</Text>
+              </View>
+              <Text style={styles.creatorText} numberOfLines={1}>
+                Created by {creatorLabel(race)}
+              </Text>
+            </View>
           </View>
           {race.hasEntered ? (
             <View style={styles.enteredPill}>
@@ -346,10 +365,37 @@ function RaceCard({
             <Text style={styles.fillText}>
               {race.entrantsNow} of {race.entrantsRequired} {race.format === "SQUAD" ? "racers" : "entered"}
             </Text>
-            <Text style={styles.deadline}>Waiting to fill</Text>
+            <Text style={styles.deadline}>
+              {race.slotsRemaining} {race.slotsRemaining === 1 ? "place" : "places"} open
+            </Text>
           </View>
         </>
       )}
+
+      <View style={styles.registerPreview}>
+        <View style={styles.registerHead}>
+          <Text style={styles.registerTitle}>Participants</Text>
+          <Text style={styles.registerCount}>
+            {race.entrantsNow}/{race.entrantsRequired}
+          </Text>
+        </View>
+        {participantPreview.length > 0 ? (
+          <View style={styles.participantChips}>
+            {participantPreview.map((participant) => (
+              <View key={participant.entryId} style={[styles.participantChip, participant.isViewer && styles.participantChipMine]}>
+                <Text style={styles.participantChipText} numberOfLines={1}>
+                  {participant.isViewer ? "You" : participant.displayName}
+                </Text>
+              </View>
+            ))}
+            {participants.length > participantPreview.length && (
+              <Text style={styles.moreParticipants}>+{participants.length - participantPreview.length} more</Text>
+            )}
+          </View>
+        ) : (
+          <Text style={styles.noParticipants}>No entrants yet.</Text>
+        )}
+      </View>
 
       {/* The fixed schedule. Same numbers for every race of this type in this
           league, whoever enters. */}
@@ -474,6 +520,18 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
+  cardMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" },
+  visibilityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+  },
+  visibilityPillText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },
+  creatorText: { flexShrink: 1, fontFamily: fonts.body, fontSize: 11, color: colors.sub },
   enteredPill: { backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 4 },
   enteredPillText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.sage },
   lowerLeaguePill: { backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 4 },
@@ -484,6 +542,23 @@ const styles = StyleSheet.create({
   fillRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
   fillText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.text },
   deadline: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
+
+  registerPreview: { backgroundColor: "rgba(7,26,39,0.78)", borderRadius: radii.md, padding: spacing.md, marginTop: spacing.lg },
+  registerHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  registerTitle: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.text },
+  registerCount: { fontFamily: fonts.bodyBold, fontSize: 12, color: colors.accent },
+  participantChips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  participantChip: {
+    maxWidth: 120,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  participantChipMine: { backgroundColor: colors.accent },
+  participantChipText: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.text },
+  moreParticipants: { alignSelf: "center", fontFamily: fonts.body, fontSize: 11, color: colors.sub },
+  noParticipants: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.sm },
 
   lockedBanner: {
     flexDirection: "row",
