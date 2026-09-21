@@ -13,7 +13,8 @@
     "resolveJsonModule": true,
     "declaration": false,
     "sourceMap": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "node-cron"]
   },
   "include": ["src/**/*.ts"]
 }

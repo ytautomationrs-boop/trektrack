@@ -11,6 +11,7 @@ import type { LeagueStandings, RaceHistoryEntry } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
 import { shareCode } from "../../lib/shareCode";
 import { showAlert } from "../../lib/alert";
+import { raceUrl } from "../../lib/webLinks";
 
 /**
  * "Your races" — the races this user is actually in.
@@ -218,19 +219,12 @@ function RaceRow({
   const participantPreview = participants.slice(0, 3);
 
   const shareRace = () => {
-    if (entry.race.inviteCode) {
-      void shareCode({
-        message: `Join my TrackTrek competition "${entry.race.name}" — race code: ${entry.race.inviteCode}`,
-        title: "Race code",
-        code: entry.race.inviteCode,
-      });
-      return;
-    }
-    const message =
-      entry.race.visibility === "PUBLIC"
-        ? `I'm racing in "${entry.race.name}" on TrackTrek. Open TrackTrek and find it under public competitions.`
-        : `I'm racing in "${entry.race.name}" on TrackTrek. Ask the host for the invite code.`;
-    void shareCode({ message, title: "Race", code: message });
+    const link = raceUrl(entry.race.id, entry.race.inviteCode);
+    void shareCode({
+      message: `Join my TrackTrek competition "${entry.race.name}".\n${link}`,
+      title: "Race link",
+      code: link,
+    });
   };
 
   return (
@@ -265,7 +259,7 @@ function RaceRow({
 
       <View style={styles.registerPreview}>
         <View style={styles.registerTop}>
-          <Text style={styles.registerTitle}>Participants</Text>
+          <Text style={styles.registerTitle}>Competitors</Text>
           <Text style={styles.registerCount}>
             {entry.race.entrantsNow}/{entry.race.entrantsRequired} · {entry.race.slotsRemaining} open
           </Text>

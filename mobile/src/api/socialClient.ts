@@ -54,11 +54,11 @@ export function getPlayerProfile(playerId: string) {
 }
 
 export function requestFriend(playerId: string) {
-  return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}/request`, { method: "POST" });
+  return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}/request`, { method: "POST", body: JSON.stringify({}) });
 }
 
 export function acceptFriend(playerId: string) {
-  return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}/accept`, { method: "POST" });
+  return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}/accept`, { method: "POST", body: JSON.stringify({}) });
 }
 
 export function removeFriend(playerId: string) {

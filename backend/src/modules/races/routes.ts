@@ -80,6 +80,39 @@ export async function raceRoutes(app: FastifyInstance) {
     return reply.send({ leaguesByMetric: byMetric });
   });
 
+  app.get("/leaderboards", { preHandler: requireAuth }, async (_req, reply) => {
+    await ensureCompetitionCatalog();
+    const metrics = await prisma.metricTypeDefinition.findMany({
+      where: { key: { in: ["steps", "running", "cycling", "swimming"] } },
+      select: { key: true, displayName: true, icon: true },
+      orderBy: { key: "asc" },
+    });
+    const leaderboards = await Promise.all(
+      metrics.map(async (metric) => {
+        const leaders = await prisma.userLeagueState.findMany({
+          where: { metricKey: metric.key },
+          include: { user: { select: { id: true, displayName: true, avatarUrl: true } }, league: { select: { name: true, level: true } } },
+          orderBy: [{ totalPoints: "desc" }, { racesWon: "desc" }, { racesEntered: "desc" }],
+          take: 5,
+        });
+        return {
+          metricKey: metric.key,
+          metricName: metric.displayName,
+          icon: metric.icon,
+          leaders: leaders.map((leader, index) => ({
+            position: index + 1,
+            userId: leader.userId,
+            displayName: leader.user.displayName,
+            avatarUrl: leader.user.avatarUrl,
+            totalPoints: leader.totalPoints,
+            leagueName: leader.league.name,
+          })),
+        };
+      })
+    );
+    return reply.send({ leaderboards });
+  });
+
   // ── Races ───────────────────────────────────────────────────────────────
 
   app.get("/races", { preHandler: requireAuth }, async (req, reply) => {

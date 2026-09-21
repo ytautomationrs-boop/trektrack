@@ -18,6 +18,7 @@ import { iconFor } from "../../theme/metricIcons";
 import { createRace, getLeagueStandings, getRaceTypes } from "../../api/raceClient";
 import type { LeagueStandings, RaceFormat, RaceType } from "../../api/raceTypes";
 import type { MetricKey } from "../../api/types";
+import { raceUrl } from "../../lib/webLinks";
 
 /**
  * Create a race.
@@ -283,23 +284,22 @@ export function CreateRaceScreen() {
         squadName: format === "SQUAD" ? resolvedSquadName : undefined,
       });
       const code = result.inviteCode;
+      const link = raceUrl(result.race.id, code);
       showAlert(
         "Race created",
         `You're entrant 1 of ${peopleNeeded}. ${
-          visibility === "PRIVATE" ? "Share your code with the people you invite." : "Anyone in your league can now find and join it."
+          visibility === "PRIVATE" ? "Share your race link with the people you invite." : "Anyone in your league can now find and join it."
         } The race starts the moment it's full, and if it doesn't fill everyone gets their entry back in full.` + (code ? `\n\nCode: ${code}` : ""),
         [
-          code
-            ? {
-                text: "Share code",
-                onPress: () =>
-                  void shareCode({
-                    message: `Join my race "${resolvedRaceName}" on TrackTrek — race code: ${code}`,
-                    title: "Race code",
-                    code,
-                  }),
-              }
-            : { text: "OK" },
+          {
+            text: "Share link",
+            onPress: () =>
+              void shareCode({
+                message: `Join my race "${resolvedRaceName}" on TrackTrek.\n${link}`,
+                title: "Race link",
+                code: link,
+              }),
+          },
           {
             text: "View race",
             onPress: () => navigation.navigate("Races", { screen: "RaceDetail", params: { raceId: result.race.id } }),

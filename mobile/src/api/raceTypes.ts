@@ -242,6 +242,20 @@ export type LeagueStandings = {
   primaryMetricKey: string;
 };
 
+export type CompetitionLeaderboard = {
+  metricKey: string;
+  metricName: string;
+  icon: string;
+  leaders: Array<{
+    position: number;
+    userId: string;
+    displayName: string;
+    avatarUrl: string | null;
+    totalPoints: number;
+    leagueName: string;
+  }>;
+};
+
 export type RacePointEntry = {
   id: string;
   raceId: string;

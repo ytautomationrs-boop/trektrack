@@ -8,15 +8,18 @@ import { colors, fonts, radii } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
 import { WalletScreen } from "../screens/wallet/WalletScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
+import { SocialScreen } from "../screens/social/SocialScreen";
 import { RacesScreen } from "../screens/races/RacesScreen";
 import { RaceDetailScreen } from "../screens/races/RaceDetailScreen";
 import { MyRacesScreen } from "../screens/races/MyRacesScreen";
+import { EventsScreen } from "../screens/events/EventsScreen";
+import { EventDetailScreen } from "../screens/events/EventDetailScreen";
 import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
-const MyRaceStack = createNativeStackNavigator();
+const EventsStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
 /**
@@ -35,12 +38,12 @@ function RacesStackScreen() {
   );
 }
 
-function MyRacesStackScreen() {
+function EventsStackScreen() {
   return (
-    <MyRaceStack.Navigator screenOptions={{ headerShown: false }}>
-      <MyRaceStack.Screen name="MyRacesHome" component={MyRacesScreen} />
-      <MyRaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
-    </MyRaceStack.Navigator>
+    <EventsStack.Navigator screenOptions={{ headerShown: false }}>
+      <EventsStack.Screen name="EventsHome" component={EventsScreen} />
+      <EventsStack.Screen name="EventDetail" component={EventDetailScreen} />
+    </EventsStack.Navigator>
   );
 }
 
@@ -58,6 +61,9 @@ function ProfileStackScreen() {
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
+      <ProfileStack.Screen name="MyRaces" component={MyRacesScreen} />
+      <ProfileStack.Screen name="Wallet" component={WalletScreen} />
+      <ProfileStack.Screen name="RaceDetail" component={RaceDetailScreen} />
       {app.session?.isAdmin ? <ProfileStack.Screen name="Admin" component={AdminScreen} /> : null}
     </ProfileStack.Navigator>
   );
@@ -70,10 +76,34 @@ const navTheme = {
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Competitions: "trophy-outline",
-  "Your Races": "flag-outline",
-  Wallet: "wallet-outline",
+  Social: "people-outline",
+  Events: "calendar-outline",
   Profile: "person-outline",
 };
+
+const linking = {
+  prefixes: [],
+  config: {
+    screens: {
+      Competitions: {
+        screens: {
+          RacesList: "competitions",
+        },
+      },
+      Races: {
+        screens: {
+          RaceDetail: "race/:raceId",
+        },
+      },
+      Events: {
+        screens: {
+          EventsHome: "events",
+          EventDetail: "event/:eventId",
+        },
+      },
+    },
+  },
+} as any;
 
 // Center "Create" tab — a raised circular button that sits above the bar
 // rather than blending in as a fifth equal-weight icon, per spec ("center,
@@ -96,7 +126,7 @@ function CreateTabButton({ onPress }: { onPress: () => void }) {
 
 export function RootNavigator() {
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} linking={linking}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
@@ -109,7 +139,7 @@ export function RootNavigator() {
       >
         {/* The race/league browse screen — what used to be "Discover". */}
         <Tab.Screen name="Competitions" component={RacesStackScreen} />
-        <Tab.Screen name="Your Races" component={MyRacesStackScreen} />
+        <Tab.Screen name="Social" component={SocialScreen} />
         {/* Hidden from the bar: a stable target for navigating into the race
             stack by name from Profile or Create. */}
         <Tab.Screen
@@ -125,7 +155,7 @@ export function RootNavigator() {
             tabBarButton: (props) => <CreateTabButton onPress={() => props.onPress?.({} as any)} />,
           }}
         />
-        <Tab.Screen name="Wallet" component={WalletScreen} />
+        <Tab.Screen name="Events" component={EventsStackScreen} />
         <Tab.Screen name="Profile" component={ProfileStackScreen} />
       </Tab.Navigator>
     </NavigationContainer>

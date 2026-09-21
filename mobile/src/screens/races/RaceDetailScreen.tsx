@@ -12,6 +12,7 @@ import { LoadError } from "../../components/LoadError";
 import { getRace, enterRace, cancelRaceEntry } from "../../api/raceClient";
 import type { RaceDetail, RaceStandings } from "../../api/raceTypes";
 import { formatMetricValue } from "../../utils/metricValue";
+import { raceUrl } from "../../lib/webLinks";
 
 // No websocket infra exists yet — this is how fill counts and live
 // standings stay close to live while a race is still changeable.
@@ -253,6 +254,14 @@ export function RaceDetailScreen() {
     standings && myEntryId && (race.status === "RUNNING" || race.status === "RESOLVING" || race.status === "COMPLETED")
       ? findMyStanding(standings, myEntryId)
       : null;
+  const shareRace = () => {
+    const link = raceUrl(race.id, race.inviteCode);
+    void shareCode({
+      title: "Race link",
+      code: link,
+      message: `Join my TrackTrek competition "${race.name}".\n${link}`,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -281,6 +290,10 @@ export function RaceDetailScreen() {
             Created by {creatorLabel(race)}
           </Text>
         </View>
+        <Pressable style={styles.shareRaceButton} onPress={shareRace}>
+          <Ionicons name="share-outline" size={15} color={colors.bg} />
+          <Text style={styles.shareRaceText}>Share race</Text>
+        </Pressable>
 
         {/* The existence condition, stated plainly. This is the single most
             important thing to communicate honestly: entering does not mean
@@ -633,7 +646,7 @@ function RegisterCard({ race, onOpenProfile }: { race: RaceDetail["race"]; onOpe
 
   return (
     <>
-      <Text style={styles.sectionTitle}>Register</Text>
+      <Text style={styles.sectionTitle}>Competitors</Text>
       <View style={styles.registerCard}>
         <View style={styles.registerTop}>
           <View>
@@ -704,6 +717,17 @@ const styles = StyleSheet.create({
   },
   metaPillText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
   creatorLine: { flexShrink: 1, fontFamily: fonts.body, fontSize: 12, color: colors.sub },
+  shareRaceButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    borderRadius: radii.md,
+    paddingVertical: spacing.md,
+    marginTop: spacing.md,
+  },
+  shareRaceText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
 
   statusCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.lg },
   importCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm, marginTop: spacing.md },

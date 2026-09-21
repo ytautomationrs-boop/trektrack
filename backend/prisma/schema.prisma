@@ -92,6 +92,8 @@ model User {
   friendRequestsReceived Friendship[]           @relation("FriendshipAddressee")
   messagesSent           DirectMessage[]        @relation("DirectMessageSender")
   messagesReceived       DirectMessage[]        @relation("DirectMessageRecipient")
+  hostedSocialEvents     SocialEvent[]          @relation("SocialEventHost")
+  socialEventEntries     SocialEventParticipant[]
 
   raceEntries      RaceEntry[]
   createdRaces     Race[]            @relation("RaceCreator")
@@ -145,6 +147,61 @@ model DirectMessage {
 
   @@index([senderId, recipientId, createdAt])
   @@index([recipientId, senderId, createdAt])
+}
+
+enum SocialEventVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum SocialEventStatus {
+  UPCOMING
+  CANCELLED
+  COMPLETED
+}
+
+enum SocialEventParticipantStatus {
+  JOINED
+  LEFT
+}
+
+model SocialEvent {
+  id          String                @id @default(cuid())
+  hostUserId  String
+  host        User                  @relation("SocialEventHost", fields: [hostUserId], references: [id], onDelete: Cascade)
+  name        String
+  sportKey    String
+  sportName   String
+  description String?
+  location    String?
+  startsAt    DateTime
+  maxPlayers  Int
+  visibility  SocialEventVisibility @default(PUBLIC)
+  inviteCode  String?               @unique
+  status      SocialEventStatus     @default(UPCOMING)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  participants SocialEventParticipant[]
+
+  @@index([status, startsAt])
+  @@index([hostUserId, startsAt])
+  @@index([visibility, startsAt])
+}
+
+model SocialEventParticipant {
+  id       String                       @id @default(cuid())
+  eventId  String
+  event    SocialEvent                  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status   SocialEventParticipantStatus @default(JOINED)
+  joinedAt DateTime                     @default(now())
+  leftAt   DateTime?
+
+  @@unique([eventId, userId])
+  @@index([userId, status])
+  @@index([eventId, status])
 }
 
 // Pilot invite gate. There is no public sign-up route while this exists —

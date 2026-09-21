@@ -68,10 +68,7 @@ export function ProfileScreen() {
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.content}>
         <IdentityCard />
-
-        {/* ── Social ─────────────────────────────────────────────────── */}
-        <ModelHeading title="Social" subtitle="Follow players, compare leagues, and send messages." />
-        <SocialSection />
+        <ProfileShortcuts />
 
         {/* ── Race / league ───────────────────────────────────────────── */}
         <ModelHeading title="Competitions" subtitle="Fixed-prize races, ranked into leagues per metric." />
@@ -89,6 +86,24 @@ export function ProfileScreen() {
         <LogoutRow />
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ProfileShortcuts() {
+  const navigation = useNavigation<any>();
+  return (
+    <View style={styles.shortcutGrid}>
+      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces")}>
+        <Ionicons name="flag-outline" size={18} color={colors.accent} />
+        <Text style={styles.shortcutTitle}>Your races</Text>
+        <Text style={styles.shortcutSub}>Active and past competitions</Text>
+      </Pressable>
+      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("Wallet")}>
+        <Ionicons name="wallet-outline" size={18} color={colors.accent} />
+        <Text style={styles.shortcutTitle}>Wallet</Text>
+        <Text style={styles.shortcutSub}>Balance and withdrawals</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -184,7 +199,7 @@ function IdentityCard() {
   );
 }
 
-function SocialSection() {
+export function SocialSection() {
   const [friends, setFriends] = useState<FriendsPayload>({ friends: [], incoming: [], outgoing: [] });
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [query, setQuery] = useState("");
@@ -384,6 +399,25 @@ function SocialSection() {
         <Text style={styles.cardTitle}>Following</Text>
         {friends.friends.length === 0 ? (
           <Text style={styles.cardBody}>Search for players to follow your first people.</Text>
+        ) : (
+          friends.friends.map((player) => (
+            <PlayerRow
+              key={player.id}
+              player={{ ...player, friendState: "friends" }}
+              busy={busy}
+              onOpen={() => openPlayer(player.id)}
+              onRequest={() => act(player, "request")}
+              onAccept={() => act(player, "accept")}
+              onRemove={() => act(player, "remove")}
+            />
+          ))
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Followers</Text>
+        {friends.friends.length === 0 ? (
+          <Text style={styles.cardBody}>Players who follow you back will show here.</Text>
         ) : (
           friends.friends.map((player) => (
             <PlayerRow
@@ -940,6 +974,10 @@ const styles = StyleSheet.create({
   editProfileText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
   editProfilePanel: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
   bioInput: { minHeight: 78, textAlignVertical: "top" },
+  shortcutGrid: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
+  shortcutCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: 4 },
+  shortcutTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  shortcutSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, lineHeight: 16 },
 
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   statCard: {

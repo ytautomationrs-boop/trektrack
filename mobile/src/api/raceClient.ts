@@ -7,6 +7,7 @@
 import type { RawSample } from "../health/types";
 import type {
   CreateRaceResult,
+  CompetitionLeaderboard,
   EnterRaceResult,
   LeagueLevel,
   LeagueStandings,
@@ -117,6 +118,10 @@ export function syncRaceStrava(raceEntryId: string) {
  */
 export function getLeagueStandings() {
   return request<LeagueStandings>("/me/leagues");
+}
+
+export function getCompetitionLeaderboards() {
+  return request<{ leaderboards: CompetitionLeaderboard[] }>("/leaderboards");
 }
 
 /** One metric's standing on its own. */
