@@ -12,6 +12,20 @@ const playerSelect = {
   createdAt: true,
 } as const;
 
+const raceResultInclude = {
+  race: {
+    select: {
+      id: true,
+      name: true,
+      metricKey: true,
+      status: true,
+      league: { select: { name: true, level: true } },
+      raceType: { select: { displayName: true } },
+    },
+  },
+  squad: { select: { id: true, name: true, finishPosition: true } },
+} as const;
+
 function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date }) {
   return {
     id: user.id,
@@ -20,6 +34,67 @@ function serializePlayer(user: { id: string; displayName: string; avatarUrl: str
     bio: user.bio,
     joinedAt: user.createdAt,
   };
+}
+
+function serializeRaceResult(entry: {
+  id: string;
+  raceId: string;
+  status: string;
+  aggregateValue: number | null;
+  finishPosition: number | null;
+  pointsAwarded: number | null;
+  prizeCents: number | null;
+  joinedAt: Date;
+  race: {
+    id: string;
+    name: string;
+    metricKey: string;
+    status: string;
+    league: { name: string; level: number };
+    raceType: { displayName: string };
+  };
+  squad: { id: string; name: string; finishPosition: number | null } | null;
+}) {
+  return {
+    id: entry.id,
+    raceId: entry.raceId,
+    status: entry.status,
+    aggregateValue: entry.aggregateValue,
+    finishPosition: entry.finishPosition,
+    pointsAwarded: entry.pointsAwarded,
+    prizeCents: entry.prizeCents,
+    joinedAt: entry.joinedAt,
+    race: entry.race,
+    squad: entry.squad,
+  };
+}
+
+function serializePost(post: {
+  id: string;
+  body: string;
+  createdAt: Date;
+  author: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date };
+  raceEntry: Parameters<typeof serializeRaceResult>[0] | null;
+}) {
+  return {
+    id: post.id,
+    body: post.body,
+    createdAt: post.createdAt,
+    author: serializePlayer(post.author),
+    raceResult: post.raceEntry ? serializeRaceResult(post.raceEntry) : null,
+  };
+}
+
+async function connectedIds(viewerId: string) {
+  const friendships = await prisma.friendship.findMany({
+    where: {
+      status: "ACCEPTED",
+      OR: [{ requesterId: viewerId }, { addresseeId: viewerId }],
+    },
+    select: { requesterId: true, addresseeId: true },
+    take: 250,
+  });
+  return [viewerId, ...friendships.map((f) => (f.requesterId === viewerId ? f.addresseeId : f.requesterId))];
 }
 
 export async function friendshipState(viewerId: string, playerId: string): Promise<FriendState> {
@@ -36,6 +111,57 @@ export async function friendshipState(viewerId: string, playerId: string): Promi
   if (friendship.status === "ACCEPTED") return "friends";
   if (friendship.status === "BLOCKED") return "blocked";
   return friendship.requesterId === viewerId ? "pending_sent" : "pending_received";
+}
+
+export async function listSocialFeed(viewerId: string) {
+  const authorIds = await connectedIds(viewerId);
+  const posts = await prisma.socialPost.findMany({
+    where: { authorId: { in: authorIds } },
+    include: {
+      author: { select: playerSelect },
+      raceEntry: { include: raceResultInclude },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+  return posts.map(serializePost);
+}
+
+export async function listPostableResults(viewerId: string) {
+  const entries = await prisma.raceEntry.findMany({
+    where: {
+      userId: viewerId,
+      OR: [{ status: "SCORED" }, { finishPosition: { not: null } }, { pointsAwarded: { not: null } }],
+    },
+    include: raceResultInclude,
+    orderBy: { joinedAt: "desc" },
+    take: 12,
+  });
+  return entries.map(serializeRaceResult);
+}
+
+export async function createSocialPost(viewerId: string, input: { body: string; raceEntryId?: string | null }) {
+  const body = input.body.trim();
+  if (!body) throw Object.assign(new Error("Write something before posting."), { statusCode: 400, code: "empty_post" });
+
+  let raceEntryId: string | null = null;
+  if (input.raceEntryId) {
+    const entry = await prisma.raceEntry.findFirst({
+      where: { id: input.raceEntryId, userId: viewerId },
+      select: { id: true },
+    });
+    if (!entry) throw Object.assign(new Error("That result is not available on your profile."), { statusCode: 404, code: "result_not_found" });
+    raceEntryId = entry.id;
+  }
+
+  const post = await prisma.socialPost.create({
+    data: { authorId: viewerId, body, raceEntryId },
+    include: {
+      author: { select: playerSelect },
+      raceEntry: { include: raceResultInclude },
+    },
+  });
+  return serializePost(post);
 }
 
 export async function searchPlayers(viewerId: string, query: string, limit = 20) {
@@ -239,10 +365,19 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
   const user = await prisma.user.findUnique({ where: { id: playerId }, select: playerSelect });
   if (!user) throw Object.assign(new Error("Player not found."), { statusCode: 404, code: "player_not_found" });
 
-  const [friendState, leagues, raceHistory] = await Promise.all([
+  const [friendState, leagues, raceHistory, posts] = await Promise.all([
     friendshipState(viewerId, playerId),
     getLeagueStandings(playerId),
     listUserRaceEntries(playerId, 20),
+    prisma.socialPost.findMany({
+      where: { authorId: playerId },
+      include: {
+        author: { select: playerSelect },
+        raceEntry: { include: raceResultInclude },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 24,
+    }),
   ]);
 
   return {
@@ -250,5 +385,6 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
     friendState,
     leagues,
     raceHistory,
+    posts: posts.map(serializePost),
   };
 }

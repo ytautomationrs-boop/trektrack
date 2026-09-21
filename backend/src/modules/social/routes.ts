@@ -3,9 +3,12 @@ import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
 import {
   acceptFriend,
+  createSocialPost,
   getPlayerProfile,
   listFriends,
   listConversations,
+  listPostableResults,
+  listSocialFeed,
   removeFriend,
   requestFriend,
   searchPlayers,
@@ -22,7 +25,25 @@ const MessageBody = z.object({
   body: z.string().trim().min(1).max(500),
 });
 
+const SocialPostBody = z.object({
+  body: z.string().trim().min(1).max(500),
+  raceEntryId: z.string().trim().min(1).optional().nullable(),
+});
+
 export async function socialRoutes(app: FastifyInstance) {
+  app.get("/social/feed", { preHandler: requireAuth }, async (req, reply) => {
+    return reply.send({ posts: await listSocialFeed(req.userId) });
+  });
+
+  app.get("/social/postable-results", { preHandler: requireAuth }, async (req, reply) => {
+    return reply.send({ results: await listPostableResults(req.userId) });
+  });
+
+  app.post("/social/posts", { preHandler: requireAuth }, async (req, reply) => {
+    const body = SocialPostBody.parse(req.body ?? {});
+    return reply.code(201).send({ post: await createSocialPost(req.userId, body) });
+  });
+
   app.get("/players/search", { preHandler: requireAuth }, async (req, reply) => {
     const query = SearchQuery.parse(req.query);
     return reply.send({ players: await searchPlayers(req.userId, query.q, query.limit) });

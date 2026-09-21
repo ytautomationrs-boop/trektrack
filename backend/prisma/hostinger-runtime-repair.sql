@@ -90,6 +90,43 @@ BEGIN
   END IF;
 END $$;
 
+CREATE TABLE IF NOT EXISTS "SocialPost" (
+  "id" TEXT NOT NULL,
+  "authorId" TEXT NOT NULL,
+  "body" TEXT NOT NULL,
+  "raceEntryId" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "SocialPost_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "SocialPost_authorId_createdAt_idx" ON "SocialPost"("authorId", "createdAt");
+CREATE INDEX IF NOT EXISTS "SocialPost_createdAt_idx" ON "SocialPost"("createdAt");
+CREATE INDEX IF NOT EXISTS "SocialPost_raceEntryId_idx" ON "SocialPost"("raceEntryId");
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SocialPost_authorId_fkey') THEN
+    BEGIN
+      ALTER TABLE "SocialPost"
+        ADD CONSTRAINT "SocialPost_authorId_fkey"
+        FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SocialPost_raceEntryId_fkey') THEN
+    BEGIN
+      ALTER TABLE "SocialPost"
+        ADD CONSTRAINT "SocialPost_raceEntryId_fkey"
+        FOREIGN KEY ("raceEntryId") REFERENCES "RaceEntry"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+END $$;
+
 DO $$
 BEGIN
   CREATE TYPE "SocialEventVisibility" AS ENUM ('PUBLIC', 'PRIVATE');

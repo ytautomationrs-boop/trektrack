@@ -28,6 +28,20 @@ function tomorrowDate() {
   return date.toISOString().slice(0, 10);
 }
 
+function dateOptions() {
+  return Array.from({ length: 14 }, (_, index) => {
+    const date = new Date(Date.now() + (index + 1) * 24 * 60 * 60 * 1000);
+    const value = date.toISOString().slice(0, 10);
+    return {
+      value,
+      day: date.toLocaleDateString(undefined, { weekday: "short" }),
+      label: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    };
+  });
+}
+
+const TIME_OPTIONS = ["06:00", "07:00", "08:00", "12:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+
 function toStartsAt(dateText: string, timeText: string) {
   const local = new Date(`${dateText}T${timeText || "18:00"}:00`);
   if (Number.isNaN(local.getTime())) return null;
@@ -123,7 +137,7 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
   const [dateText, setDateText] = useState(tomorrowDate());
   const [timeText, setTimeText] = useState("18:00");
   const [location, setLocation] = useState("");
-  const [maxPlayers, setMaxPlayers] = useState("4");
+  const [maxPlayers, setMaxPlayers] = useState(4);
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
@@ -133,7 +147,7 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
 
   const submit = async () => {
     const startsAt = toStartsAt(dateText.trim(), timeText.trim());
-    const players = Number.parseInt(maxPlayers, 10);
+    const players = maxPlayers;
     if (!startsAt) return showAlert("Date and time", "Use a date like 2026-09-22 and a time like 18:00.");
     if (!players || players < 2 || players > 100) return showAlert("Players", "Choose between 2 and 100 players.");
     if (sportKey === "custom" && customSportName.trim().length < 2) return showAlert("Custom game", "Name the game people are joining.");
@@ -160,6 +174,7 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
   return (
     <View style={styles.panel}>
       <Text style={styles.panelTitle}>Host a social game</Text>
+      <LabeledField label="Sport">
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sportRow}>
         {sports.map((sport) => (
           <Pressable key={sport.key} style={[styles.sportChip, sportKey === sport.key && styles.sportChipActive]} onPress={() => setSportKey(sport.key)}>
@@ -168,16 +183,51 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
           </Pressable>
         ))}
       </ScrollView>
+      </LabeledField>
       {sportKey === "custom" && (
-        <TextInput style={styles.input} value={customSportName} onChangeText={setCustomSportName} placeholder="Custom game name" placeholderTextColor={colors.sub} />
+        <LabeledField label="Custom sport">
+          <TextInput style={styles.input} value={customSportName} onChangeText={setCustomSportName} placeholder="Custom game name" placeholderTextColor={colors.sub} />
+        </LabeledField>
       )}
-      <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={defaultName} placeholderTextColor={colors.sub} />
+      <LabeledField label="Event name">
+        <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={defaultName} placeholderTextColor={colors.sub} />
+      </LabeledField>
+      <LabeledField label="Date">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
+          {dateOptions().map((option) => (
+            <Pressable key={option.value} style={[styles.dateChip, dateText === option.value && styles.dateChipActive]} onPress={() => setDateText(option.value)}>
+              <Text style={[styles.dateDay, dateText === option.value && styles.dateTextActive]}>{option.day}</Text>
+              <Text style={[styles.dateLabel, dateText === option.value && styles.dateTextActive]}>{option.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </LabeledField>
+      <LabeledField label="Time">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
+          {TIME_OPTIONS.map((option) => (
+            <Pressable key={option} style={[styles.timeChip, timeText === option && styles.dateChipActive]} onPress={() => setTimeText(option)}>
+              <Ionicons name="time-outline" size={13} color={timeText === option ? colors.bg : colors.sub} />
+              <Text style={[styles.timeText, timeText === option && styles.dateTextActive]}>{option}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </LabeledField>
       <View style={styles.twoCol}>
-        <TextInput style={[styles.input, styles.flexInput]} value={dateText} onChangeText={setDateText} placeholder="YYYY-MM-DD" placeholderTextColor={colors.sub} />
-        <TextInput style={[styles.input, styles.flexInput]} value={timeText} onChangeText={setTimeText} placeholder="18:00" placeholderTextColor={colors.sub} />
-      </View>
-      <View style={styles.twoCol}>
-        <TextInput style={[styles.input, styles.flexInput]} value={maxPlayers} onChangeText={setMaxPlayers} placeholder="Players" keyboardType="number-pad" placeholderTextColor={colors.sub} />
+        <LabeledField label="Players" style={styles.flexInput}>
+          <View style={styles.stepper}>
+            <Pressable style={styles.stepperButton} onPress={() => setMaxPlayers((value) => Math.max(2, value - 1))}>
+              <Ionicons name="remove" size={16} color={colors.text} />
+            </Pressable>
+            <View style={styles.stepperValue}>
+              <Text style={styles.stepperNumber}>{maxPlayers}</Text>
+              <Text style={styles.stepperLabel}>players</Text>
+            </View>
+            <Pressable style={styles.stepperButton} onPress={() => setMaxPlayers((value) => Math.min(100, value + 1))}>
+              <Ionicons name="add" size={16} color={colors.text} />
+            </Pressable>
+          </View>
+        </LabeledField>
+        <LabeledField label="Visibility" style={styles.flexInput}>
         <View style={styles.segment}>
           <Pressable style={[styles.segmentButton, visibility === "PUBLIC" && styles.segmentActive]} onPress={() => setVisibility("PUBLIC")}>
             <Text style={[styles.segmentText, visibility === "PUBLIC" && styles.segmentTextActive]}>Public</Text>
@@ -186,12 +236,26 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
             <Text style={[styles.segmentText, visibility === "PRIVATE" && styles.segmentTextActive]}>Invite</Text>
           </Pressable>
         </View>
+        </LabeledField>
       </View>
-      <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Location" placeholderTextColor={colors.sub} />
-      <TextInput style={[styles.input, styles.description]} value={description} onChangeText={setDescription} placeholder="Details, rules, or team size" placeholderTextColor={colors.sub} multiline />
+      <LabeledField label="Location">
+        <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Court, field, club, or address" placeholderTextColor={colors.sub} />
+      </LabeledField>
+      <LabeledField label="Details">
+        <TextInput style={[styles.input, styles.description]} value={description} onChangeText={setDescription} placeholder="Rules, team size, skill level, or notes" placeholderTextColor={colors.sub} multiline />
+      </LabeledField>
       <Pressable style={[styles.primaryButton, busy && styles.disabled]} disabled={busy} onPress={submit}>
         {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryButtonText}>Create event</Text>}
       </Pressable>
+    </View>
+  );
+}
+
+function LabeledField({ label, children, style }: { label: string; children: React.ReactNode; style?: any }) {
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {children}
     </View>
   );
 }
@@ -254,6 +318,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
   panel: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   panelTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
+  field: { gap: 6 },
+  fieldLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub },
   sportRow: { gap: spacing.sm, paddingVertical: 2 },
   sportChip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   sportChipActive: { backgroundColor: colors.accent },
@@ -263,6 +329,19 @@ const styles = StyleSheet.create({
   description: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: spacing.sm },
   flexInput: { flex: 1 },
+  dateRow: { gap: spacing.sm, paddingVertical: 2 },
+  dateChip: { minWidth: 72, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignItems: "center" },
+  dateChipActive: { backgroundColor: colors.accent },
+  dateDay: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.sub },
+  dateLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text, marginTop: 2 },
+  dateTextActive: { color: colors.bg },
+  timeChip: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  timeText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  stepper: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
+  stepperButton: { width: 34, height: 34, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  stepperValue: { flex: 1, alignItems: "center" },
+  stepperNumber: { fontFamily: fonts.display, fontSize: 18, color: colors.text },
+  stepperLabel: { fontFamily: fonts.body, fontSize: 10, color: colors.sub, marginTop: -3 },
   segment: { flex: 1, flexDirection: "row", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 3 },
   segmentButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
   segmentActive: { backgroundColor: colors.accent },

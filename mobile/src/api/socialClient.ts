@@ -23,6 +23,35 @@ export type PlayerProfile = {
   friendState: FriendState;
   leagues: LeagueStandings;
   raceHistory: RaceHistoryEntry[];
+  posts: SocialPost[];
+};
+
+export type SocialRaceResult = {
+  id: string;
+  raceId: string;
+  status: string;
+  aggregateValue: number | null;
+  finishPosition: number | null;
+  pointsAwarded: number | null;
+  prizeCents: number | null;
+  joinedAt: string;
+  race: {
+    id: string;
+    name: string;
+    metricKey: string;
+    status: string;
+    league: { name: string; level: number };
+    raceType: { displayName: string };
+  };
+  squad: { id: string; name: string; finishPosition: number | null } | null;
+};
+
+export type SocialPost = {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: PlayerSummary;
+  raceResult: SocialRaceResult | null;
 };
 
 export type DirectMessage = {
@@ -43,6 +72,18 @@ export type ConversationSummary = {
 
 export function searchPlayers(q: string) {
   return request<{ players: PlayerSummary[] }>(`/players/search?q=${encodeURIComponent(q)}`);
+}
+
+export function getSocialFeed() {
+  return request<{ posts: SocialPost[] }>("/social/feed");
+}
+
+export function getPostableResults() {
+  return request<{ results: SocialRaceResult[] }>("/social/postable-results");
+}
+
+export function createSocialPost(input: { body: string; raceEntryId?: string | null }) {
+  return request<{ post: SocialPost }>("/social/posts", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function getFriends() {

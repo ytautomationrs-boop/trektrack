@@ -92,6 +92,7 @@ model User {
   friendRequestsReceived Friendship[]           @relation("FriendshipAddressee")
   messagesSent           DirectMessage[]        @relation("DirectMessageSender")
   messagesReceived       DirectMessage[]        @relation("DirectMessageRecipient")
+  socialPosts            SocialPost[]
   hostedSocialEvents     SocialEvent[]          @relation("SocialEventHost")
   socialEventEntries     SocialEventParticipant[]
 
@@ -147,6 +148,21 @@ model DirectMessage {
 
   @@index([senderId, recipientId, createdAt])
   @@index([recipientId, senderId, createdAt])
+}
+
+model SocialPost {
+  id          String     @id @default(cuid())
+  authorId    String
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  raceEntryId String?
+  raceEntry   RaceEntry? @relation(fields: [raceEntryId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([authorId, createdAt])
+  @@index([createdAt])
+  @@index([raceEntryId])
 }
 
 enum SocialEventVisibility {
@@ -704,6 +720,7 @@ model RaceEntry {
   joinedAt DateTime @default(now())
 
   samples RaceHealthSample[]
+  socialPosts SocialPost[]
 
   @@unique([raceId, userId])
   @@index([raceId, status])

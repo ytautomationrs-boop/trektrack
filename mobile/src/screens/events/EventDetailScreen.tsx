@@ -39,7 +39,7 @@ export function EventDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [eventId]);
+  }, [eventId, inviteCode]);
 
   useFocusEffect(
     useCallback(() => {

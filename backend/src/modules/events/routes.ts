@@ -31,6 +31,12 @@ const EventQuerySchema = z.object({
 });
 
 function sendEventError(reply: FastifyReply, err: unknown) {
+  if (err && typeof err === "object" && "code" in err && ((err as any).code === "P2021" || (err as any).code === "P2022")) {
+    return reply.code(503).send({
+      error: "database_not_ready",
+      message: "Events need the latest database migration. Redeploy with startup database maintenance enabled, then try again.",
+    });
+  }
   if (err instanceof SocialEventError) {
     const status = err.code === "not_found" ? 404 : err.code === "event_full" ? 409 : 400;
     return reply.code(status).send({ error: err.code, message: err.message });
