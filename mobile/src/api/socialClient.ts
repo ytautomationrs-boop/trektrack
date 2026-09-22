@@ -52,6 +52,18 @@ export type SocialPost = {
   createdAt: string;
   author: PlayerSummary;
   raceResult: SocialRaceResult | null;
+  likeCount: number;
+  commentCount: number;
+  shareCount: number;
+  hasLiked: boolean;
+  comments: SocialPostComment[];
+};
+
+export type SocialPostComment = {
+  id: string;
+  body: string;
+  createdAt: string;
+  author: PlayerSummary;
 };
 
 export type DirectMessage = {
@@ -84,6 +96,28 @@ export function getPostableResults() {
 
 export function createSocialPost(input: { body: string; raceEntryId?: string | null }) {
   return request<{ post: SocialPost }>("/social/posts", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function likeSocialPost(postId: string) {
+  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/like`, { method: "POST", body: JSON.stringify({}) });
+}
+
+export function unlikeSocialPost(postId: string) {
+  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/like`, { method: "DELETE" });
+}
+
+export function commentOnSocialPost(postId: string, body: string) {
+  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/comments`, {
+    method: "POST",
+    body: JSON.stringify({ body }),
+  });
+}
+
+export function shareSocialPost(postId: string, recipientId?: string | null) {
+  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/share`, {
+    method: "POST",
+    body: JSON.stringify(recipientId ? { recipientId } : {}),
+  });
 }
 
 export function getFriends() {

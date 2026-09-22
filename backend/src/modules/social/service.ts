@@ -69,20 +69,47 @@ function serializeRaceResult(entry: {
   };
 }
 
-function serializePost(post: {
-  id: string;
-  body: string;
-  createdAt: Date;
-  author: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date };
-  raceEntry: Parameters<typeof serializeRaceResult>[0] | null;
-}) {
+function postInclude(viewerId: string) {
+  return {
+    author: { select: playerSelect },
+    raceEntry: { include: raceResultInclude },
+    _count: { select: { likes: true, comments: true, shares: true } },
+    likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
+    comments: {
+      include: { user: { select: playerSelect } },
+      orderBy: { createdAt: "asc" as const },
+      take: 3,
+    },
+  };
+}
+
+function serializePost(post: any) {
   return {
     id: post.id,
     body: post.body,
     createdAt: post.createdAt,
     author: serializePlayer(post.author),
     raceResult: post.raceEntry ? serializeRaceResult(post.raceEntry) : null,
+    likeCount: post._count?.likes ?? 0,
+    commentCount: post._count?.comments ?? 0,
+    shareCount: post._count?.shares ?? 0,
+    hasLiked: Boolean(post.likes?.length),
+    comments: (post.comments ?? []).map((comment: any) => ({
+      id: comment.id,
+      body: comment.body,
+      createdAt: comment.createdAt,
+      author: serializePlayer(comment.user),
+    })),
   };
+}
+
+async function findSerializablePost(postId: string, viewerId: string) {
+  const post = await prisma.socialPost.findUnique({
+    where: { id: postId },
+    include: postInclude(viewerId),
+  });
+  if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
+  return serializePost(post);
 }
 
 async function connectedIds(viewerId: string) {
@@ -117,10 +144,7 @@ export async function listSocialFeed(viewerId: string) {
   const authorIds = await connectedIds(viewerId);
   const posts = await prisma.socialPost.findMany({
     where: { authorId: { in: authorIds } },
-    include: {
-      author: { select: playerSelect },
-      raceEntry: { include: raceResultInclude },
-    },
+    include: postInclude(viewerId),
     orderBy: { createdAt: "desc" },
     take: 50,
   });
@@ -156,12 +180,36 @@ export async function createSocialPost(viewerId: string, input: { body: string; 
 
   const post = await prisma.socialPost.create({
     data: { authorId: viewerId, body, raceEntryId },
-    include: {
-      author: { select: playerSelect },
-      raceEntry: { include: raceResultInclude },
-    },
+    include: postInclude(viewerId),
   });
   return serializePost(post);
+}
+
+export async function setSocialPostLike(viewerId: string, postId: string, liked: boolean) {
+  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true } });
+  if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
+
+  if (liked) {
+    await prisma.socialPostLike.upsert({
+      where: { postId_userId: { postId, userId: viewerId } },
+      create: { postId, userId: viewerId },
+      update: {},
+    });
+  } else {
+    await prisma.socialPostLike.deleteMany({ where: { postId, userId: viewerId } });
+  }
+
+  return findSerializablePost(postId, viewerId);
+}
+
+export async function createSocialPostComment(viewerId: string, postId: string, body: string) {
+  const text = body.trim();
+  if (!text) throw Object.assign(new Error("Write a comment first."), { statusCode: 400, code: "empty_comment" });
+  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true } });
+  if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
+
+  await prisma.socialPostComment.create({ data: { postId, userId: viewerId, body: text } });
+  return findSerializablePost(postId, viewerId);
 }
 
 export async function searchPlayers(viewerId: string, query: string, limit = 20) {
@@ -361,6 +409,28 @@ export async function sendMessage(viewerId: string, playerId: string, body: stri
   return { message: serializeMessage(message, viewerId) };
 }
 
+export async function shareSocialPost(viewerId: string, postId: string, recipientId?: string | null) {
+  const post = await prisma.socialPost.findUnique({
+    where: { id: postId },
+    include: { author: { select: playerSelect } },
+  });
+  if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
+
+  if (recipientId) {
+    await assertCanMessage(viewerId, recipientId);
+    await prisma.directMessage.create({
+      data: {
+        senderId: viewerId,
+        recipientId,
+        body: `Shared ${post.author.displayName}'s post: ${post.body.slice(0, 180)}`,
+      },
+    });
+  }
+
+  await prisma.socialPostShare.create({ data: { postId, userId: viewerId, recipientId: recipientId || null } });
+  return findSerializablePost(postId, viewerId);
+}
+
 export async function getPlayerProfile(viewerId: string, playerId: string) {
   const user = await prisma.user.findUnique({ where: { id: playerId }, select: playerSelect });
   if (!user) throw Object.assign(new Error("Player not found."), { statusCode: 404, code: "player_not_found" });
@@ -371,10 +441,7 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
     listUserRaceEntries(playerId, 20),
     prisma.socialPost.findMany({
       where: { authorId: playerId },
-      include: {
-        author: { select: playerSelect },
-        raceEntry: { include: raceResultInclude },
-      },
+      include: postInclude(viewerId),
       orderBy: { createdAt: "desc" },
       take: 24,
     }),

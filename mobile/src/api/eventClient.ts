@@ -72,3 +72,7 @@ export function joinSocialEvent(eventId: string, inviteCode?: string | null) {
 export function leaveSocialEvent(eventId: string) {
   return request<{ event: SocialEvent }>(`/social-events/${encodeURIComponent(eventId)}/leave`, { method: "POST", body: JSON.stringify({}) });
 }
+
+export function deleteSocialEvent(eventId: string) {
+  return request<{ event: SocialEvent }>(`/social-events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+}

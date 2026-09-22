@@ -183,3 +183,17 @@ export async function leaveSocialEvent(eventId: string, userId: string) {
   });
   return getSocialEvent(eventId, userId);
 }
+
+export async function cancelSocialEvent(eventId: string, userId: string) {
+  const event = await findEvent(eventId);
+  if (!event) throw new SocialEventError("not_found", "Event not found.");
+  if (event.hostUserId !== userId) throw new SocialEventError("not_host", "Only the host can delete this event.");
+  if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event can no longer be deleted.");
+
+  const updated = await prisma.socialEvent.update({
+    where: { id: eventId },
+    data: { status: "CANCELLED" },
+    include: eventInclude,
+  });
+  return decorateEvent(updated, userId);
+}

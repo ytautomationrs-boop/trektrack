@@ -9,6 +9,7 @@ import { showAlert } from "../../lib/alert";
 import { useAppState } from "../../state/useAppState";
 import { AstaLogo } from "../../components/AstaLogo";
 import {
+  commentOnSocialPost,
   createSocialPost,
   getConversation,
   getConversations,
@@ -16,10 +17,13 @@ import {
   getPlayerProfile,
   getPostableResults,
   getSocialFeed,
+  likeSocialPost,
   removeFriend,
   requestFriend,
   searchPlayers,
   sendMessage,
+  shareSocialPost,
+  unlikeSocialPost,
   type ConversationSummary,
   type DirectMessage,
   type FriendState,
@@ -84,6 +88,10 @@ function SocialFeedScreen() {
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
   const unreadCount = conversations.reduce((sum, item) => sum + item.unreadCount, 0);
+
+  const updatePost = useCallback((nextPost: SocialPost) => {
+    setPosts((items) => items.map((item) => (item.id === nextPost.id ? nextPost : item)));
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -250,7 +258,13 @@ function SocialFeedScreen() {
           </View>
         ) : null}
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} onOpenProfile={() => navigation.navigate("SocialProfile", { playerId: post.author.id })} />
+          <PostCard
+            key={post.id}
+            post={post}
+            friends={friends.friends}
+            onChange={updatePost}
+            onOpenProfile={() => navigation.navigate("SocialProfile", { playerId: post.author.id })}
+          />
         ))}
       </ScrollView>
     </SafeAreaView>
@@ -496,7 +510,77 @@ function SocialProfileScreen() {
   );
 }
 
-function PostCard({ post, onOpenProfile }: { post: SocialPost; onOpenProfile: () => void }) {
+function PostCard({
+  post,
+  friends,
+  onChange,
+  onOpenProfile,
+}: {
+  post: SocialPost;
+  friends: PlayerSummary[];
+  onChange: (post: SocialPost) => void;
+  onOpenProfile: () => void;
+}) {
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const toggleLike = async () => {
+    if (busy) return;
+    setBusy("like");
+    try {
+      const result = post.hasLiked ? await unlikeSocialPost(post.id) : await likeSocialPost(post.id);
+      onChange(result.post);
+    } catch (err: any) {
+      showAlert("Like failed", err.message ?? "Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitComment = async () => {
+    const body = commentText.trim();
+    if (!body || busy) return;
+    setBusy("comment");
+    try {
+      const result = await commentOnSocialPost(post.id, body);
+      onChange(result.post);
+      setCommentText("");
+      setCommentOpen(false);
+    } catch (err: any) {
+      showAlert("Comment failed", err.message ?? "Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const shareTo = async (recipientId?: string | null) => {
+    if (busy) return;
+    setBusy("share");
+    try {
+      const result = await shareSocialPost(post.id, recipientId);
+      onChange(result.post);
+      showAlert(recipientId ? "Shared" : "Share saved", recipientId ? "The post was sent as a message." : "The post was shared on your profile.");
+    } catch (err: any) {
+      showAlert("Share failed", err.message ?? "Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openShare = () => {
+    const topFriends = friends.slice(0, 3);
+    showAlert(
+      "Share post",
+      topFriends.length > 0 ? "Send it to a friend, or share it to your profile." : "Share it to your profile.",
+      [
+        ...topFriends.map((friend) => ({ text: friend.displayName, onPress: () => shareTo(friend.id) })),
+        { text: "Share to profile", onPress: () => shareTo(null) },
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  };
+
   return (
     <View style={styles.postCard}>
       <Pressable style={styles.postAuthor} onPress={onOpenProfile}>
@@ -510,10 +594,44 @@ function PostCard({ post, onOpenProfile }: { post: SocialPost; onOpenProfile: ()
       {post.raceResult && <ResultPanel result={post.raceResult} />}
       <Text style={styles.postBody}>{post.body}</Text>
       <View style={styles.postActions}>
-        <Ionicons name="heart-outline" size={22} color={colors.text} />
-        <Ionicons name="chatbubble-outline" size={20} color={colors.text} />
-        <Ionicons name="paper-plane-outline" size={20} color={colors.text} />
+        <Pressable style={styles.postActionButton} onPress={toggleLike} disabled={busy === "like"}>
+          <Ionicons name={post.hasLiked ? "heart" : "heart-outline"} size={22} color={post.hasLiked ? colors.accent : colors.text} />
+          <Text style={styles.postActionText}>{post.likeCount}</Text>
+        </Pressable>
+        <Pressable style={styles.postActionButton} onPress={() => setCommentOpen((value) => !value)}>
+          <Ionicons name="chatbubble-outline" size={20} color={colors.text} />
+          <Text style={styles.postActionText}>{post.commentCount}</Text>
+        </Pressable>
+        <Pressable style={styles.postActionButton} onPress={openShare} disabled={busy === "share"}>
+          <Ionicons name="paper-plane-outline" size={20} color={colors.text} />
+          <Text style={styles.postActionText}>{post.shareCount}</Text>
+        </Pressable>
       </View>
+      {post.comments.length > 0 && (
+        <View style={styles.commentList}>
+          {post.comments.map((comment) => (
+            <View key={comment.id} style={styles.commentRow}>
+              <Text style={styles.commentAuthor}>{comment.author.displayName}</Text>
+              <Text style={styles.commentBody}>{comment.body}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {commentOpen && (
+        <View style={styles.commentComposer}>
+          <TextInput
+            style={styles.commentInput}
+            value={commentText}
+            onChangeText={setCommentText}
+            placeholder="Add a comment"
+            placeholderTextColor={colors.sub}
+            maxLength={240}
+          />
+          <Pressable style={[styles.commentSend, (!commentText.trim() || busy === "comment") && styles.disabled]} disabled={!commentText.trim() || busy === "comment"} onPress={submitComment}>
+            {busy === "comment" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={14} color={colors.bg} />}
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -632,6 +750,15 @@ const styles = StyleSheet.create({
   postMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub },
   postBody: { fontFamily: fonts.body, fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.md },
   postActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
+  postActionButton: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 32 },
+  postActionText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub },
+  commentList: { gap: spacing.sm, marginTop: spacing.md },
+  commentRow: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.sm },
+  commentAuthor: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text },
+  commentBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17, marginTop: 2 },
+  commentComposer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
+  commentInput: { flex: 1, minHeight: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 13 },
+  commentSend: { width: 38, height: 38, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent },
   resultPanel: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md },
   resultTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   resultMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },

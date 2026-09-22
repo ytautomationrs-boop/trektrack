@@ -93,6 +93,10 @@ model User {
   messagesSent           DirectMessage[]        @relation("DirectMessageSender")
   messagesReceived       DirectMessage[]        @relation("DirectMessageRecipient")
   socialPosts            SocialPost[]
+  socialPostLikes        SocialPostLike[]
+  socialPostComments     SocialPostComment[]
+  socialPostShares       SocialPostShare[]      @relation("SocialPostShareSharer")
+  socialPostSharesToMe   SocialPostShare[]      @relation("SocialPostShareRecipient")
   hostedSocialEvents     SocialEvent[]          @relation("SocialEventHost")
   socialEventEntries     SocialEventParticipant[]
 
@@ -159,10 +163,53 @@ model SocialPost {
   raceEntry   RaceEntry? @relation(fields: [raceEntryId], references: [id], onDelete: SetNull)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  likes       SocialPostLike[]
+  comments    SocialPostComment[]
+  shares      SocialPostShare[]
 
   @@index([authorId, createdAt])
   @@index([createdAt])
   @@index([raceEntryId])
+}
+
+model SocialPostLike {
+  id        String     @id @default(cuid())
+  postId    String
+  post      SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+}
+
+model SocialPostComment {
+  id        String     @id @default(cuid())
+  postId    String
+  post      SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime   @default(now())
+
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model SocialPostShare {
+  id          String     @id @default(cuid())
+  postId      String
+  post        SocialPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User       @relation("SocialPostShareSharer", fields: [userId], references: [id], onDelete: Cascade)
+  recipientId String?
+  recipient   User?      @relation("SocialPostShareRecipient", fields: [recipientId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now())
+
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
+  @@index([recipientId, createdAt])
 }
 
 enum SocialEventVisibility {

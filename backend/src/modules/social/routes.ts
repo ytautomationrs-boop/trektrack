@@ -4,6 +4,7 @@ import { requireAuth } from "../../middleware/auth.js";
 import { isMissingRuntimeSchemaError, withRuntimeSchemaRepair } from "../../lib/runtimeRepair.js";
 import {
   acceptFriend,
+  createSocialPostComment,
   createSocialPost,
   getPlayerProfile,
   listFriends,
@@ -15,6 +16,8 @@ import {
   searchPlayers,
   getConversation,
   sendMessage,
+  setSocialPostLike,
+  shareSocialPost,
 } from "./service.js";
 
 const SearchQuery = z.object({
@@ -29,6 +32,14 @@ const MessageBody = z.object({
 const SocialPostBody = z.object({
   body: z.string().trim().min(1).max(500),
   raceEntryId: z.string().trim().min(1).optional().nullable(),
+});
+
+const CommentBody = z.object({
+  body: z.string().trim().min(1).max(240),
+});
+
+const SharePostBody = z.object({
+  recipientId: z.string().trim().min(1).optional().nullable(),
 });
 
 function sendSocialError(reply: FastifyReply, err: unknown) {
@@ -73,6 +84,44 @@ export async function socialRoutes(app: FastifyInstance) {
     try {
       const body = SocialPostBody.parse(req.body ?? {});
       return reply.code(201).send({ post: await withRuntimeSchemaRepair("create social post", () => createSocialPost(req.userId, body)) });
+    } catch (err) {
+      return sendSocialError(reply, err);
+    }
+  });
+
+  app.post("/social/posts/:id/like", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send({ post: await withRuntimeSchemaRepair("like social post", () => setSocialPostLike(req.userId, id, true)) });
+    } catch (err) {
+      return sendSocialError(reply, err);
+    }
+  });
+
+  app.delete("/social/posts/:id/like", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      return reply.send({ post: await withRuntimeSchemaRepair("unlike social post", () => setSocialPostLike(req.userId, id, false)) });
+    } catch (err) {
+      return sendSocialError(reply, err);
+    }
+  });
+
+  app.post("/social/posts/:id/comments", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const body = CommentBody.parse(req.body ?? {});
+      return reply.code(201).send({ post: await withRuntimeSchemaRepair("comment on social post", () => createSocialPostComment(req.userId, id, body.body)) });
+    } catch (err) {
+      return sendSocialError(reply, err);
+    }
+  });
+
+  app.post("/social/posts/:id/share", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      const { id } = req.params as { id: string };
+      const body = SharePostBody.parse(req.body ?? {});
+      return reply.code(201).send({ post: await withRuntimeSchemaRepair("share social post", () => shareSocialPost(req.userId, id, body.recipientId)) });
     } catch (err) {
       return sendSocialError(reply, err);
     }

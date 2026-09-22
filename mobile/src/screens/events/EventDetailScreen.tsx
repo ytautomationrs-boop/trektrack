@@ -8,7 +8,7 @@ import { LoadError } from "../../components/LoadError";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
 import { eventUrl } from "../../lib/webLinks";
-import { getSocialEvent, joinSocialEvent, leaveSocialEvent, type SocialEvent } from "../../api/eventClient";
+import { deleteSocialEvent, getSocialEvent, joinSocialEvent, leaveSocialEvent, type SocialEvent } from "../../api/eventClient";
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -85,6 +85,20 @@ export function EventDetailScreen() {
     }
   };
 
+  const deleteEvent = async () => {
+    if (!event) return;
+    setBusy(true);
+    try {
+      await deleteSocialEvent(event.id);
+      showAlert("Event deleted", "This event is no longer open.");
+      navigation.goBack();
+    } catch (err: any) {
+      showAlert("Couldn't delete event", err.message ?? "Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!event) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -127,9 +141,13 @@ export function EventDetailScreen() {
             <Ionicons name="share-outline" size={16} color={colors.bg} />
             <Text style={styles.shareButtonText}>Share event</Text>
           </Pressable>
-          {event.hasJoined ? (
-            <Pressable style={[styles.leaveButton, (busy || event.isHost) && styles.disabled]} disabled={busy || event.isHost} onPress={leave}>
-              {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.leaveButtonText}>{event.isHost ? "Hosting" : "Leave"}</Text>}
+          {event.isHost ? (
+            <Pressable style={[styles.deleteButton, busy && styles.disabled]} disabled={busy} onPress={deleteEvent}>
+              {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.deleteButtonText}>Delete event</Text>}
+            </Pressable>
+          ) : event.hasJoined ? (
+            <Pressable style={[styles.leaveButton, busy && styles.disabled]} disabled={busy} onPress={leave}>
+              {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.leaveButtonText}>Leave event</Text>}
             </Pressable>
           ) : (
             <Pressable style={[styles.shareButton, (busy || isFull) && styles.disabled]} disabled={busy || isFull} onPress={join}>
@@ -180,6 +198,8 @@ const styles = StyleSheet.create({
   shareButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.bg },
   leaveButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.sub, minHeight: 44 },
   leaveButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
+  deleteButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.accent, minHeight: 44 },
+  deleteButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.accent },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   countRow: { flexDirection: "row", justifyContent: "space-between", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },

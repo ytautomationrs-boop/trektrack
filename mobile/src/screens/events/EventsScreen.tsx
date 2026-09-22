@@ -105,7 +105,7 @@ export function EventsScreen() {
   );
 
   const joined = events.filter((event) => event.hasJoined);
-  const open = events.filter((event) => !event.hasJoined);
+  const open = events.filter((event) => event.visibility === "PUBLIC");
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
