@@ -6,16 +6,23 @@ const { join } = require("node:path");
 
 const backendDir = __dirname;
 const schemaPath = join("prisma", "schema.prisma");
+const runtimeSchemaCheckSqlPath = join("prisma", "hostinger-runtime-schema-check.sql");
 const runtimeRepairSqlPath = join("prisma", "hostinger-runtime-repair.sql");
 const prismaCli = require.resolve("prisma/build/index.js", {
   paths: [backendDir],
 });
 const prismaEnginesDir = join(backendDir, "node_modules", "@prisma", "engines");
+const isProduction = process.env.NODE_ENV === "production";
+const maintenanceDisabled = process.env.DISABLE_STARTUP_DATABASE_MAINTENANCE === "true";
 const runStartupDatabaseMaintenance =
-  process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true" ||
-  (process.env.RUN_STARTUP_DATABASE_MAINTENANCE !== "false" && process.env.NODE_ENV === "production");
+  !maintenanceDisabled && (process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true" || isProduction);
 const forceRuntimeRepair = process.env.FORCE_DATABASE_RUNTIME_REPAIR === "true";
 let migrationFailed = false;
+let runtimeSchemaMissing = forceRuntimeRepair;
+
+if (isProduction && process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "false" && !maintenanceDisabled) {
+  console.warn("[startup] RUN_STARTUP_DATABASE_MAINTENANCE=false is ignored in production. Set DISABLE_STARTUP_DATABASE_MAINTENANCE=true only if migrations are handled elsewhere.");
+}
 
 for (const fileName of readdirSync(prismaEnginesDir)) {
   if (fileName.startsWith("schema-engine") || fileName.startsWith("query-engine")) {
@@ -41,11 +48,28 @@ if (runStartupDatabaseMaintenance && process.env.SKIP_PRISMA_MIGRATE !== "true")
   }
 }
 
-// Hostinger can spin up more than one Passenger worker close together. The
-// Prisma migrations are the normal path; this repair script is only a fallback
-// for databases whose migration history is already broken. Running both on
-// every boot adds cold-start latency and can produce duplicate-object races.
-if (runStartupDatabaseMaintenance && (migrationFailed || forceRuntimeRepair)) {
+if (runStartupDatabaseMaintenance && !runtimeSchemaMissing) {
+  const schemaCheck = spawnSync(
+    process.execPath,
+    [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeSchemaCheckSqlPath],
+    {
+      cwd: backendDir,
+      env: process.env,
+      stdio: "ignore",
+      timeout: 15_000,
+    },
+  );
+
+  if (schemaCheck.status !== 0) {
+    runtimeSchemaMissing = true;
+    console.warn("[startup] Database schema check failed; running Hostinger runtime repair.");
+  }
+}
+
+// Hostinger deployments have previously had Prisma migration history drift
+// from the actual database shape. This idempotent repair only runs when the
+// schema probe fails, migrate fails, or repair is explicitly forced.
+if (runStartupDatabaseMaintenance && (migrationFailed || runtimeSchemaMissing)) {
   const repair = spawnSync(
     process.execPath,
     [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
