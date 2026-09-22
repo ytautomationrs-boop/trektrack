@@ -295,7 +295,7 @@ export function CreateRaceScreen() {
             text: "Share link",
             onPress: () =>
               void shareCode({
-                message: `Join my race "${resolvedRaceName}" on TrackTrek.\n${link}`,
+                message: `Join my race "${resolvedRaceName}" on ASTA.\n${link}`,
                 title: "Race link",
                 code: link,
               }),

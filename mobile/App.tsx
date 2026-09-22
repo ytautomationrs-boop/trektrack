@@ -87,7 +87,7 @@ function AppRoot() {
       .finally(() => setRestoring(false));
   }, []);
 
-  if (!fontsLoaded) return <Splash message="Loading TrackTrek" />;
+  if (!fontsLoaded) return <Splash message="Loading ASTA" />;
 
   // Takes priority over the restoring spinner below — the user is mid-flow
   // on a URL that isn't meant to show the normal app shell at all.
@@ -113,7 +113,7 @@ function AppRoot() {
 function Splash({ message }: { message: string }) {
   return (
     <View style={styles.splash}>
-      <Text style={styles.splashTitle}>TrackTrek</Text>
+      <Text style={styles.splashTitle}>ASTA</Text>
       <ActivityIndicator color={colors.accent} style={styles.splashSpinner} />
       <Text style={styles.splashMessage}>{message}</Text>
     </View>
@@ -155,7 +155,7 @@ function AppShell() {
 
 const styles = StyleSheet.create({
   splash: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, padding: 24 },
-  splashTitle: { fontFamily: "Caprasimo_400Regular", fontSize: 34, color: colors.text },
+  splashTitle: { fontFamily: "Caprasimo_400Regular", fontSize: 36, color: colors.accent, fontStyle: "italic" },
   splashSpinner: { marginTop: 18 },
   splashMessage: { marginTop: 12, fontFamily: "Figtree_600SemiBold", fontSize: 14, color: colors.sub },
 });

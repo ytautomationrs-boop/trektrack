@@ -720,7 +720,7 @@ function InvitesPanel() {
             key={c.id}
             style={styles.codeRow}
             disabled={dead}
-            onPress={() => void shareCode({ message: `Your TrackTrek invite code: ${c.code}`, title: "Invite code", code: c.code })}
+            onPress={() => void shareCode({ message: `Your ASTA invite code: ${c.code}`, title: "Invite code", code: c.code })}
           >
             <View style={styles.codeBody}>
               <Text style={[styles.codeText, dead && styles.codeSpent]}>{c.code}</Text>

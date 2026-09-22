@@ -942,7 +942,7 @@ export function decorateRace(
       return {
         entryId: entry.id,
         userId: entry.userId,
-        displayName: entry.user?.displayName ?? "TrackTrek racer",
+        displayName: entry.user?.displayName ?? "ASTA racer",
         avatarUrl: entry.user?.avatarUrl ?? null,
         squadId: entry.squadId,
         squadName: squad?.name ?? null,

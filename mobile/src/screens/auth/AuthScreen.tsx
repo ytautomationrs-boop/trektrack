@@ -4,6 +4,7 @@ import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { login, signUp } from "../../api/client";
 import { useAppState } from "../../state/useAppState";
 import { heroImages } from "../../theme/sportImages";
+import { AstaLogo } from "../../components/AstaLogo";
 
 // Some Hermes builds (notably generic/AOSP emulator images without full ICU
 // data) return undefined from resolvedOptions().timeZone instead of throwing
@@ -18,7 +19,7 @@ function resolveTimezone(): string {
 
 export function AuthScreen() {
   const app = useAppState();
-  const [mode, setMode] = useState<"login" | "signup">("signup");
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -56,9 +57,8 @@ export function AuthScreen() {
       <View style={styles.overlay} />
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.brandBlock}>
-          <Text style={styles.logo}>
-            Track<Text style={styles.logoRed}>Trek</Text>
-          </Text>
+          <AstaLogo size={88} />
+          <Text style={styles.logo}>ASTA</Text>
           <Text style={styles.tagline}>Race. Win. Climb.</Text>
         </View>
 
@@ -106,8 +106,7 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
   screen: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xs },
   brandBlock: { alignItems: "center", marginBottom: spacing.xl },
-  logo: { fontFamily: fonts.display, fontSize: 44, color: colors.text },
-  logoRed: { color: colors.accent, fontStyle: "italic" },
+  logo: { fontFamily: fonts.display, fontSize: 48, color: colors.accent, fontStyle: "italic", marginTop: spacing.sm },
   tagline: { fontFamily: fonts.body, fontSize: 18, color: colors.sub, marginTop: spacing.xs },
   form: { width: "100%", gap: spacing.sm },
   input: {

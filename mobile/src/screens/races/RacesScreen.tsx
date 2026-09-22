@@ -35,7 +35,7 @@ function formatScheduledStart(iso: string) {
 }
 
 function creatorLabel(race: Race) {
-  return race.createdBy?.displayName ?? (race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+  return race.createdBy?.displayName ?? (race.createdByUserId ? "ASTA racer" : "ASTA");
 }
 
 function visibilityLabel(race: Race) {
@@ -248,7 +248,7 @@ export function RacesScreen() {
             </Text>
             <Text style={styles.emptyText}>
               {metricFilter
-                ? `TrackTrek isn't running public ${metricFilterName} races at this level yet — there need to be enough racers to fill one. You can start a ${metricFilterName} race and choose public or invite-only.`
+                ? `ASTA isn't running public ${metricFilterName} races at this level yet — there need to be enough racers to fill one. You can start a ${metricFilterName} race and choose public or invite-only.`
                 : "A new one opens as soon as the current one fills."}
             </Text>
             {metricFilter && (
@@ -356,7 +356,7 @@ function RaceCard({
     void shareCode({
       title: "Race link",
       code: link,
-      message: `Join my TrackTrek competition "${race.name}".\n${link}`,
+      message: `Join my ASTA competition "${race.name}".\n${link}`,
     });
   };
 

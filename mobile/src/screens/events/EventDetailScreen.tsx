@@ -53,7 +53,7 @@ export function EventDetailScreen() {
     void shareCode({
       title: "Event link",
       code: link,
-      message: `Join my TrackTrek event "${event.name}" on ${formatDateTime(event.startsAt)}.\n${link}`,
+      message: `Join my ASTA event "${event.name}" on ${formatDateTime(event.startsAt)}.\n${link}`,
     });
   };
 

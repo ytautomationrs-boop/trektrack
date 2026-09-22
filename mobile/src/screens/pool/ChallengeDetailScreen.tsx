@@ -119,7 +119,7 @@ export function ChallengeDetailScreen() {
   async function handleShare() {
     if (!challenge?.inviteCode) return;
     await shareCode({
-      message: `Join my TrackTrek Pool "${challenge.title}" — code: ${challenge.inviteCode}`,
+      message: `Join my ASTA Pool "${challenge.title}" — code: ${challenge.inviteCode}`,
       title: "Invite code",
       code: challenge.inviteCode,
     });

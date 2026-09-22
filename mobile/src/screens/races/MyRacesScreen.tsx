@@ -46,7 +46,7 @@ function subtitleFor(entry: RaceHistoryEntry): string {
 }
 
 function creatorLabel(entry: RaceHistoryEntry) {
-  return entry.race.createdBy?.displayName ?? (entry.race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+  return entry.race.createdBy?.displayName ?? (entry.race.createdByUserId ? "ASTA racer" : "ASTA");
 }
 
 function visibilityLabel(entry: RaceHistoryEntry) {
@@ -221,7 +221,7 @@ function RaceRow({
   const shareRace = () => {
     const link = raceUrl(entry.race.id, entry.race.inviteCode);
     void shareCode({
-      message: `Join my TrackTrek competition "${entry.race.name}".\n${link}`,
+      message: `Join my ASTA competition "${entry.race.name}".\n${link}`,
       title: "Race link",
       code: link,
     });

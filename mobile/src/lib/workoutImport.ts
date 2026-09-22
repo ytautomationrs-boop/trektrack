@@ -64,7 +64,7 @@ export async function pickWorkoutFile(): Promise<PickedFile | null> {
 
   const name = asset.name ?? "activity";
   if (!ACCEPTED_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext))) {
-    const err: ApiError = new Error(`TrackTrek reads ${ACCEPTED_EXTENSIONS.join(", ")} files — that one is ${name.split(".").pop() ?? "an unknown type"}.`);
+    const err: ApiError = new Error(`ASTA reads ${ACCEPTED_EXTENSIONS.join(", ")} files — that one is ${name.split(".").pop() ?? "an unknown type"}.`);
     err.code = "unsupported_format";
     throw err;
   }
@@ -115,7 +115,7 @@ async function upload<T>(path: string, file: PickedFile): Promise<T> {
   } catch (err) {
     const aborted = err instanceof Error && err.name === "AbortError";
     const wrapped: ApiError = new Error(
-      aborted ? "That upload took too long. Check your connection and try again." : "Couldn't reach TrackTrek. Check your connection and try again."
+      aborted ? "That upload took too long. Check your connection and try again." : "Couldn't reach ASTA. Check your connection and try again."
     );
     wrapped.isNetworkError = true;
     throw wrapped;

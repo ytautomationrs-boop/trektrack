@@ -73,7 +73,7 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
     const wrapped: ApiError = new Error(
       aborted
         ? "That took too long to respond. Check your connection and try again."
-        : "Couldn't reach TrackTrek. Check your connection and try again."
+        : "Couldn't reach ASTA. Check your connection and try again."
     );
     wrapped.isNetworkError = true;
     throw wrapped;
@@ -83,7 +83,10 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    const err: ApiError = new Error(body.message ?? `Request failed: ${res.status}`);
+    const message =
+      body.message ??
+      (body.error === "invalid_credentials" ? "That email or password is incorrect." : `Request failed: ${res.status}`);
+    const err: ApiError = new Error(message);
     err.code = body.error;
     err.status = res.status;
 

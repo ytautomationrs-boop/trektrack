@@ -60,7 +60,7 @@ const LEDGER_TYPE_META: Record<LedgerEntryType, LedgerTypeMeta> = {
 // commitment and the ledger is where that has to be unambiguous.
 const MODEL_LABEL: Record<string, string> = {
   race: "Race",
-  streakpot: "TrackTrek",
+  streakpot: "ASTA",
 };
 
 /**
@@ -165,7 +165,7 @@ export function WalletScreen() {
           <View style={styles.sponsorNote}>
             <Ionicons name="gift-outline" size={16} color={colors.sage} />
             <Text style={styles.sponsorNoteText}>
-              TrackTrek is covering the pilot, so there is nothing to pay in — your balance is credited for you. Anything you win is
+              ASTA is covering the pilot, so there is nothing to pay in — your balance is credited for you. Anything you win is
               yours to withdraw.
             </Text>
           </View>
@@ -578,7 +578,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
             value={paypalEmail}
             onChangeText={setPaypalEmail}
           />
-          <Text style={styles.feeDisclosure}>PayPal may apply its own fees depending on your account and country — those are separate from TrackTrek and go to PayPal, not us.</Text>
+          <Text style={styles.feeDisclosure}>PayPal may apply its own fees depending on your account and country — those are separate from ASTA and go to PayPal, not us.</Text>
         </View>
       )}
 

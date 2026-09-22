@@ -7,6 +7,7 @@ import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/nativ
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { useAppState } from "../../state/useAppState";
+import { AstaLogo } from "../../components/AstaLogo";
 import {
   createSocialPost,
   getConversation,
@@ -149,7 +150,10 @@ function SocialFeedScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
         <View style={styles.instaHeader}>
-          <Text style={styles.wordmark}>TrackTrek</Text>
+          <View style={styles.wordmarkGroup}>
+            <AstaLogo size={34} backgroundColor={colors.bg} />
+            <Text style={styles.wordmark}>ASTA</Text>
+          </View>
           <Pressable style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text} />
             {unreadCount > 0 && (
@@ -558,7 +562,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   feedContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
   instaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  wordmark: { fontFamily: fonts.display, fontSize: 31, color: colors.text },
+  wordmarkGroup: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  wordmark: { fontFamily: fonts.display, fontSize: 31, color: colors.accent, fontStyle: "italic" },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.bg },

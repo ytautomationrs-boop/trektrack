@@ -79,7 +79,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={styles.title}>Something broke</Text>
           <Text style={styles.body}>
-            TrackTrek hit an error it couldn't recover from on its own. Your account and wallet balance aren't affected — nothing is
+            ASTA hit an error it couldn't recover from on its own. Your account and wallet balance aren't affected — nothing is
             saved from this screen.
           </Text>
 

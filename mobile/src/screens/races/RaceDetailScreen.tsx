@@ -32,7 +32,7 @@ function formatScheduledStart(iso: string) {
 }
 
 function creatorLabel(race: RaceDetail["race"]) {
-  return race.createdBy?.displayName ?? (race.createdByUserId ? "TrackTrek racer" : "TrackTrek");
+  return race.createdBy?.displayName ?? (race.createdByUserId ? "ASTA racer" : "ASTA");
 }
 
 function visibilityLabel(race: RaceDetail["race"]) {
@@ -259,7 +259,7 @@ export function RaceDetailScreen() {
     void shareCode({
       title: "Race link",
       code: link,
-      message: `Join my TrackTrek competition "${race.name}".\n${link}`,
+      message: `Join my ASTA competition "${race.name}".\n${link}`,
     });
   };
 
@@ -373,7 +373,7 @@ export function RaceDetailScreen() {
           <View style={styles.warningCard}>
             <Ionicons name="warning-outline" size={18} color={colors.risk} />
             <Text style={styles.warningText}>
-              {`TrackTrek scores from a workout file you export from your watch, and there's no such file for ${race.metricKey} — it's a daily total rather than a recorded activity. `}
+              {`ASTA scores from a workout file you export from your watch, and there's no such file for ${race.metricKey} — it's a daily total rather than a recorded activity. `}
               {race.hasEntered ? "Your total will stay at zero." : "Your total would stay at zero."}
             </Text>
           </View>
@@ -387,7 +387,7 @@ export function RaceDetailScreen() {
           <View style={styles.importCard}>
             <Text style={styles.importTitle}>Add your activity</Text>
             <Text style={styles.importBody}>
-              Export the workout from your watch or training app and upload it here. TrackTrek reads{" "}
+              Export the workout from your watch or training app and upload it here. ASTA reads{" "}
               {ACCEPTED_EXTENSIONS.join(", ")} files. Upload as many as you like — the same file twice only counts once.
             </Text>
             <Pressable style={[styles.cta, importing && styles.ctaDisabled]} disabled={importing} onPress={() => doImport(myEntryId)}>
@@ -456,7 +456,7 @@ export function RaceDetailScreen() {
                           // straight to whichever app they'd send it in.
                           void shareCode({
                             message:
-                              "Join my squad \"" + squad.name + "\" on TrackTrek — squad code: " + squad.inviteCode,
+                              "Join my squad \"" + squad.name + "\" on ASTA — squad code: " + squad.inviteCode,
                             title: "Squad code",
                             code: squad.inviteCode as string,
                           });

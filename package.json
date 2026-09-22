@@ -2,7 +2,7 @@
   "name": "tracktrek",
   "version": "0.1.0",
   "private": true,
-  "description": "TrackTrek fixed-prize competitions and leagues. Backend serves the web pilot; mobile/ also builds native.",
+  "description": "ASTA fixed-prize competitions and leagues. Backend serves the web pilot; mobile/ also builds native.",
   "engines": {
     "node": ">=22.12.0"
   },

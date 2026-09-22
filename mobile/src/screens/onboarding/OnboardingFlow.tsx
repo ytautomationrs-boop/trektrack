@@ -120,8 +120,8 @@ function ConnectHealthStep({ app }: { app: ReturnType<typeof useAppState> }) {
         <Text style={styles.slideTitle}>{isWeb ? "How results are verified" : "Connect your health data"}</Text>
         <Text style={styles.slideBody}>
           {isWeb
-            ? "Export the workout from your watch or training app and upload the file — TrackTrek reads .gpx, .tcx and .fit. We never accept typed-in numbers. You can also connect Strava from your profile if you'd rather it came across on its own."
-            : "TrackTrek reads your steps and workouts from Health to verify competition results — we never accept typed-in numbers."}
+            ? "Export the workout from your watch or training app and upload the file — ASTA reads .gpx, .tcx and .fit. We never accept typed-in numbers. You can also connect Strava from your profile if you'd rather it came across on its own."
+            : "ASTA reads your steps and workouts from Health to verify competition results — we never accept typed-in numbers."}
         </Text>
         {error && <Text style={styles.errorText}>{error}</Text>}
       </View>
