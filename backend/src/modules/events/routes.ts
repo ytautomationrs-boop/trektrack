@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z, ZodError } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
+import { isMissingRuntimeSchemaError, withRuntimeSchemaRepair } from "../../lib/runtimeRepair.js";
 import {
   SocialEventError,
   createSocialEvent,
@@ -31,10 +32,10 @@ const EventQuerySchema = z.object({
 });
 
 function sendEventError(reply: FastifyReply, err: unknown) {
-  if (err && typeof err === "object" && "code" in err && ((err as any).code === "P2021" || (err as any).code === "P2022")) {
+  if (isMissingRuntimeSchemaError(err)) {
     return reply.code(503).send({
       error: "database_not_ready",
-      message: "Events need the latest database migration. Redeploy with startup database maintenance enabled, then try again.",
+      message: "Events database repair did not complete. Check Hostinger runtime logs, then try again.",
     });
   }
   if (err instanceof SocialEventError) {
@@ -57,7 +58,7 @@ export async function socialEventRoutes(app: FastifyInstance) {
 
   app.get("/social-events", { preHandler: requireAuth }, async (req, reply) => {
     try {
-      return reply.send({ events: await listSocialEvents(req.userId) });
+      return reply.send({ events: await withRuntimeSchemaRepair("list social events", () => listSocialEvents(req.userId)) });
     } catch (err) {
       return sendEventError(reply, err);
     }
@@ -67,17 +68,19 @@ export async function socialEventRoutes(app: FastifyInstance) {
     try {
       const body = CreateSocialEventSchema.parse(req.body ?? {});
       return reply.code(201).send({
-        event: await createSocialEvent({
-          hostUserId: req.userId,
-          name: body.name,
-          sportKey: body.sportKey,
-          customSportName: body.customSportName,
-          description: body.description,
-          location: body.location,
-          startsAt: body.startsAt,
-          maxPlayers: body.maxPlayers,
-          visibility: body.visibility,
-        }),
+        event: await withRuntimeSchemaRepair("create social event", () =>
+          createSocialEvent({
+            hostUserId: req.userId,
+            name: body.name,
+            sportKey: body.sportKey,
+            customSportName: body.customSportName,
+            description: body.description,
+            location: body.location,
+            startsAt: body.startsAt,
+            maxPlayers: body.maxPlayers,
+            visibility: body.visibility,
+          }),
+        ),
       });
     } catch (err) {
       return sendEventError(reply, err);
@@ -88,7 +91,7 @@ export async function socialEventRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const query = EventQuerySchema.parse(req.query);
-      return reply.send({ event: await getSocialEvent(id, req.userId, query.code) });
+      return reply.send({ event: await withRuntimeSchemaRepair("get social event", () => getSocialEvent(id, req.userId, query.code)) });
     } catch (err) {
       return sendEventError(reply, err);
     }
@@ -98,7 +101,7 @@ export async function socialEventRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = JoinSocialEventSchema.parse(req.body ?? {});
-      return reply.send({ event: await joinSocialEvent(id, req.userId, body.inviteCode) });
+      return reply.send({ event: await withRuntimeSchemaRepair("join social event", () => joinSocialEvent(id, req.userId, body.inviteCode)) });
     } catch (err) {
       return sendEventError(reply, err);
     }
@@ -107,7 +110,7 @@ export async function socialEventRoutes(app: FastifyInstance) {
   app.post("/social-events/:id/leave", { preHandler: requireAuth }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
-      return reply.send({ event: await leaveSocialEvent(id, req.userId) });
+      return reply.send({ event: await withRuntimeSchemaRepair("leave social event", () => leaveSocialEvent(id, req.userId)) });
     } catch (err) {
       return sendEventError(reply, err);
     }
