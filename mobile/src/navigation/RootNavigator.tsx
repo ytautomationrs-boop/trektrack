@@ -16,6 +16,7 @@ import { EventsScreen } from "../screens/events/EventsScreen";
 import { EventDetailScreen } from "../screens/events/EventDetailScreen";
 import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
+import { AstaLogo } from "../components/AstaLogo";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
@@ -124,12 +125,21 @@ function CreateTabButton({ onPress }: { onPress: () => void }) {
   );
 }
 
+function AppHeader() {
+  return (
+    <View style={styles.appHeader}>
+      <AstaLogo width={96} height={56} backgroundColor={colors.bg} />
+    </View>
+  );
+}
+
 export function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme} linking={linking}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
-          headerShown: false,
+          headerShown: true,
+          header: () => <AppHeader />,
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.surfaceRaised, height: 62, paddingBottom: 8, paddingTop: 6 },
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.sub,
@@ -163,6 +173,14 @@ export function RootNavigator() {
 }
 
 const styles = StyleSheet.create({
+  appHeader: {
+    height: 70,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.surfaceRaised,
+  },
   createButtonWrap: { flex: 1, alignItems: "center", justifyContent: "flex-start" },
   createButtonCircle: {
     width: 52,

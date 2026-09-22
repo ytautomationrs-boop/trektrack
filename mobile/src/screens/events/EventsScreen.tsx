@@ -58,11 +58,15 @@ function shiftDate(dateText: string, days: number) {
   return formatDateValue(date);
 }
 
-function shiftTime(timeText: string, minutes: number) {
+function timeParts(timeText: string) {
   const [hourRaw, minuteRaw] = timeText.split(":").map(Number);
-  const date = new Date(2000, 0, 1, Number.isFinite(hourRaw) ? hourRaw : 18, Number.isFinite(minuteRaw) ? minuteRaw : 0);
-  date.setMinutes(date.getMinutes() + minutes);
-  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+  const hour = Number.isFinite(hourRaw) ? Math.max(0, Math.min(23, hourRaw)) : 18;
+  const minute = Number.isFinite(minuteRaw) ? Math.max(0, Math.min(59, minuteRaw)) : 0;
+  return { hour, minute };
+}
+
+function formatTimeParts(hour: number, minute: number) {
+  return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
 }
 
 function toStartsAt(dateText: string, timeText: string) {
@@ -225,24 +229,7 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
         />
       </LabeledField>
       <LabeledField label="Time">
-        <View style={styles.timeSelectorGrid}>
-          <SelectorControl
-            icon="time-outline"
-            title={timeText}
-            subtitle="Hour"
-            onPrevious={() => setTimeText((value) => shiftTime(value, -60))}
-            onNext={() => setTimeText((value) => shiftTime(value, 60))}
-            style={styles.flexInput}
-          />
-          <SelectorControl
-            icon="timer-outline"
-            title={timeText}
-            subtitle="Minute"
-            onPrevious={() => setTimeText((value) => shiftTime(value, -1))}
-            onNext={() => setTimeText((value) => shiftTime(value, 1))}
-            style={styles.flexInput}
-          />
-        </View>
+        <TimePickerControl value={timeText} onChange={setTimeText} />
       </LabeledField>
       <View style={styles.twoCol}>
         <LabeledField label="Players" style={styles.flexInput}>
@@ -288,6 +275,43 @@ function LabeledField({ label, children, style }: { label: string; children: Rea
     <View style={[styles.field, style]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {children}
+    </View>
+  );
+}
+
+function TimePickerControl({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { hour, minute } = timeParts(value);
+
+  const setHour = (nextHour: number) => onChange(formatTimeParts((nextHour + 24) % 24, minute));
+  const setMinute = (nextMinute: number) => onChange(formatTimeParts(hour, (nextMinute + 60) % 60));
+
+  return (
+    <View style={styles.timePicker}>
+      <TimeWheelColumn label="Hour" value={hour.toString().padStart(2, "0")} onUp={() => setHour(hour + 1)} onDown={() => setHour(hour - 1)} />
+      <Text style={styles.timeColon}>:</Text>
+      <TimeWheelColumn
+        label="Minute"
+        value={minute.toString().padStart(2, "0")}
+        onUp={() => setMinute(minute + 1)}
+        onDown={() => setMinute(minute - 1)}
+      />
+    </View>
+  );
+}
+
+function TimeWheelColumn({ label, value, onUp, onDown }: { label: string; value: string; onUp: () => void; onDown: () => void }) {
+  return (
+    <View style={styles.timeColumn}>
+      <Pressable style={styles.timeArrow} onPress={onUp} hitSlop={8}>
+        <Ionicons name="chevron-up" size={18} color={colors.sub} />
+      </Pressable>
+      <View style={styles.timeValueWrap}>
+        <Text style={styles.timeValue}>{value}</Text>
+        <Text style={styles.timeLabel}>{label}</Text>
+      </View>
+      <Pressable style={styles.timeArrow} onPress={onDown} hitSlop={8}>
+        <Ionicons name="chevron-down" size={18} color={colors.sub} />
+      </Pressable>
     </View>
   );
 }
@@ -393,7 +417,21 @@ const styles = StyleSheet.create({
   description: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: spacing.sm },
   flexInput: { flex: 1 },
-  timeSelectorGrid: { flexDirection: "row", gap: spacing.sm },
+  timePicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radii.lg,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  timeColumn: { flex: 1, alignItems: "center", justifyContent: "center", minWidth: 0 },
+  timeArrow: { width: 44, height: 28, alignItems: "center", justifyContent: "center" },
+  timeValueWrap: { alignItems: "center", justifyContent: "center", minHeight: 58 },
+  timeValue: { fontFamily: fonts.display, fontSize: 36, color: colors.text, lineHeight: 42 },
+  timeLabel: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.sub, marginTop: -2, textTransform: "uppercase" },
+  timeColon: { fontFamily: fonts.display, fontSize: 32, color: colors.sub, paddingHorizontal: spacing.sm, marginTop: -8 },
   selectorControl: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
   selectorButton: { width: 36, height: 38, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   selectorValue: { flex: 1, alignItems: "center", minWidth: 0 },
