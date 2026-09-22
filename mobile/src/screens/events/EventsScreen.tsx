@@ -28,19 +28,42 @@ function tomorrowDate() {
   return date.toISOString().slice(0, 10);
 }
 
-function dateOptions() {
-  return Array.from({ length: 14 }, (_, index) => {
-    const date = new Date(Date.now() + (index + 1) * 24 * 60 * 60 * 1000);
-    const value = date.toISOString().slice(0, 10);
-    return {
-      value,
-      day: date.toLocaleDateString(undefined, { weekday: "short" }),
-      label: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
-    };
-  });
+function localDateFromText(dateText: string) {
+  const [year, month, day] = dateText.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
 }
 
-const TIME_OPTIONS = ["06:00", "07:00", "08:00", "12:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+function formatDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function displayDate(dateText: string) {
+  const date = localDateFromText(dateText);
+  if (!date) return dateText;
+  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}
+
+function shiftDate(dateText: string, days: number) {
+  const date = localDateFromText(dateText) ?? new Date();
+  date.setDate(date.getDate() + days);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (date < today) return formatDateValue(today);
+  return formatDateValue(date);
+}
+
+function shiftTime(timeText: string, minutes: number) {
+  const [hourRaw, minuteRaw] = timeText.split(":").map(Number);
+  const date = new Date(2000, 0, 1, Number.isFinite(hourRaw) ? hourRaw : 18, Number.isFinite(minuteRaw) ? minuteRaw : 0);
+  date.setMinutes(date.getMinutes() + minutes);
+  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+}
 
 function toStartsAt(dateText: string, timeText: string) {
   const local = new Date(`${dateText}T${timeText || "18:00"}:00`);
@@ -193,24 +216,33 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
         <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={defaultName} placeholderTextColor={colors.sub} />
       </LabeledField>
       <LabeledField label="Date">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
-          {dateOptions().map((option) => (
-            <Pressable key={option.value} style={[styles.dateChip, dateText === option.value && styles.dateChipActive]} onPress={() => setDateText(option.value)}>
-              <Text style={[styles.dateDay, dateText === option.value && styles.dateTextActive]}>{option.day}</Text>
-              <Text style={[styles.dateLabel, dateText === option.value && styles.dateTextActive]}>{option.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <SelectorControl
+          icon="calendar-outline"
+          title={displayDate(dateText)}
+          subtitle={dateText}
+          onPrevious={() => setDateText((value) => shiftDate(value, -1))}
+          onNext={() => setDateText((value) => shiftDate(value, 1))}
+        />
       </LabeledField>
       <LabeledField label="Time">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
-          {TIME_OPTIONS.map((option) => (
-            <Pressable key={option} style={[styles.timeChip, timeText === option && styles.dateChipActive]} onPress={() => setTimeText(option)}>
-              <Ionicons name="time-outline" size={13} color={timeText === option ? colors.bg : colors.sub} />
-              <Text style={[styles.timeText, timeText === option && styles.dateTextActive]}>{option}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+        <View style={styles.timeSelectorGrid}>
+          <SelectorControl
+            icon="time-outline"
+            title={timeText}
+            subtitle="Hour"
+            onPrevious={() => setTimeText((value) => shiftTime(value, -60))}
+            onNext={() => setTimeText((value) => shiftTime(value, 60))}
+            style={styles.flexInput}
+          />
+          <SelectorControl
+            icon="timer-outline"
+            title={timeText}
+            subtitle="Minute"
+            onPrevious={() => setTimeText((value) => shiftTime(value, -1))}
+            onNext={() => setTimeText((value) => shiftTime(value, 1))}
+            style={styles.flexInput}
+          />
+        </View>
       </LabeledField>
       <View style={styles.twoCol}>
         <LabeledField label="Players" style={styles.flexInput}>
@@ -256,6 +288,38 @@ function LabeledField({ label, children, style }: { label: string; children: Rea
     <View style={[styles.field, style]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {children}
+    </View>
+  );
+}
+
+function SelectorControl({
+  icon,
+  title,
+  subtitle,
+  onPrevious,
+  onNext,
+  style,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPrevious: () => void;
+  onNext: () => void;
+  style?: any;
+}) {
+  return (
+    <View style={[styles.selectorControl, style]}>
+      <Pressable style={styles.selectorButton} onPress={onPrevious}>
+        <Ionicons name="chevron-back" size={18} color={colors.text} />
+      </Pressable>
+      <View style={styles.selectorValue}>
+        <Ionicons name={icon} size={15} color={colors.accent} />
+        <Text style={styles.selectorTitle} numberOfLines={1} adjustsFontSizeToFit>{title}</Text>
+        <Text style={styles.selectorSub}>{subtitle}</Text>
+      </View>
+      <Pressable style={styles.selectorButton} onPress={onNext}>
+        <Ionicons name="chevron-forward" size={18} color={colors.text} />
+      </Pressable>
     </View>
   );
 }
@@ -329,14 +393,12 @@ const styles = StyleSheet.create({
   description: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: spacing.sm },
   flexInput: { flex: 1 },
-  dateRow: { gap: spacing.sm, paddingVertical: 2 },
-  dateChip: { minWidth: 72, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, alignItems: "center" },
-  dateChipActive: { backgroundColor: colors.accent },
-  dateDay: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.sub },
-  dateLabel: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text, marginTop: 2 },
-  dateTextActive: { color: colors.bg },
-  timeChip: { flexDirection: "row", alignItems: "center", gap: 5, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  timeText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  timeSelectorGrid: { flexDirection: "row", gap: spacing.sm },
+  selectorControl: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
+  selectorButton: { width: 36, height: 38, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
+  selectorValue: { flex: 1, alignItems: "center", minWidth: 0 },
+  selectorTitle: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.text, maxWidth: "100%" },
+  selectorSub: { fontFamily: fonts.body, fontSize: 10, color: colors.sub, marginTop: 1 },
   stepper: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
   stepperButton: { width: 34, height: 34, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   stepperValue: { flex: 1, alignItems: "center" },

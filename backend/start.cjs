@@ -11,7 +11,9 @@ const prismaCli = require.resolve("prisma/build/index.js", {
   paths: [backendDir],
 });
 const prismaEnginesDir = join(backendDir, "node_modules", "@prisma", "engines");
-const runStartupDatabaseMaintenance = process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true";
+const runStartupDatabaseMaintenance =
+  process.env.RUN_STARTUP_DATABASE_MAINTENANCE === "true" ||
+  (process.env.RUN_STARTUP_DATABASE_MAINTENANCE !== "false" && process.env.NODE_ENV === "production");
 const forceRuntimeRepair = process.env.FORCE_DATABASE_RUNTIME_REPAIR === "true";
 let migrationFailed = false;
 

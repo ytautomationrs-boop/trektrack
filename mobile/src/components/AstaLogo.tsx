@@ -1,6 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Polygon } from "react-native-svg";
 
 type Props = {
   size?: number;
@@ -10,11 +10,13 @@ type Props = {
 export function AstaLogo({ size = 64, backgroundColor = "transparent" }: Props) {
   return (
     <View style={[styles.wrap, { width: size, height: size, backgroundColor }]}>
-      <Svg width={size} height={size} viewBox="0 0 280 180">
-        <Path
-          d="M9 137 L67 67 L129 157 L79 90 L111 48 L150 99 L184 29 L168 26 L235 0 L218 68 L207 47 L177 82 L220 139 L203 118 L190 132 L149 78 L116 120 L92 87 L129 156 L62 83 L9 157 Z"
-          fill="#fffaf2"
-        />
+      <Svg width={size} height={size} viewBox="0 0 1024 682">
+        <Polygon points="70,600 70,520 284,334 336,414" fill="#fffaf2" />
+        <Polygon points="284,334 336,414 455,620 398,540" fill="#fffaf2" />
+        <Polygon points="398,540 548,150 618,232 460,622" fill="#fffaf2" />
+        <Polygon points="548,150 618,232 725,382 752,450" fill="#fffaf2" />
+        <Polygon points="650,478 744,386 912,116 972,70 895,320 842,210" fill="#fffaf2" />
+        <Polygon points="706,520 778,464 954,612 898,620 780,536 724,590" fill="#fffaf2" />
       </Svg>
     </View>
   );

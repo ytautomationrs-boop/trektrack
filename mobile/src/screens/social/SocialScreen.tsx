@@ -81,27 +81,26 @@ function SocialFeedScreen() {
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
 
   const unreadCount = conversations.reduce((sum, item) => sum + item.unreadCount, 0);
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [feed, friendsResult, inbox, postable] = await Promise.all([
-        getSocialFeed(),
-        getFriends(),
-        getConversations(),
-        getPostableResults(),
-      ]);
-      setPosts(feed.posts);
-      setFriends(friendsResult);
-      setConversations(inbox.conversations);
-      setResults(postable.results);
-    } catch (err: any) {
-      showAlert("Social", err.message ?? "Couldn't load social.");
-    } finally {
-      setLoading(false);
-    }
+    const [feed, friendsResult, inbox, postable] = await Promise.allSettled([
+      getSocialFeed(),
+      getFriends(),
+      getConversations(),
+      getPostableResults(),
+    ]);
+    if (feed.status === "fulfilled") setPosts(feed.value.posts);
+    if (friendsResult.status === "fulfilled") setFriends(friendsResult.value);
+    if (inbox.status === "fulfilled") setConversations(inbox.value.conversations);
+    if (postable.status === "fulfilled") setResults(postable.value.results);
+
+    const failed = [feed, friendsResult, inbox, postable].find((result) => result.status === "rejected") as PromiseRejectedResult | undefined;
+    setLoadWarning(failed ? failed.reason?.message ?? "Some social data could not load." : null);
+    setLoading(false);
   }, []);
 
   useFocusEffect(
@@ -195,8 +194,23 @@ function SocialFeedScreen() {
         </View>
 
         {searchResults.map((player) => (
-          <PlayerListRow key={player.id} player={player} onOpen={() => navigation.navigate("SocialProfile", { playerId: player.id })} />
+          <PlayerListRow
+            key={player.id}
+            player={player}
+            onOpen={() => navigation.navigate("SocialProfile", { playerId: player.id })}
+            onFriendStateChange={(friendState) => {
+              setSearchResults((items) => items.map((item) => (item.id === player.id ? { ...item, friendState } : item)));
+              load();
+            }}
+          />
         ))}
+
+        {loadWarning ? (
+          <View style={styles.warningCard}>
+            <Ionicons name="warning-outline" size={16} color={colors.risk} />
+            <Text style={styles.warningText}>{loadWarning}</Text>
+          </View>
+        ) : null}
 
         <View style={styles.composer}>
           <View style={styles.composerHead}>
@@ -523,7 +537,32 @@ function ResultPanel({ result }: { result: SocialRaceResult }) {
   );
 }
 
-function PlayerListRow({ player, onOpen }: { player: PlayerSummary; onOpen: () => void }) {
+function PlayerListRow({
+  player,
+  onOpen,
+  onFriendStateChange,
+}: {
+  player: PlayerSummary;
+  onOpen: () => void;
+  onFriendStateChange: (state: FriendState) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const action = friendAction(player.friendState);
+
+  const toggleFollow = async (event: any) => {
+    event?.stopPropagation?.();
+    if (!action.action) return;
+    setBusy(true);
+    try {
+      const result = action.action === "remove" ? await removeFriend(player.id) : await requestFriend(player.id);
+      onFriendStateChange(result.friendState);
+    } catch (err: any) {
+      showAlert("Social", err.message ?? "Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Pressable style={styles.messageRow} onPress={onOpen}>
       <Avatar player={player} size={42} />
@@ -531,7 +570,9 @@ function PlayerListRow({ player, onOpen }: { player: PlayerSummary; onOpen: () =
         <Text style={styles.messageName}>{player.displayName}</Text>
         <Text style={styles.messagePreview}>{player.bio ?? "View profile"}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.sub} />
+      <Pressable style={[styles.inlineFollow, (!action.action || busy) && styles.disabled]} disabled={!action.action || busy} onPress={toggleFollow}>
+        {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.inlineFollowText}>{action.label}</Text>}
+      </Pressable>
     </Pressable>
   );
 }
@@ -604,6 +645,10 @@ const styles = StyleSheet.create({
   messageRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.sm },
   messageName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   messagePreview: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
+  inlineFollow: { minWidth: 94, minHeight: 32, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
+  inlineFollowText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.bg },
+  warningCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
+  warningText: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub, lineHeight: 17 },
   unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent },
   threadContent: { flexGrow: 1, padding: spacing.lg, gap: spacing.sm },
   threadBubble: { maxWidth: "80%", borderRadius: radii.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

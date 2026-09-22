@@ -56,7 +56,11 @@ export async function socialEventRoutes(app: FastifyInstance) {
   });
 
   app.get("/social-events", { preHandler: requireAuth }, async (req, reply) => {
-    return reply.send({ events: await listSocialEvents(req.userId) });
+    try {
+      return reply.send({ events: await listSocialEvents(req.userId) });
+    } catch (err) {
+      return sendEventError(reply, err);
+    }
   });
 
   app.post("/social-events", { preHandler: requireAuth }, async (req, reply) => {
