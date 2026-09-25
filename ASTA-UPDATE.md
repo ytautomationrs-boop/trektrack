@@ -1,6 +1,6 @@
 # ASTA app update
 
-The app retains the name ASTA. The supplied outline font is compiled to a 44 KB TrueType font and used only for uppercase headings; body text remains Figtree. Fonts and device-only photo, keyboard and share plugins load without blocking startup.
+The app retains the name ASTA and its existing header wordmark. Other headings use Montserrat SemiBold without forced uppercase; body text remains Figtree. The compressed web heading font is about 59 KB. Fonts and device-only photo, keyboard and share plugins load without blocking startup.
 
 ## Phone installation
 
@@ -8,7 +8,7 @@ The camera crash fix adds iOS camera and photo privacy descriptions and native p
 
 ## Notifications
 
-The in-app inbox stores invites, DMs, likes, comments, follows, and game start/finish alerts. Apple push delivery is implemented but requires a paid Apple Developer team, an APNs signing key and push provisioning. Personal Team installations continue to build with push signing disabled.
+The in-app inbox stores invites, DMs, likes, comments, follows, and game start/finish alerts. Apple push delivery is configured with the paid Apple Developer team, an APNs signing key in Hostinger environment settings, and signed push provisioning. A real test notification was received on the user’s iPhone. This project now requires the paid team for its default push-enabled signing configuration.
 
 Push Notifications is enabled in the App target using `App/Push.entitlements` for Debug and Release. The project supplies development/production `ASTA_APNS_ENVIRONMENT` respectively. Set Hostinger environment variables `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the .p8 contents, actual or escaped newlines), and `APNS_BUNDLE_ID=com.reecewheeler.asta`. Never commit the private key. Rebuild/install, then select Enable phone notifications in the inbox. Both Xcode sandbox and production tokens are supported. Without these credentials the inbox works; the UI does not claim phone notifications are enabled.
 
