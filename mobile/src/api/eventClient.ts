@@ -41,7 +41,10 @@ export function getSocialSports() {
 }
 
 export function getSocialEvents() {
-  return request<{ events: SocialEvent[] }>("/social-events");
+  // Event discovery must reflect games other people have just published.
+  // Supplying a header opts this request out of the short shared GET cache;
+  // pull-to-refresh and returning to the tab now always load the public list.
+  return request<{ events: SocialEvent[] }>("/social-events", { headers: { "Cache-Control": "no-cache" } });
 }
 
 export function getSocialEvent(eventId: string, inviteCode?: string | null) {
@@ -74,5 +77,5 @@ export function leaveSocialEvent(eventId: string) {
 }
 
 export function deleteSocialEvent(eventId: string) {
-  return request<{ event: SocialEvent }>(`/social-events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+  return request<{ deleted: true; eventId: string }>(`/social-events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
 }

@@ -151,10 +151,6 @@ export function MyRacesScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
-        <Pressable style={styles.backRow} onPress={() => navigation.navigate("Competitions")}>
-          <Ionicons name="chevron-back" size={18} color={colors.sub} />
-          <Text style={styles.backText}>Competitions</Text>
-        </Pressable>
         <Text style={styles.header}>Your races</Text>
 
         {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={() => navigation.navigate("Profile")} />}
@@ -326,8 +322,6 @@ function RaceRow({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
-  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text, marginBottom: spacing.lg },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
 

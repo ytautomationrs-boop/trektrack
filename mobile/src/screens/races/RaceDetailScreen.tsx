@@ -272,11 +272,6 @@ export function RaceDetailScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} tintColor={colors.accent} />}
       >
-        <Pressable style={styles.backRow} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={20} color={colors.sub} />
-          <Text style={styles.backText}>Races</Text>
-        </Pressable>
-
         <Text style={styles.title}>
           {race.raceType?.metricType.displayName ?? race.metricKey} ·{" "}
           {race.format === "SQUAD" ? "Squad race" : "Solo race"}
@@ -704,8 +699,6 @@ function RegisterCard({ race, onOpenProfile }: { race: RaceDetail["race"]; onOpe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
-  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, textTransform: "capitalize" },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
   raceMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.md },

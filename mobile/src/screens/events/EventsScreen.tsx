@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { LoadError } from "../../components/LoadError";
 import { showAlert } from "../../lib/alert";
@@ -79,6 +79,7 @@ function toStartsAt(dateText: string, timeText: string) {
 
 export function EventsScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const [sports, setSports] = useState<SocialSport[]>(FALLBACK_SPORTS);
   const [events, setEvents] = useState<SocialEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,7 +88,7 @@ export function EventsScreen() {
   const [view, setView] = useState<"events" | "calendar">("events");
 
   const load = useCallback(async () => {
-    if (events.length === 0) setLoading(true);
+    setLoading(true);
     const sportsPromise = getSocialSports().then((r) => setSports(r.sports)).catch(() => {});
     try {
       const result = await getSocialEvents();
@@ -99,7 +100,7 @@ export function EventsScreen() {
       setLoading(false);
     }
     await sportsPromise;
-  }, [events.length]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -107,8 +108,22 @@ export function EventsScreen() {
     }, [load])
   );
 
-  const joined = events.filter((event) => event.hasJoined);
-  const open = events.filter((event) => event.visibility === "PUBLIC");
+  // The centre + button can open this screen directly in creation mode.
+  // Clear the one-shot route parameter after consuming it so returning to
+  // Events later does not unexpectedly reopen the form.
+  useEffect(() => {
+    if (!route.params?.openCreate) return;
+    setView("events");
+    setShowCreate(true);
+    navigation.setParams({ openCreate: undefined });
+  }, [navigation, route.params?.openCreate]);
+
+  const joined = useMemo(() => events.filter((event) => event.hasJoined), [events]);
+  const publicEvents = useMemo(() => events.filter((event) => event.visibility === "PUBLIC"), [events]);
+  const otherPublicEvents = useMemo(
+    () => publicEvents.filter((event) => !event.hasJoined && !event.isHost),
+    [publicEvents]
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -116,10 +131,26 @@ export function EventsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.header}>Events</Text>
+            <Text style={styles.headerSub}>Find a public game or manage games you have joined.</Text>
+          </View>
+          <Pressable
+            style={styles.createButton}
+            onPress={() => {
+              setView("events");
+              setShowCreate((value) => !value);
+            }}
+          >
+            <Ionicons name={showCreate ? "close" : "add"} size={18} color={colors.bg} />
+          </Pressable>
+        </View>
+
         <View style={styles.viewTabs}>
           <Pressable style={[styles.viewTab, view === "events" && styles.viewTabActive]} onPress={() => setView("events")}>
             <Ionicons name="people-outline" size={16} color={view === "events" ? colors.bg : colors.sub} />
-            <Text style={[styles.viewTabText, view === "events" && styles.viewTabTextActive]}>Discover</Text>
+            <Text style={[styles.viewTabText, view === "events" && styles.viewTabTextActive]}>Public games</Text>
           </Pressable>
           <Pressable style={[styles.viewTab, view === "calendar" && styles.viewTabActive]} onPress={() => setView("calendar")}>
             <Ionicons name="calendar-outline" size={16} color={view === "calendar" ? colors.bg : colors.sub} />
@@ -127,21 +158,7 @@ export function EventsScreen() {
           </Pressable>
         </View>
 
-        {view === "calendar" ? (
-          <EventCalendar events={joined} onOpen={(event) => navigation.navigate("EventDetail", { eventId: event.id })} />
-        ) : (
-          <>
-        <View style={styles.headerRow}>
-          <View>
-            <Text style={styles.header}>Events</Text>
-            <Text style={styles.headerSub}>Free social games hosted by players.</Text>
-          </View>
-          <Pressable style={styles.createButton} onPress={() => setShowCreate((value) => !value)}>
-            <Ionicons name={showCreate ? "close" : "add"} size={18} color={colors.bg} />
-          </Pressable>
-        </View>
-
-        {showCreate && (
+        {showCreate && view === "events" ? (
           <CreateEventPanel
             sports={sports}
             onCreated={(event) => {
@@ -150,24 +167,33 @@ export function EventsScreen() {
               navigation.navigate("EventDetail", { eventId: event.id });
             }}
           />
-        )}
+        ) : null}
 
-        {loading && events.length === 0 && <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} />}
-        {!loading && loadError && events.length === 0 && <LoadError error={loadError} onRetry={load} />}
+        {loading && events.length === 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
+        {!loading && loadError && events.length === 0 ? <LoadError error={loadError} onRetry={load} /> : null}
 
-        {joined.length > 0 && <Text style={styles.sectionTitle}>Your events</Text>}
-        {joined.map((event) => (
-          <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
-        ))}
+        {view === "calendar" ? (
+          <EventCalendar events={joined} onOpen={(event) => navigation.navigate("EventDetail", { eventId: event.id })} />
+        ) : (
+          <>
+        {joined.length > 0 ? (
+          <>
+            <Text style={styles.sectionTitle}>Your events</Text>
+            {joined.map((event) => (
+              <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
+            ))}
+          </>
+        ) : null}
 
-        <Text style={styles.sectionTitle}>Open events</Text>
-        {!loading && open.length === 0 ? (
+        <Text style={styles.sectionTitle}>Public games</Text>
+        <Text style={styles.sectionSubtitle}>Upcoming games hosted by other players. Open any game to see the details and join.</Text>
+        {!loading && !loadError && otherPublicEvents.length === 0 ? (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No open social games yet</Text>
-            <Text style={styles.emptyText}>Host a free game and invite people to play.</Text>
+            <Text style={styles.emptyTitle}>No other public games right now</Text>
+            <Text style={styles.emptyText}>New public games from the ASTA community will appear here.</Text>
           </View>
         ) : null}
-        {open.map((event) => (
+        {otherPublicEvents.map((event) => (
           <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
         ))}
           </>
@@ -439,9 +465,15 @@ function EventCard({ event, onOpen }: { event: SocialEvent; onOpen: () => void }
           <Text style={styles.cardSub}>{event.sportName} · {formatDateTime(event.startsAt)}</Text>
           <Text style={styles.cardSub} numberOfLines={1}>Hosted by {event.host.displayName}{event.location ? ` · ${event.location}` : ""}</Text>
         </View>
-        <View style={styles.visibilityPill}>
-          <Ionicons name={event.visibility === "PUBLIC" ? "earth" : "lock-closed"} size={11} color={colors.text} />
-          <Text style={styles.visibilityText}>{event.visibility === "PUBLIC" ? "Public" : "Invite"}</Text>
+        <View style={[styles.visibilityPill, event.hasJoined && styles.joinedPill]}>
+          <Ionicons
+            name={event.isHost ? "star" : event.hasJoined ? "checkmark" : event.visibility === "PUBLIC" ? "earth" : "lock-closed"}
+            size={11}
+            color={event.hasJoined ? colors.bg : colors.text}
+          />
+          <Text style={[styles.visibilityText, event.hasJoined && styles.joinedPillText]}>
+            {event.isHost ? "Hosting" : event.hasJoined ? "Joined" : event.visibility === "PUBLIC" ? "Public" : "Invite"}
+          </Text>
         </View>
       </View>
       <View style={styles.fillRow}>
@@ -479,6 +511,7 @@ const styles = StyleSheet.create({
   headerSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
   createButton: { width: 42, height: 42, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+  sectionSubtitle: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.sub, marginTop: -spacing.sm, marginBottom: spacing.md },
   panel: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   panelTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
   field: { gap: 6 },
@@ -531,6 +564,8 @@ const styles = StyleSheet.create({
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   visibilityPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.sm, paddingVertical: 4 },
   visibilityText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },
+  joinedPill: { backgroundColor: colors.accent },
+  joinedPillText: { color: colors.bg },
   fillRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   fillText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
   participantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },

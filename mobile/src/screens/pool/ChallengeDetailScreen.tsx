@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl , Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
+import { useRoute, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
@@ -46,7 +46,6 @@ function formatTarget(dailyTarget: number, unit: string) {
  */
 export function ChallengeDetailScreen() {
   const route = useRoute<any>();
-  const navigation = useNavigation<any>();
   const challengeId: string = route.params?.challengeId;
 
   const [challenge, setChallenge] = useState<Challenge | null>(null);
@@ -168,11 +167,6 @@ export function ChallengeDetailScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
-        <Pressable style={styles.backRow} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={20} color={colors.sub} />
-          <Text style={styles.backText}>Pool</Text>
-        </Pressable>
-
         <Text style={styles.title}>{challenge.title}</Text>
         <Text style={styles.subtitle}>
           {challenge.durationDays} {challenge.durationDays === 1 ? "day" : "days"} · {formatCents(challenge.stakeCents)} stake ·{" "}
@@ -444,8 +438,6 @@ function ActiveParticipantActions({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
-  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
 

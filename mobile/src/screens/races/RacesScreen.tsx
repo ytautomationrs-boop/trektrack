@@ -185,16 +185,15 @@ export function RacesScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={styles.header}>Competitions</Text>
-          <View style={styles.headerActions}>
-            <Pressable style={styles.headerButton} onPress={() => setShowLeagues((value) => !value)}>
-              <Ionicons name="podium-outline" size={16} color={colors.accent} />
-              <Text style={styles.myRacesLinkText}>Leagues</Text>
-            </Pressable>
-            <Pressable style={styles.myRacesLink} onPress={() => navigation.navigate("Profile", { screen: "MyRaces" })}>
-              <Text style={styles.myRacesLinkText}>Your races</Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.accent} />
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={showLeagues ? "Hide leagues" : "Show leagues"}
+            style={[styles.headerButton, showLeagues && styles.headerButtonActive]}
+            onPress={() => setShowLeagues((value) => !value)}
+          >
+            <Ionicons name="podium-outline" size={16} color={colors.text} />
+            <Text style={styles.headerButtonText}>Leagues</Text>
+          </Pressable>
         </View>
 
         <Pressable style={styles.howToggle} onPress={() => setShowHowItWorks((value) => !value)}>
@@ -482,10 +481,17 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
-  myRacesLink: { flexDirection: "row", alignItems: "center", gap: 2 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  headerButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-  myRacesLinkText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accent },
+  headerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.accent,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  headerButtonActive: { opacity: 0.82 },
+  headerButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   howToggle: {
     flexDirection: "row",
     alignItems: "center",

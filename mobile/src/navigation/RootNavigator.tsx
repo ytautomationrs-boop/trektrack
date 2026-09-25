@@ -18,6 +18,7 @@ import { EventDetailScreen } from "../screens/events/EventDetailScreen";
 import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 import { AstaLogo } from "../components/AstaLogo";
+import { showAlert } from "../lib/alert";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
@@ -116,9 +117,23 @@ const linking = {
 // Kept visible during the pilot even though regular users can't create
 // anything: see screens/create/CreateGateScreen.tsx for why, and for what
 // they get instead.
-function CreateTabButton({ onPress }: { onPress: () => void }) {
+function CreateTabButton({ onCompetition, onSocialGame }: { onCompetition: () => void; onSocialGame: () => void }) {
+  const chooseCreateType = () => {
+    showAlert("Create", "What would you like to create?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Competition", onPress: onCompetition },
+      { text: "Social game", onPress: onSocialGame },
+    ]);
+  };
+
   return (
-    <Pressable onPress={onPress} style={styles.createButtonWrap} hitSlop={8}>
+    <Pressable
+      onPress={chooseCreateType}
+      style={styles.createButtonWrap}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Create"
+    >
       <View style={styles.createButtonCircle}>
         <Ionicons name="add" size={30} color={colors.bg} />
       </View>
@@ -174,10 +189,15 @@ export function RootNavigator() {
         <Tab.Screen
           name="Create"
           component={CreateGateScreen}
-          options={{
+          options={({ navigation }) => ({
             tabBarLabel: () => null,
-            tabBarButton: (props) => <CreateTabButton onPress={() => props.onPress?.({} as any)} />,
-          }}
+            tabBarButton: (props) => (
+              <CreateTabButton
+                onCompetition={() => props.onPress?.({} as any)}
+                onSocialGame={() => navigation.navigate("Events", { screen: "EventsHome", params: { openCreate: true } })}
+              />
+            ),
+          })}
         />
         <Tab.Screen name="Events" component={EventsStackScreen} />
         <Tab.Screen name="Profile" component={ProfileStackScreen} />

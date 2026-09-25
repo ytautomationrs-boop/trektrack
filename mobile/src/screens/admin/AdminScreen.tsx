@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
@@ -66,7 +66,6 @@ function formatWhen(iso: string) {
 type Tab = "overview" | "users" | "controls" | "fund" | "payouts" | "invites" | "leagues" | "review";
 
 export function AdminScreen() {
-  const navigation = useNavigation<any>();
   const app = useAppState();
   const [tab, setTab] = useState<Tab>("overview");
 
@@ -86,10 +85,6 @@ export function AdminScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.header}>
-        <Pressable style={styles.backRow} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={18} color={colors.sub} />
-          <Text style={styles.backText}>Profile</Text>
-        </Pressable>
         <Text style={styles.title}>Admin console</Text>
       </View>
 
@@ -983,8 +978,6 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.sm },
-  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, marginBottom: spacing.md },
 
   tabScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 54 },

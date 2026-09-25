@@ -184,16 +184,17 @@ export async function leaveSocialEvent(eventId: string, userId: string) {
   return getSocialEvent(eventId, userId);
 }
 
-export async function cancelSocialEvent(eventId: string, userId: string) {
+export async function deleteSocialEvent(eventId: string, userId: string) {
   const event = await findEvent(eventId);
   if (!event) throw new SocialEventError("not_found", "Event not found.");
   if (event.hostUserId !== userId) throw new SocialEventError("not_host", "Only the host can delete this event.");
   if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event can no longer be deleted.");
 
-  const updated = await prisma.socialEvent.update({
+  // A delete action should actually remove the event. The participant rows
+  // are deleted by the database relation's ON DELETE CASCADE rule, so a
+  // deleted event cannot remain visible in a participant's calendar.
+  await prisma.socialEvent.delete({
     where: { id: eventId },
-    data: { status: "CANCELLED" },
-    include: eventInclude,
   });
-  return decorateEvent(updated, userId);
+  return { id: eventId };
 }

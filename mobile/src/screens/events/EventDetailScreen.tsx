@@ -85,13 +85,13 @@ export function EventDetailScreen() {
     }
   };
 
-  const deleteEvent = async () => {
+  const performDelete = async () => {
     if (!event) return;
     setBusy(true);
     try {
       await deleteSocialEvent(event.id);
-      showAlert("Event deleted", "This event is no longer open.");
-      navigation.goBack();
+      navigation.popToTop();
+      showAlert("Event deleted", "Your event has been removed.");
     } catch (err: any) {
       showAlert("Couldn't delete event", err.message ?? "Try again.");
     } finally {
@@ -99,14 +99,18 @@ export function EventDetailScreen() {
     }
   };
 
+  const confirmDelete = () => {
+    if (!event || busy) return;
+    showAlert("Delete this event?", "This removes the event for everyone who joined it.", [
+      { text: "Keep event", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => void performDelete() },
+    ]);
+  };
+
   if (!event) {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Pressable style={styles.backRow} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={18} color={colors.sub} />
-            <Text style={styles.backText}>Events</Text>
-          </Pressable>
           {loadError ? <LoadError error={loadError} onRetry={load} /> : <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xxl }} />}
         </ScrollView>
       </SafeAreaView>
@@ -121,11 +125,6 @@ export function EventDetailScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
-        <Pressable style={styles.backRow} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={18} color={colors.sub} />
-          <Text style={styles.backText}>Events</Text>
-        </Pressable>
-
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
             <Ionicons name="calendar-outline" size={26} color={colors.accent} />
@@ -142,7 +141,7 @@ export function EventDetailScreen() {
             <Text style={styles.shareButtonText}>Share event</Text>
           </Pressable>
           {event.isHost ? (
-            <Pressable style={[styles.deleteButton, busy && styles.disabled]} disabled={busy} onPress={deleteEvent}>
+            <Pressable style={[styles.deleteButton, busy && styles.disabled]} disabled={busy} onPress={confirmDelete}>
               {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.deleteButtonText}>Delete event</Text>}
             </Pressable>
           ) : event.hasJoined ? (
@@ -186,8 +185,6 @@ export function EventDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  backRow: { flexDirection: "row", alignItems: "center", marginBottom: spacing.md },
-  backText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.sub },
   hero: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   heroIcon: { width: 56, height: 56, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.text, textAlign: "center", marginTop: spacing.md },

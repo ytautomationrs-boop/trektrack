@@ -338,11 +338,9 @@ function MessagesScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.pageHeader}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerSpacer} />
         <Text style={styles.pageTitle}>Messages</Text>
-        <View style={{ width: 22 }} />
+        <View style={styles.headerSpacer} />
       </View>
       <ScrollView contentContainerStyle={styles.feedContent}>
         {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
@@ -421,9 +419,7 @@ function ThreadScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <View style={styles.pageHeader}>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-          <Ionicons name="chevron-back" size={22} color={colors.text} />
-        </Pressable>
+        <View style={styles.headerSpacer} />
         <Text style={styles.pageTitle}>{playerName}</Text>
         <Pressable onPress={() => navigation.navigate("SocialProfile", { playerId })} hitSlop={8}>
           <Ionicons name="person-circle-outline" size={23} color={colors.text} />
@@ -491,11 +487,9 @@ function SocialProfileScreen() {
     return (
       <SafeAreaView style={styles.screen} edges={["top"]}>
         <View style={styles.pageHeader}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-          </Pressable>
+          <View style={styles.headerSpacer} />
           <Text style={styles.pageTitle}>Profile</Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerSpacer} />
         </View>
         {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
       </SafeAreaView>
@@ -510,11 +504,9 @@ function SocialProfileScreen() {
     <SafeAreaView style={styles.screen} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.feedContent}>
         <View style={styles.pageHeaderInline}>
-          <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
-            <Ionicons name="chevron-back" size={22} color={colors.text} />
-          </Pressable>
+          <View style={styles.headerSpacer} />
           <Text style={styles.pageTitle}>{profile.player.displayName}</Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerSpacer} />
         </View>
         <View style={styles.profileTop}>
           <Avatar player={profile.player} size={84} />
@@ -817,6 +809,7 @@ const styles = StyleSheet.create({
   resultPrize: { fontFamily: fonts.body, fontSize: 10, color: colors.sub },
   pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },
   pageHeaderInline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
+  headerSpacer: { width: 22 },
   pageTitle: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.text },
   messageRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.sm },
   messageName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },

@@ -4,8 +4,8 @@ import { requireAuth } from "../../middleware/auth.js";
 import { isMissingRuntimeSchemaError, withRuntimeSchemaRepair } from "../../lib/runtimeRepair.js";
 import {
   SocialEventError,
-  cancelSocialEvent,
   createSocialEvent,
+  deleteSocialEvent,
   getSocialEvent,
   joinSocialEvent,
   leaveSocialEvent,
@@ -120,7 +120,8 @@ export async function socialEventRoutes(app: FastifyInstance) {
   app.delete("/social-events/:id", { preHandler: requireAuth }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
-      return reply.send({ event: await withRuntimeSchemaRepair("cancel social event", () => cancelSocialEvent(id, req.userId)) });
+      const deleted = await withRuntimeSchemaRepair("delete social event", () => deleteSocialEvent(id, req.userId));
+      return reply.send({ deleted: true, eventId: deleted.id });
     } catch (err) {
       return sendEventError(reply, err);
     }
