@@ -1,5 +1,5 @@
 import { getToken, setToken, clearToken, getStoredSession, setStoredSession } from "../lib/tokenStorage";
-import { request, clearApiCache, type ApiError } from "./http";
+import { request, clearApiCache, type ApiError, type ReadOptions } from "./http";
 import { getRaces } from "./raceClient";
 import type { LedgerEntry, MetricTypeDefinition, PaystackBank, PaystackDepositIntent, ProfileStats, StravaStatus, Wallet, WithdrawDestination } from "./types";
 
@@ -142,8 +142,8 @@ export function getLedger() {
   return request<{ entries: LedgerEntry[] }>("/me/ledger");
 }
 
-export function getProfileStats() {
-  return request<ProfileStats>("/me/stats");
+export function getProfileStats(options?: ReadOptions<ProfileStats>) {
+  return request<ProfileStats>("/me/stats", options);
 }
 
 // Optional, opt-in Strava integration — cycling/running work fully on

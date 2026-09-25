@@ -1,4 +1,4 @@
-import { request } from "./http";
+import { request, type ReadOptions } from "./http";
 import type { PlayerSummary } from "./socialClient";
 
 export type SocialSport = {
@@ -40,11 +40,9 @@ export function getSocialSports() {
   return request<{ sports: SocialSport[] }>("/social-events/sports");
 }
 
-export function getSocialEvents() {
-  // Event discovery must reflect games other people have just published.
-  // Supplying a header opts this request out of the short shared GET cache;
-  // pull-to-refresh and returning to the tab now always load the public list.
-  return request<{ events: SocialEvent[] }>("/social-events", { headers: { "Cache-Control": "no-cache" } });
+export function getSocialEvents(options?: ReadOptions<{ events: SocialEvent[] }>) {
+  // Refresh from the server while retaining deduplication and saved previews.
+  return request<{ events: SocialEvent[] }>("/social-events", { cacheMode: "reload", ...options });
 }
 
 export function getSocialEvent(eventId: string, inviteCode?: string | null) {

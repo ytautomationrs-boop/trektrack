@@ -1,4 +1,4 @@
-import { request } from "./http";
+import { request, type ReadOptions } from "./http";
 import type { LeagueStandings, RaceHistoryEntry } from "./raceTypes";
 
 export type FriendState = "none" | "pending_sent" | "pending_received" | "friends" | "blocked";
@@ -22,8 +22,21 @@ export type PlayerProfile = {
   player: PlayerSummary;
   friendState: FriendState;
   leagues: LeagueStandings;
-  raceHistory: RaceHistoryEntry[];
-  posts: SocialPost[];
+  raceHistory: ProfileRaceHistoryEntry[];
+  posts: ProfilePostSummary[];
+};
+
+/** Only the fields rendered by a profile's race history and statistics. */
+export type ProfileRaceHistoryEntry = Pick<RaceHistoryEntry, "id" | "finishPosition" | "pointsAwarded"> & {
+  race: Pick<RaceHistoryEntry["race"], "id" | "name" | "metricKey" | "status" | "league">;
+};
+
+/** Profile tiles do not download full feed cards or their photo payloads. */
+export type ProfilePostSummary = {
+  id: string;
+  body: string;
+  createdAt: string;
+  raceResult: { race: { id: string; name: string } } | null;
 };
 
 export type SocialRaceResult = {
@@ -87,8 +100,8 @@ export function searchPlayers(q: string) {
   return request<{ players: PlayerSummary[] }>(`/players/search?q=${encodeURIComponent(q)}`);
 }
 
-export function getSocialFeed() {
-  return request<{ posts: SocialPost[] }>("/social/feed");
+export function getSocialFeed(options?: ReadOptions<{ posts: SocialPost[] }>) {
+  return request<{ posts: SocialPost[] }>("/social/feed", options);
 }
 
 export function getPostableResults() {

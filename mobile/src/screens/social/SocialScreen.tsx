@@ -1,14 +1,13 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { useAppState } from "../../state/useAppState";
-import { AstaLogo } from "../../components/AstaLogo";
 import {
   commentOnSocialPost,
   createSocialPost,
@@ -77,6 +76,7 @@ function SocialFeedScreen() {
   const navigation = useNavigation<any>();
   const app = useAppState();
   const [posts, setPosts] = useState<SocialPost[]>([]);
+  const hasLoaded = useRef(false);
   const [friends, setFriends] = useState<FriendsPayload>({ friends: [], incoming: [], outgoing: [] });
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [results, setResults] = useState<SocialRaceResult[]>([]);
@@ -96,7 +96,7 @@ function SocialFeedScreen() {
   }, []);
 
   const load = useCallback(async () => {
-    if (posts.length === 0) setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     setLoadWarning(null);
 
     const noteFailure = (err: unknown) => {
@@ -115,14 +115,15 @@ function SocialFeedScreen() {
       .catch(noteFailure);
 
     try {
-      const feed = await getSocialFeed();
+      const feed = await getSocialFeed({ onCached: (saved) => { setPosts(saved.posts); hasLoaded.current = true; } });
+      hasLoaded.current = true;
       setPosts(feed.posts);
     } catch (err) {
       noteFailure(err);
     } finally {
       setLoading(false);
     }
-  }, [posts.length]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -185,9 +186,7 @@ function SocialFeedScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
         <View style={styles.instaHeader}>
-          <View style={styles.wordmarkGroup}>
-            <AstaLogo width={96} height={44} backgroundColor={colors.bg} />
-          </View>
+          <Text style={styles.feedTitle}>Social</Text>
           <Pressable style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text} />
             {unreadCount > 0 && (
@@ -755,8 +754,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   feedContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
   instaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  wordmarkGroup: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  wordmark: { fontFamily: fonts.display, fontSize: 31, color: colors.accent, fontStyle: "italic" },
+  feedTitle: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.bg },

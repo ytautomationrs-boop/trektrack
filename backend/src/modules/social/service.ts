@@ -1,6 +1,5 @@
 import { prisma } from "../../lib/prisma.js";
 import { getLeagueStandings } from "../races/leagues.js";
-import { listUserRaceEntries } from "../races/service.js";
 
 export type FriendState = "none" | "pending_sent" | "pending_received" | "friends" | "blocked";
 
@@ -439,10 +438,38 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
   const [friendState, leagues, raceHistory, posts] = await Promise.all([
     friendshipState(viewerId, playerId),
     getLeagueStandings(playerId),
-    listUserRaceEntries(playerId, 20),
+    // Profile rows only show the result and race label. Loading each race's
+    // entire participant list also duplicated every participant's photo.
+    prisma.raceEntry.findMany({
+      where: { userId: playerId },
+      select: {
+        id: true,
+        finishPosition: true,
+        pointsAwarded: true,
+        race: {
+          select: {
+            id: true,
+            name: true,
+            metricKey: true,
+            status: true,
+            league: { select: { name: true, level: true } },
+          },
+        },
+      },
+      orderBy: { joinedAt: "desc" },
+      take: 20,
+    }),
     prisma.socialPost.findMany({
       where: { authorId: playerId },
-      include: postInclude(viewerId),
+      // The profile grid displays text/result summaries, not full feed cards.
+      // Exclude photo blobs, author avatars, and comments at the database so
+      // opening a profile never downloads its whole photo gallery.
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        raceEntry: { select: { race: { select: { id: true, name: true } } } },
+      },
       orderBy: { createdAt: "desc" },
       take: 24,
     }),
@@ -453,6 +480,11 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
     friendState,
     leagues,
     raceHistory,
-    posts: posts.map(serializePost),
+    posts: posts.map((post) => ({
+      id: post.id,
+      body: post.body,
+      createdAt: post.createdAt,
+      raceResult: post.raceEntry,
+    })),
   };
 }

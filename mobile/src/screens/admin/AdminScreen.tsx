@@ -1,7 +1,7 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
@@ -122,20 +122,22 @@ export function AdminScreen() {
 
 function OverviewPanel() {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const hasLoaded = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
-    if (!overview) setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     try {
       setOverview(await getAdminOverview());
+      hasLoaded.current = true;
       setLoadError(null);
     } catch (err) {
       setLoadError(err as Error);
     } finally {
       setLoading(false);
     }
-  }, [overview]);
+  }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

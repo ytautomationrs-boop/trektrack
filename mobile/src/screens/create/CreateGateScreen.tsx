@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { useAppState } from "../../state/useAppState";
 import { CreateRaceScreen } from "./CreateRaceScreen";

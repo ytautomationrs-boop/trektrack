@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { LoadError } from "../../components/LoadError";
@@ -99,9 +99,10 @@ export function WalletScreen() {
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [panel, setPanel] = useState<PanelMode>("none");
   const config = useAppConfig();
+  const hasLoaded = useRef(false);
 
   const load = useCallback(async () => {
-    if (!wallet && entries.length === 0) setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     setLoadError(null);
     const ledgerPromise = getLedger()
       .then((ledger) => {
@@ -114,6 +115,7 @@ export function WalletScreen() {
 
     try {
       setWallet(await getWallet());
+      hasLoaded.current = true;
       setLoadError(null);
     } catch (err) {
       setLoadError(err as Error);
@@ -122,7 +124,7 @@ export function WalletScreen() {
     }
 
     await ledgerPromise;
-  }, [entries.length, wallet]);
+  }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -293,6 +295,7 @@ type WithdrawMethod = "PAYSTACK" | "PAYPAL" | "MANUAL";
 // a few minutes to actually confirm it.
 function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: number; onDone: (w: Wallet) => void; onCancel: () => void }) {
   const config = useAppConfig();
+  const hasLoaded = useRef(false);
   // With automated payouts off there is exactly one route out — an EFT a
   // person sends — so the panel doesn't offer choices the server refuses.
   const manualOnly = !config.automatedPayoutsEnabled;

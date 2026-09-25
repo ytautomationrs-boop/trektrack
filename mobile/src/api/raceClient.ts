@@ -22,7 +22,7 @@ import type {
   WithdrawRaceResult,
 } from "./raceTypes";
 
-import { request } from "./http";
+import { request, type ReadOptions } from "./http";
 
 /** Every active race format and its pre-announced prize schedule, per league. */
 export function getRaceTypes() {
@@ -40,13 +40,13 @@ export function getLeagues() {
  * `enterable: false` — shown so progression is legible, never as something
  * they failed to qualify for.
  */
-export function getRaces(params: { scope?: "my_league" | "all"; metricKey?: string; format?: "INDIVIDUAL" | "SQUAD" } = {}) {
+export function getRaces(params: { scope?: "my_league" | "all"; metricKey?: string; format?: "INDIVIDUAL" | "SQUAD" } = {}, options?: ReadOptions<{ races: Race[] }>) {
   const q = new URLSearchParams();
   if (params.scope) q.set("scope", params.scope);
   if (params.metricKey) q.set("metricKey", params.metricKey);
   if (params.format) q.set("format", params.format);
   const suffix = q.toString() ? `?${q}` : "";
-  return request<{ races: Race[] }>(`/races${suffix}`);
+  return request<{ races: Race[] }>(`/races${suffix}`, options);
 }
 
 export function getRace(raceId: string) {
@@ -116,8 +116,8 @@ export function syncRaceStrava(raceEntryId: string) {
  * All four league standings — one per metric — plus which to lead with.
  * No global rank and no combined total, by design.
  */
-export function getLeagueStandings() {
-  return request<LeagueStandings>("/me/leagues");
+export function getLeagueStandings(options?: ReadOptions<LeagueStandings>) {
+  return request<LeagueStandings>("/me/leagues", options);
 }
 
 export function getCompetitionLeaderboards() {

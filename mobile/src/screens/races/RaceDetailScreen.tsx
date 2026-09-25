@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
@@ -102,19 +102,17 @@ export function RaceDetailScreen() {
     [raceId]
   );
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(useCallback(() => { void load(); }, [load]));
 
   // Poll while there's still something live to watch: fill count while
   // waiting to lock, scores while the clock is running. LOCKED and the
   // terminal statuses don't change on their own between refreshes.
   const pollableStatus = data?.race.status === "FILLING" || data?.race.status === "RUNNING";
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (!pollableStatus) return;
-    const id = setInterval(() => load({ silent: true }), POLL_INTERVAL_MS);
+    const id = setInterval(() => { void load({ silent: true }); }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pollableStatus, load]);
+  }, [pollableStatus, load]));
 
   const doEnter = async (
     opts: {

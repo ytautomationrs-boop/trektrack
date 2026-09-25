@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS "SocialPost" (
   CONSTRAINT "SocialPost_pkey" PRIMARY KEY ("id")
 );
 
+ALTER TABLE "SocialPost" ADD COLUMN IF NOT EXISTS "imageUrl" TEXT;
+
 CREATE INDEX IF NOT EXISTS "SocialPost_authorId_createdAt_idx" ON "SocialPost"("authorId", "createdAt");
 CREATE INDEX IF NOT EXISTS "SocialPost_createdAt_idx" ON "SocialPost"("createdAt");
 CREATE INDEX IF NOT EXISTS "SocialPost_raceEntryId_idx" ON "SocialPost"("raceEntryId");

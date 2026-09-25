@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { View, StatusBar, Platform, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useFonts, Caprasimo_400Regular } from "@expo-google-fonts/caprasimo";
-import { Figtree_400Regular, Figtree_500Medium, Figtree_600SemiBold, Figtree_700Bold } from "@expo-google-fonts/figtree";
+import { FontDisplay, useFonts } from "expo-font";
+import { Asset } from "expo-asset";
+import { Figtree_400Regular } from "@expo-google-fonts/figtree/400Regular";
+import { Figtree_500Medium } from "@expo-google-fonts/figtree/500Medium";
+import { Figtree_600SemiBold } from "@expo-google-fonts/figtree/600SemiBold";
+import { Figtree_700Bold } from "@expo-google-fonts/figtree/700Bold";
 import { colors } from "./src/theme/tokens";
 import { useAppState } from "./src/state/useAppState";
 import { restoreSession } from "./src/api/client";
@@ -61,12 +65,11 @@ export default function App() {
 }
 
 function AppRoot() {
-  const [fontsLoaded, fontError] = useFonts({
-    Caprasimo_400Regular,
-    Figtree_400Regular,
-    Figtree_500Medium,
-    Figtree_600SemiBold,
-    Figtree_700Bold,
+  useFonts({
+    Figtree_400Regular: { uri: Asset.fromModule(Figtree_400Regular).uri, display: FontDisplay.SWAP },
+    Figtree_500Medium: { uri: Asset.fromModule(Figtree_500Medium).uri, display: FontDisplay.SWAP },
+    Figtree_600SemiBold: { uri: Asset.fromModule(Figtree_600SemiBold).uri, display: FontDisplay.SWAP },
+    Figtree_700Bold: { uri: Asset.fromModule(Figtree_700Bold).uri, display: FontDisplay.SWAP },
   });
   const app = useAppState();
   const [restoring, setRestoring] = useState(true);
@@ -105,7 +108,6 @@ function AppRoot() {
       .finally(() => setRestoring(false));
   }, [restoreAttempt]);
 
-  if (!fontsLoaded && !fontError) return <Splash message="Loading ASTA" />;
 
   // Takes priority over the restoring spinner below — the user is mid-flow
   // on a URL that isn't meant to show the normal app shell at all.
@@ -166,9 +168,9 @@ function AppShell() {
     if (!app.session) return;
     // Give the launch screen priority, then warm the other main tabs.
     const timer = setTimeout(() => {
-      void getSocialEvents().catch(() => {});
+      void getSocialEvents({ cacheMode: "default" }).catch(() => {});
       void getSocialFeed().catch(() => {});
-    }, 1000);
+    }, 3500);
     return () => clearTimeout(timer);
   }, [app.session?.userId]);
 

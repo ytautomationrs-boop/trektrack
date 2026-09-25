@@ -22,7 +22,59 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const GET_CACHE_TTL_MS = 30_000;
 const inFlightGets = new Map<string, Promise<unknown>>();
 let cacheGeneration = 0;
-const getCache = new Map<string, { expiresAt: number; value: unknown }>();
+type CacheEntry = { expiresAt: number; previewUntil: number; value: unknown };
+const getCache = new Map<string, CacheEntry>();
+const PREVIEW_KEY = "asta_browse_cache_v1";
+const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
+// Only browsing data may survive a launch. Wallets, messages, admin data and
+// authentication responses always stay out of this persistent preview cache.
+const previewPaths = new Set(["/races?scope=my_league", "/races?scope=all", "/me/leagues", "/social-events", "/me/stats"]);
+let hydratedToken: string | null | undefined;
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+
+export type ReadOptions<T> = {
+  cacheMode?: "default" | "reload";
+  /** Paint a saved preview while the returned promise fetches current data. */
+  onCached?: (value: T) => void;
+};
+
+function hydratePreviews(token: string | null) {
+  if (hydratedToken === token) return;
+  hydratedToken = token;
+  if (!token || typeof window === "undefined") return;
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(PREVIEW_KEY) ?? "null");
+    if (saved?.owner !== token || !Array.isArray(saved.entries)) return;
+    for (const [path, entry] of saved.entries) {
+      if (previewPaths.has(path) && entry.previewUntil > Date.now()) {
+        // A new launch always revalidates; disk content is only a preview.
+        getCache.set(`${path}::${token}`, { ...entry, expiresAt: 0 });
+      }
+    }
+  } catch { /* Browsing still works if storage is unavailable or corrupt. */ }
+}
+
+function savePreviews(token: string | null) {
+  if (!token || typeof window === "undefined") return;
+  clearTimeout(saveTimer);
+  // Keep serialization off the first render and bound storage on small phones.
+  saveTimer = setTimeout(() => {
+    if (hydratedToken !== token) return;
+    try {
+      const entries: Array<[string, CacheEntry]> = [];
+      let bytes = 0;
+      for (const path of previewPaths) {
+        const entry = getCache.get(`${path}::${token}`);
+        if (!entry || entry.previewUntil <= Date.now()) continue;
+        const size = JSON.stringify(entry).length;
+        if (bytes + size > 750_000) continue;
+        entries.push([path, entry]);
+        bytes += size;
+      }
+      window.localStorage.setItem(PREVIEW_KEY, JSON.stringify({ owner: token, entries }));
+    } catch { /* Storage quota must never block the app. */ }
+  }, 250);
+}
 
 export type ApiError = Error & {
   /** Server-supplied slug, e.g. "insufficient_balance". Absent on network/timeout failures. */
@@ -55,6 +107,10 @@ export function setSessionExpiredHandler(fn: (() => void) | null) {
 
 export function clearApiCache(pathPrefix?: string) {
   cacheGeneration++;
+  clearTimeout(saveTimer);
+  if (typeof window !== "undefined") {
+    try { window.localStorage.removeItem(PREVIEW_KEY); } catch { /* optional */ }
+  }
   for (const key of getCache.keys()) {
     if (!pathPrefix || key.startsWith(pathPrefix)) getCache.delete(key);
   }
@@ -63,17 +119,19 @@ export function clearApiCache(pathPrefix?: string) {
   }
 }
 
-export async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
+export async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number } & ReadOptions<T>): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, cacheMode = "default", onCached, ...rest } = init ?? {};
   const method = (rest.method ?? "GET").toUpperCase();
   const isCacheableGet = method === "GET" && rest.body == null && !rest.headers;
   const token = await getToken();
+  hydratePreviews(token);
   const cacheKey = `${path}::${token ?? "anonymous"}`;
   const generation = cacheGeneration;
 
   if (isCacheableGet) {
     const cached = getCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+    if (cached && cached.previewUntil > Date.now()) onCached?.(cached.value as T);
+    if (cacheMode !== "reload" && cached && cached.expiresAt > Date.now()) return cached.value as T;
     const pending = inFlightGets.get(cacheKey);
     if (pending) return pending as Promise<T>;
   }
@@ -81,7 +139,8 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
   const run = async () => {
     const result = await requestUncached<T>(path, { ...rest, timeoutMs });
     if (isCacheableGet && generation === cacheGeneration && token === await getToken()) {
-      getCache.set(cacheKey, { value: result, expiresAt: Date.now() + GET_CACHE_TTL_MS });
+      getCache.set(cacheKey, { value: result, expiresAt: Date.now() + GET_CACHE_TTL_MS, previewUntil: Date.now() + PREVIEW_TTL_MS });
+      if (previewPaths.has(path)) savePreviews(token);
     } else if (method !== "GET") {
       clearApiCache();
     }
@@ -107,57 +166,42 @@ async function requestUncached<T>(path: string, init?: RequestInit & { timeoutMs
   const wasAuthenticated = "Authorization" in auth;
   const headers = { ...(rest.body == null ? {} : { "Content-Type": "application/json" }), ...auth, ...(rest.headers ?? {}) };
 
-  let res: Response;
   try {
-    res = await fetch(`${API_BASE_URL}${path}`, {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
       ...rest,
       signal: controller.signal,
       headers,
     });
-  } catch (err) {
-    // Distinguish "we gave up waiting" from "the network refused" — they read
-    // very differently to a user deciding whether to try again.
-    const aborted = err instanceof Error && err.name === "AbortError";
-    const wrapped: ApiError = new Error(
-      aborted
-        ? "That took too long to respond. Check your connection and try again."
-        : "Couldn't reach ASTA. Check your connection and try again."
-    );
-    wrapped.isNetworkError = true;
-    // Hostinger can cold-start after sitting idle. Retry reads once before
-    // showing an error; mutations are never repeated automatically.
-    if ((rest.method ?? "GET").toUpperCase() === "GET" && timeoutMs === DEFAULT_TIMEOUT_MS) {
+    const body = res.status === 204 ? undefined : await res.json().catch((error) => {
+      if (controller.signal.aborted) throw error;
+      if (res.ok) throw error;
+      return {};
+    });
+    if (!res.ok) {
+      const error: ApiError = new Error(body?.message ??
+        (body?.error === "invalid_credentials" ? "That email or password is incorrect." : `Request failed: ${res.status}`));
+      error.code = body?.error;
+      error.status = res.status;
+      if (res.status === 401 && wasAuthenticated) onSessionExpired?.();
+      throw error;
+    }
+    return body as T;
+  } catch (error) {
+    clearTimeout(timer);
+    const status = (error as ApiError).status;
+    const isRead = (rest.method ?? "GET").toUpperCase() === "GET";
+    const retryable = status ? status >= 500 : true;
+    if (isRead && retryable && timeoutMs === DEFAULT_TIMEOUT_MS) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 });
     }
+    if (status) throw error;
+    const wrapped: ApiError = new Error(controller.signal.aborted
+      ? "ASTA is taking longer than expected. Please try again."
+      : "Couldn't reach ASTA. Check your connection and try again.");
+    wrapped.isNetworkError = true;
     throw wrapped;
   } finally {
     clearTimeout(timer);
   }
-
-  if (res.status >= 500 && (rest.method ?? "GET").toUpperCase() === "GET" && timeoutMs === DEFAULT_TIMEOUT_MS) {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 });
-  }
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const message =
-      body.message ??
-      (body.error === "invalid_credentials" ? "That email or password is incorrect." : `Request failed: ${res.status}`);
-    const err: ApiError = new Error(message);
-    err.code = body.error;
-    err.status = res.status;
-
-    // Only when a token was actually sent — a 401 from /auth/login is a
-    // wrong password, not an expired session, and clearing state there
-    // would be nonsense.
-    if (res.status === 401 && wasAuthenticated) onSessionExpired?.();
-
-    throw err;
-  }
-
-  // 204 and other empty bodies are valid responses; json() would throw on them.
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }

@@ -858,9 +858,9 @@ export async function listOpenRacesForUser(userId: string) {
   const metricsWithARace = new Set(ownLevelRaces.map((r) => r.metricKey));
   const emptyMetrics = states.filter((s) => !metricsWithARace.has(s.metricKey) && s.currentLevel > 1);
 
-  const fallbackRaces = [];
-  for (const state of emptyMetrics) {
-    const lower = await prisma.race.findFirst({
+  // At most four metrics need a fallback. Fetch those in parallel and keep
+  // each query bounded to one race instead of serializing network trips.
+  const lowerRaces = await Promise.all(emptyMetrics.map((state) => prisma.race.findFirst({
       where: {
         status: "FILLING",
         visibility: "PUBLIC",
@@ -869,9 +869,8 @@ export async function listOpenRacesForUser(userId: string) {
       },
       include: raceListInclude,
       orderBy: [{ leagueLevel: "desc" }, { signupOpensAt: "asc" }],
-    });
-    if (lower) fallbackRaces.push(lower);
-  }
+    })));
+  const fallbackRaces = lowerRaces.filter((race): race is NonNullable<typeof race> => race !== null);
 
   return [
     ...ownLevelRaces.map((race) => ({ ...decorateRace(race, userId), isLowerLeagueOption: false })),

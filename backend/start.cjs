@@ -44,46 +44,67 @@ if (runStartupDatabaseMaintenance && process.env.SKIP_PRISMA_MIGRATE !== "true")
   }
 }
 
-// Hostinger deployments have previously had Prisma migration history drift
-// from the actual database shape. The repair SQL is idempotent, so run it on
-// every web-app boot unless it is explicitly skipped.
-if (runStartupDatabaseMaintenance && !skipRuntimeRepair) {
-  if (migrationFailed) {
-    console.warn("[startup] Prisma migrate failed; running Hostinger runtime repair fallback.");
+async function start() {
+  // Keep deployment migrations above. Only run the expensive DDL repair when
+  // a single read detects drift, or migration/probing failed. Healthy cold
+  // starts no longer replay the entire repair script before serving requests.
+  let repairNeeded = migrationFailed;
+  let schemaClient;
+  const { findMissingRuntimeColumns } = require("./startup-schema.cjs");
+  const { PrismaClient, Prisma } = require("@prisma/client");
+  if (runStartupDatabaseMaintenance && !skipRuntimeRepair && !repairNeeded) {
+    schemaClient = new PrismaClient();
+    try {
+      const missing = await findMissingRuntimeColumns(schemaClient, Prisma.dmmf.datamodel.models);
+      repairNeeded = missing.length > 0;
+      if (repairNeeded) console.warn(`[startup] Database schema is missing ${missing.length} expected columns; running runtime repair.`);
+    } catch (err) {
+      repairNeeded = true;
+      console.warn("[startup] Database schema check failed; running runtime repair fallback.", err.message);
+    } finally {
+      await schemaClient.$disconnect();
+    }
   }
 
-  const repair = spawnSync(
-    process.execPath,
-    [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
-    {
+  if (runStartupDatabaseMaintenance && !skipRuntimeRepair && repairNeeded) {
+    if (migrationFailed) {
+      console.warn("[startup] Prisma migrate failed; running Hostinger runtime repair fallback.");
+    }
+
+    const repair = spawnSync(
+      process.execPath,
+      [prismaCli, "db", "execute", "--schema", schemaPath, "--file", runtimeRepairSqlPath],
+      {
+        cwd: backendDir,
+        env: process.env,
+        stdio: "inherit",
+        timeout: 60_000,
+      },
+    );
+
+    if (repair.status !== 0) {
+      console.warn("[startup] Database runtime repair failed; continuing to start the web app. Database-backed features may need manual migration.");
+    }
+  }
+
+  if (process.env.RUN_PRISMA_SEED_ON_START === "true") {
+    const seed = spawnSync("npm", ["run", "seed"], {
       cwd: backendDir,
       env: process.env,
       stdio: "inherit",
-      timeout: 60_000,
-    },
-  );
+      timeout: 45_000,
+    });
 
-  if (repair.status !== 0) {
-    console.warn("[startup] Database runtime repair failed; continuing to start the web app. Database-backed features may need manual migration.");
+    if (seed.status !== 0) {
+      console.warn("[startup] Prisma seed failed; continuing to start the web app. Race/pool catalog data may need manual seeding.");
+    }
   }
+
+  const { startProductionServer } = await import("./dist/server.js");
+  await startProductionServer();
 }
 
-if (process.env.RUN_PRISMA_SEED_ON_START === "true") {
-  const seed = spawnSync("npm", ["run", "seed"], {
-    cwd: backendDir,
-    env: process.env,
-    stdio: "inherit",
-    timeout: 45_000,
-  });
-
-  if (seed.status !== 0) {
-    console.warn("[startup] Prisma seed failed; continuing to start the web app. Race/pool catalog data may need manual seeding.");
-  }
-}
-
-import("./dist/server.js")
-  .then(({ startProductionServer }) => startProductionServer())
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

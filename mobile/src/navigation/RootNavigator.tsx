@@ -1,24 +1,24 @@
-import React from "react";
-import { View, Pressable, StyleSheet, Platform } from "react-native";
-import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import React, { useCallback, useState } from "react";
+import { View, Text, Modal, Pressable, StyleSheet, Platform } from "react-native";
+import { NavigationContainer, DefaultTheme, useNavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, radii } from "../theme/tokens";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { colors, fonts, radii, spacing } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
 import { WalletScreen } from "../screens/wallet/WalletScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { SocialScreen } from "../screens/social/SocialScreen";
 import { RacesScreen } from "../screens/races/RacesScreen";
+import { LeaguesScreen } from "../screens/races/LeaguesScreen";
 import { RaceDetailScreen } from "../screens/races/RaceDetailScreen";
 import { MyRacesScreen } from "../screens/races/MyRacesScreen";
-import { EventsScreen } from "../screens/events/EventsScreen";
+import { EventsScreen, CreateEventScreen } from "../screens/events/EventsScreen";
 import { EventDetailScreen } from "../screens/events/EventDetailScreen";
 import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 import { AstaLogo } from "../components/AstaLogo";
-import { showAlert } from "../lib/alert";
 
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
@@ -36,6 +36,7 @@ function RacesStackScreen() {
   return (
     <RaceStack.Navigator screenOptions={{ headerShown: false }}>
       <RaceStack.Screen name="RacesList" component={RacesScreen} />
+      <RaceStack.Screen name="Leagues" component={LeaguesScreen} />
       <RaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
     </RaceStack.Navigator>
   );
@@ -45,6 +46,7 @@ function EventsStackScreen() {
   return (
     <EventsStack.Navigator screenOptions={{ headerShown: false }}>
       <EventsStack.Screen name="EventsHome" component={EventsScreen} />
+      <EventsStack.Screen name="CreateEvent" component={CreateEventScreen} />
       <EventsStack.Screen name="EventDetail" component={EventDetailScreen} />
     </EventsStack.Navigator>
   );
@@ -91,6 +93,7 @@ const linking = {
       Competitions: {
         screens: {
           RacesList: "competitions",
+          Leagues: "leagues",
         },
       },
       Races: {
@@ -108,60 +111,98 @@ const linking = {
   },
 } as any;
 
-// Center "Create" tab — a raised circular button that sits above the bar
-// rather than blending in as a fifth equal-weight icon, per spec ("center,
-// prominent"). react-navigation lets a tabBarButton fully replace the
-// default touchable, so this is still a real Tab.Screen underneath (deep
-// links, focus state, etc. all keep working) — only its visual chrome differs.
-//
-// Kept visible during the pilot even though regular users can't create
-// anything: see screens/create/CreateGateScreen.tsx for why, and for what
-// they get instead.
+// The centre action opens a small chooser; selecting an option keeps the
+// existing competition and social-game creation flows.
 function CreateTabButton({ onCompetition, onSocialGame }: { onCompetition: () => void; onSocialGame: () => void }) {
-  const chooseCreateType = () => {
-    showAlert("Create", "What would you like to create?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Competition", onPress: onCompetition },
-      { text: "Social game", onPress: onSocialGame },
-    ]);
+  const [chooserVisible, setChooserVisible] = useState(false);
+  const choose = (action: () => void) => {
+    setChooserVisible(false);
+    action();
   };
 
   return (
-    <Pressable
-      onPress={chooseCreateType}
-      style={styles.createButtonWrap}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel="Create"
-    >
-      <View style={styles.createButtonCircle}>
-        <Ionicons name="add" size={30} color={colors.bg} />
-      </View>
-    </Pressable>
+    <>
+      <Pressable
+        onPress={() => setChooserVisible(true)}
+        style={styles.createButtonWrap}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Create"
+      >
+        <View style={styles.createButtonCircle}>
+          <Ionicons name="add" size={30} color={colors.onAccent} />
+        </View>
+      </Pressable>
+      <Modal visible={chooserVisible} transparent animationType="fade" onRequestClose={() => setChooserVisible(false)}>
+        <View style={styles.chooserOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setChooserVisible(false)} accessibilityLabel="Dismiss create menu" />
+          <View style={styles.chooserCard} accessibilityViewIsModal>
+            <View style={styles.chooserHeading}>
+              <Text style={styles.chooserTitle}>Create</Text>
+              <Pressable style={styles.closeChooser} onPress={() => setChooserVisible(false)} accessibilityRole="button" accessibilityLabel="Close create menu">
+                <Ionicons name="close" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+            <Text style={styles.chooserDescription}>What would you like to organise?</Text>
+            <View style={styles.chooserOptions}>
+              <Pressable style={({ pressed }) => [styles.chooserOption, pressed && styles.optionPressed]} onPress={() => choose(onCompetition)} accessibilityRole="button" accessibilityLabel="Create competition">
+                <Ionicons name="trophy-outline" size={30} color={colors.onAccent} />
+                <Text style={styles.chooserOptionTitle}>Competition</Text>
+                <Text style={styles.chooserOptionDetail}>Race for a prize</Text>
+              </Pressable>
+              <Pressable style={({ pressed }) => [styles.chooserOption, pressed && styles.optionPressed]} onPress={() => choose(onSocialGame)} accessibilityRole="button" accessibilityLabel="Create social game">
+                <Ionicons name="people-outline" size={30} color={colors.onAccent} />
+                <Text style={styles.chooserOptionTitle}>Social game</Text>
+                <Text style={styles.chooserOptionDetail}>Play together</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
-function AppHeader() {
+function AppHeader({ canGoBack, onBack }: { canGoBack: boolean; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const capacitorTop = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 47 : 0;
   const topInset = Math.max(insets.top, capacitorTop);
   return (
     <View style={[styles.appHeader, { paddingTop: topInset + 4 }]}>
-      <AstaLogo width={86} height={44} backgroundColor={colors.bg} />
+      <View style={styles.headerRow}>
+        <View style={styles.headerSide}>
+          {canGoBack ? (
+            <Pressable style={styles.backButton} onPress={onBack} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+              <Ionicons name="chevron-back" size={28} color={colors.text} />
+            </Pressable>
+          ) : null}
+        </View>
+        <AstaLogo width={86} height={44} backgroundColor={colors.bg} />
+        <View style={styles.headerSide} />
+      </View>
     </View>
   );
 }
 
 export function RootNavigator() {
+  const navigationRef = useNavigationContainerRef();
+  const [canGoBack, setCanGoBack] = useState(false);
+  const updateBackState = useCallback(() => {
+    setCanGoBack(navigationRef.isReady() && navigationRef.canGoBack());
+  }, [navigationRef]);
+  const goBack = useCallback(() => {
+    if (navigationRef.isReady() && navigationRef.canGoBack()) navigationRef.goBack();
+  }, [navigationRef]);
   const insets = useSafeAreaInsets();
   const capacitorBottom = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 34 : 0;
   const bottomInset = Math.max(insets.bottom, capacitorBottom);
   return (
-    <NavigationContainer theme={navTheme} linking={linking}>
+    <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking} onReady={updateBackState} onStateChange={updateBackState}>
       <Tab.Navigator
+        backBehavior="history"
         screenOptions={({ route }) => ({
           headerShown: true,
-          header: () => <AppHeader />,
+          header: () => <AppHeader canGoBack={canGoBack} onBack={goBack} />,
           tabBarStyle: {
             backgroundColor: colors.surface,
             borderTopColor: colors.surfaceRaised,
@@ -191,10 +232,10 @@ export function RootNavigator() {
           component={CreateGateScreen}
           options={({ navigation }) => ({
             tabBarLabel: () => null,
-            tabBarButton: (props) => (
+            tabBarButton: () => (
               <CreateTabButton
-                onCompetition={() => props.onPress?.({} as any)}
-                onSocialGame={() => navigation.navigate("Events", { screen: "EventsHome", params: { openCreate: true } })}
+                onCompetition={() => navigation.navigate("Create")}
+                onSocialGame={() => navigation.navigate("Events", { screen: "CreateEvent", initial: false })}
               />
             ),
           })}
@@ -209,14 +250,27 @@ export function RootNavigator() {
 const styles = StyleSheet.create({
   appHeader: {
     minHeight: 72,
-    alignItems: "flex-start",
     justifyContent: "flex-end",
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceRaised,
-    paddingHorizontal: 22,
+    paddingHorizontal: 16,
     paddingBottom: 8,
   },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  headerSide: { width: 44, height: 44 },
+  backButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  chooserOverlay: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, backgroundColor: colors.glass },
+  chooserCard: { width: "100%", maxWidth: 420, backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.xl },
+  chooserHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chooserTitle: { fontFamily: fonts.display, color: colors.text, fontSize: 28 },
+  closeChooser: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
+  chooserDescription: { fontFamily: fonts.body, color: colors.sub, fontSize: 14, lineHeight: 20, marginTop: spacing.sm, marginBottom: spacing.xl },
+  chooserOptions: { flexDirection: "row", gap: spacing.md },
+  chooserOption: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", paddingVertical: spacing.xl, paddingHorizontal: spacing.sm, gap: spacing.sm, backgroundColor: colors.accent, borderRadius: radii.md },
+  chooserOptionTitle: { fontFamily: fonts.bodyBold, color: colors.onAccent, fontSize: 14, textAlign: "center" },
+  chooserOptionDetail: { fontFamily: fonts.body, color: colors.onAccent, fontSize: 11, textAlign: "center" },
+  optionPressed: { opacity: 0.8 },
   createButtonWrap: { flex: 1, alignItems: "center", justifyContent: "flex-start" },
   createButtonCircle: {
     width: 52,

@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { AstaLogo } from "../../components/AstaLogo";
 

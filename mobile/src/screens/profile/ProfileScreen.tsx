@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
@@ -23,13 +23,14 @@ import {
   type FriendState,
   type FriendsPayload,
   type PlayerProfile,
+  type ProfileRaceHistoryEntry,
   type PlayerSummary,
 } from "../../api/socialClient";
 import { connectStravaAccount } from "../../integrations/strava";
 import { useAppState } from "../../state/useAppState";
 import { formatMetricValue } from "../../utils/metricValue";
 import type { ProfileStats, StravaStatus } from "../../api/types";
-import type { LeagueStandings, MetricStanding, RaceHistoryEntry, RacePointEntry } from "../../api/raceTypes";
+import type { LeagueStandings, MetricStanding, RacePointEntry } from "../../api/raceTypes";
 import { iconFor } from "../../theme/metricIcons";
 
 /**
@@ -54,9 +55,9 @@ export function ProfileScreen() {
   const [points, setPoints] = useState<RacePointEntry[]>([]);
 
   const load = useCallback(() => {
-    getProfileStats().then(setStats).catch(() => setStats(null));
-    getLeagueStandings().then(setStandings).catch(() => setStandings(null));
-    getLeagueHistory().then((r) => setPoints(r.entries)).catch(() => setPoints([]));
+    getProfileStats({ onCached: setStats }).then(setStats).catch(() => {});
+    getLeagueStandings({ onCached: setStandings }).then(setStandings).catch(() => {});
+    getLeagueHistory().then((r) => setPoints(r.entries)).catch(() => {});
   }, []);
 
   useFocusEffect(
@@ -623,7 +624,7 @@ function PlayerProfileCard({
   );
 }
 
-function RaceHistoryRow({ entry }: { entry: RaceHistoryEntry }) {
+function RaceHistoryRow({ entry }: { entry: ProfileRaceHistoryEntry }) {
   return (
     <View style={styles.historyRow}>
       <View style={{ flex: 1 }}>

@@ -8,6 +8,7 @@ export const colors = {
   text: "#e6dcd0",
   sub: "#bcaea0",
   accent: "#972541",
+  onAccent: "#ffffff",
   accent2: "#e6dcd0",
   glass: "rgba(7, 26, 39, 0.78)",
   line: "rgba(230, 220, 208, 0.16)",

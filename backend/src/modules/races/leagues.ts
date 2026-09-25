@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type LeagueLevel, type UserLeagueState } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { LEAGUE_OPEN_FILL_MULTIPLIER, POINTS_FLOOR, RACE_ELIGIBLE_METRIC_KEYS } from "./config.js";
 
@@ -77,10 +77,14 @@ export async function getOrCreateLeagueState(userId: string, metricKey: string, 
 
 /** Every metric's standing for one user, in a stable order, creating any that are missing. */
 export async function getAllLeagueStates(userId: string) {
-  const states = await Promise.all(
-    RACE_ELIGIBLE_METRIC_KEYS.map((metricKey) => getOrCreateLeagueState(userId, metricKey))
+  const existing = await prisma.userLeagueState.findMany({
+    where: { userId, metricKey: { in: [...RACE_ELIGIBLE_METRIC_KEYS] } },
+  });
+  const byMetric = new Map(existing.map((state) => [state.metricKey, state]));
+  return Promise.all(
+    RACE_ELIGIBLE_METRIC_KEYS.map((metricKey) =>
+      byMetric.get(metricKey) ?? getOrCreateLeagueState(userId, metricKey))
   );
-  return states;
 }
 
 /** The highest level in this metric whose `minPoints` the total reaches. Never below 1. */
@@ -296,7 +300,8 @@ export type MetricStanding = {
 
 /** One metric's standing, shaped for display. */
 export async function getMetricStanding(userId: string, metricKey: string): Promise<MetricStanding> {
-  const state = await getOrCreateLeagueState(userId, metricKey);
+  const state = await prisma.userLeagueState.findUnique({ where: { userId_metricKey: { userId, metricKey } } })
+    ?? await getOrCreateLeagueState(userId, metricKey);
   const [metric, current, next] = await Promise.all([
     prisma.metricTypeDefinition.findUnique({ where: { key: metricKey } }),
     prisma.leagueLevel.findUnique({ where: { metricKey_level: { metricKey, level: state.currentLevel } } }),
@@ -306,12 +311,21 @@ export async function getMetricStanding(userId: string, metricKey: string): Prom
     }),
   ]);
 
+  return standingFromRows(state, metric?.displayName ?? metricKey, current, next);
+}
+
+function standingFromRows(
+  state: UserLeagueState,
+  metricName: string,
+  current: LeagueLevel | null,
+  next: LeagueLevel | null,
+): MetricStanding {
   const bandFloor = current?.minPoints ?? 0;
   const bandCeiling = next?.minPoints ?? null;
 
   return {
-    metricKey,
-    metricName: metric?.displayName ?? metricKey,
+    metricKey: state.metricKey,
+    metricName,
     totalPoints: state.totalPoints,
     racesEntered: state.racesEntered,
     racesWon: state.racesWon,
@@ -337,9 +351,26 @@ export async function getMetricStanding(userId: string, metricKey: string): Prom
  * summing four independent tracks would invent a number that means nothing.
  */
 export async function getLeagueStandings(userId: string) {
-  const standings = await Promise.all(
-    RACE_ELIGIBLE_METRIC_KEYS.map((metricKey) => getMetricStanding(userId, metricKey))
-  );
+  // Profile and league screens need all four tracks. Load their rows in three
+  // batched reads instead of four writes followed by twelve individual reads.
+  const [states, metrics, levels] = await Promise.all([
+    getAllLeagueStates(userId),
+    prisma.metricTypeDefinition.findMany({
+      where: { key: { in: [...RACE_ELIGIBLE_METRIC_KEYS] } },
+      select: { key: true, displayName: true },
+    }),
+    prisma.leagueLevel.findMany({
+      where: { metricKey: { in: [...RACE_ELIGIBLE_METRIC_KEYS] } },
+      orderBy: { level: "asc" },
+    }),
+  ]);
+  const names = new Map(metrics.map((metric) => [metric.key, metric.displayName]));
+  const standings = states.map((state) => standingFromRows(
+    state,
+    names.get(state.metricKey) ?? state.metricKey,
+    levels.find((level) => level.metricKey === state.metricKey && level.level === state.currentLevel) ?? null,
+    levels.find((level) => level.metricKey === state.metricKey && level.level > state.currentLevel) ?? null,
+  ));
 
   const primary = [...standings].sort(
     (a, b) => b.racesEntered - a.racesEntered || b.totalPoints - a.totalPoints

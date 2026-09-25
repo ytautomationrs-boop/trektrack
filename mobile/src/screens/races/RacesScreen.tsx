@@ -1,16 +1,15 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
 import { confirmVerifiable } from "../../lib/verifiability";
 import { LoadError } from "../../components/LoadError";
 import { iconFor } from "../../theme/metricIcons";
-import { getLeagueStandings, getRaces, enterRace } from "../../api/raceClient";
-import type { LeagueStandings, Race } from "../../api/raceTypes";
-import { LeagueHeader } from "./LeagueHeader";
+import { getRaces, enterRace } from "../../api/raceClient";
+import type { Race } from "../../api/raceTypes";
 import { sportImageFor } from "../../theme/sportImages";
 import { shareCode } from "../../lib/shareCode";
 import { raceUrl } from "../../lib/webLinks";
@@ -64,7 +63,7 @@ function visibilityLabel(race: Race) {
  */
 export function RacesScreen() {
   const navigation = useNavigation<any>();
-  const [standings, setStandings] = useState<LeagueStandings | null>(null);
+  const hasLoaded = useRef(false);
   // Which metric's races to show. null = all four.
   const [metricFilter, setMetricFilter] = useState<string | null>(null);
   const [races, setRaces] = useState<Race[]>([]);
@@ -73,21 +72,14 @@ export function RacesScreen() {
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showLeagues, setShowLeagues] = useState(false);
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
-      if (!opts.silent && races.length === 0) setLoading(true);
-      const standingsPromise = getLeagueStandings()
-        .then((leagueResult) => {
-          setStandings(leagueResult);
-        })
-        .catch(() => {
-          if (!opts.silent) setStandings(null);
-        });
+      if (!opts.silent) setLoading(true);
       try {
-        const raceResult = await getRaces({ scope });
+        const raceResult = await getRaces({ scope }, { onCached: (saved) => { setRaces(saved.races); hasLoaded.current = true; } });
         setRaces(raceResult.races);
+        hasLoaded.current = true;
         setLoadError(null);
       } catch (err) {
         // Failed background refreshes are swallowed — see LoadError's header.
@@ -95,29 +87,22 @@ export function RacesScreen() {
       } finally {
         if (!opts.silent) setLoading(false);
       }
-      await standingsPromise;
     },
-    [scope, races.length]
+    [scope]
   );
 
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const id = setInterval(() => load({ silent: true }), POLL_INTERVAL_MS * 2);
-    return () => clearInterval(id);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      void load({ silent: hasLoaded.current });
+      const id = setInterval(() => { void load({ silent: true }); }, POLL_INTERVAL_MS * 2);
+      return () => clearInterval(id);
+    }, [load])
+  );
 
   const visibleRaces = metricFilter ? races.filter((r) => r.metricKey === metricFilter) : races;
-  const metricFilters = standings?.standings.length ? standings.standings : DEFAULT_METRIC_FILTERS;
+  const metricFilters = DEFAULT_METRIC_FILTERS;
   const metricFilterName =
     metricFilters.find((s) => s.metricKey === metricFilter)?.metricName.toLowerCase() ?? metricFilter ?? "";
-
-  const selectMetric = (metricKey: string) => {
-    setMetricFilter(metricKey);
-    setStandings((current) => (current ? { ...current, primaryMetricKey: metricKey } : current));
-  };
 
   const doEnter = async (race: Race, acceptLowerLeague: boolean) => {
     setEntering(race.id);
@@ -187,11 +172,11 @@ export function RacesScreen() {
           <Text style={styles.header}>Competitions</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={showLeagues ? "Hide leagues" : "Show leagues"}
-            style={[styles.headerButton, showLeagues && styles.headerButtonActive]}
-            onPress={() => setShowLeagues((value) => !value)}
+            accessibilityLabel="Open leagues"
+            style={styles.headerButton}
+            onPress={() => navigation.navigate("Leagues")}
           >
-            <Ionicons name="podium-outline" size={16} color={colors.text} />
+            <Ionicons name="podium-outline" size={16} color={colors.onAccent} />
             <Text style={styles.headerButtonText}>Leagues</Text>
           </Pressable>
         </View>
@@ -205,10 +190,6 @@ export function RacesScreen() {
         </Pressable>
 
         {showHowItWorks && <HowItWorksCard />}
-
-        {showLeagues && !(loadError && !standings) && (
-          <LeagueHeader standings={standings} onSelectMetric={selectMetric} />
-        )}
 
         {/* Metric filter. Selecting one narrows to that metric's races at
             THAT metric's league level — never a combined or unrelated one. */}
@@ -490,8 +471,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  headerButtonActive: { opacity: 0.82 },
-  headerButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  headerButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.onAccent },
   howToggle: {
     flexDirection: "row",
     alignItems: "center",

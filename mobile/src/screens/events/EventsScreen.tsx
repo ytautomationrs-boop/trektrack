@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { LoadError } from "../../components/LoadError";
@@ -84,14 +84,15 @@ export function EventsScreen() {
   const [events, setEvents] = useState<SocialEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const hasLoaded = useRef(false);
   const [view, setView] = useState<"events" | "calendar">("events");
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!hasLoaded.current) setLoading(true);
     const sportsPromise = getSocialSports().then((r) => setSports(r.sports)).catch(() => {});
     try {
-      const result = await getSocialEvents();
+      const result = await getSocialEvents({ onCached: (saved) => { setEvents(saved.events); hasLoaded.current = true; } });
+      hasLoaded.current = true;
       setEvents(result.events);
       setLoadError(null);
     } catch (err) {
@@ -113,9 +114,8 @@ export function EventsScreen() {
   // Events later does not unexpectedly reopen the form.
   useEffect(() => {
     if (!route.params?.openCreate) return;
-    setView("events");
-    setShowCreate(true);
     navigation.setParams({ openCreate: undefined });
+    navigation.navigate("CreateEvent");
   }, [navigation, route.params?.openCreate]);
 
   const joined = useMemo(() => events.filter((event) => event.hasJoined), [events]);
@@ -138,12 +138,11 @@ export function EventsScreen() {
           </View>
           <Pressable
             style={styles.createButton}
-            onPress={() => {
-              setView("events");
-              setShowCreate((value) => !value);
-            }}
+            accessibilityRole="button"
+            accessibilityLabel="Create social game"
+            onPress={() => navigation.navigate("CreateEvent")}
           >
-            <Ionicons name={showCreate ? "close" : "add"} size={18} color={colors.bg} />
+            <Ionicons name="add" size={18} color={colors.onAccent} />
           </Pressable>
         </View>
 
@@ -157,17 +156,6 @@ export function EventsScreen() {
             <Text style={[styles.viewTabText, view === "calendar" && styles.viewTabTextActive]}>My calendar</Text>
           </Pressable>
         </View>
-
-        {showCreate && view === "events" ? (
-          <CreateEventPanel
-            sports={sports}
-            onCreated={(event) => {
-              setEvents((items) => [event, ...items.filter((item) => item.id !== event.id)]);
-              setShowCreate(false);
-              navigation.navigate("EventDetail", { eventId: event.id });
-            }}
-          />
-        ) : null}
 
         {loading && events.length === 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
         {!loading && loadError && events.length === 0 ? <LoadError error={loadError} onRetry={load} /> : null}
@@ -250,6 +238,18 @@ function EventCalendar({ events, onOpen }: { events: SocialEvent[]; onOpen: (eve
         </View>
       ))}
     </View>
+  );
+}
+
+export function CreateEventScreen() {
+  const navigation = useNavigation<any>();
+  const [sports, setSports] = useState<SocialSport[]>(FALLBACK_SPORTS);
+  useEffect(() => { void getSocialSports().then((result) => setSports(result.sports)).catch(() => {}); }, []);
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <Text style={styles.header}>Create a social game</Text>
+      <CreateEventPanel sports={sports} onCreated={(event) => navigation.replace("EventDetail", { eventId: event.id })} />
+    </ScrollView>
   );
 }
 

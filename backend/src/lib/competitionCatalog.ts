@@ -198,38 +198,53 @@ function assertViable(type: RaceTypeSeed, schedule: ScheduleSeed) {
 }
 
 async function seedCompetitionCatalog() {
-  const [metricCount, leagueCount, raceTypeCount, scheduleCount] = await Promise.all([
-    prisma.metricTypeDefinition.count({ where: { key: { in: METRIC_TYPES.map((metric) => metric.key) } } }),
-    prisma.leagueLevel.count(),
-    prisma.raceType.count(),
-    prisma.racePrizeSchedule.count(),
+  const types = buildRaceTypes();
+  const [metrics, leagues, raceTypes, schedules] = await Promise.all([
+    prisma.metricTypeDefinition.findMany({ where: { key: { in: METRIC_TYPES.map((metric) => metric.key) } } }),
+    prisma.leagueLevel.findMany({ where: { metricKey: { in: METRIC_TYPES.map((metric) => metric.key) }, level: { lte: LEAGUE_LEVELS_SEEDED } } }),
+    prisma.raceType.findMany({ where: { key: { in: types.map((type) => type.key) } } }),
+    prisma.racePrizeSchedule.findMany({
+      where: { raceTypeKey: { in: types.map((type) => type.key) }, leagueLevel: { lte: LEAGUE_LEVELS_SEEDED } },
+      select: { raceTypeKey: true, leagueLevel: true, _count: { select: { tiers: true } } },
+    }),
   ]);
-  const expectedSchedules = buildRaceTypes().length * LEAGUE_LEVELS_SEEDED;
-  const expectedLeagues = METRIC_TYPES.length * LEAGUE_LEVELS_SEEDED;
+  const metricsByKey = new Map(metrics.map((metric) => [metric.key, metric]));
+  const typesByKey = new Map(raceTypes.map((type) => [type.key, type]));
+  const leagueKeys = new Set(leagues.map((league) => `${league.metricKey}:${league.level}`));
+  const scheduleKeys = new Set(schedules.filter((schedule) => schedule._count.tiers > 0).map((schedule) => `${schedule.raceTypeKey}:${schedule.leagueLevel}`));
 
-  await ensurePlatformAccount(prisma);
+  // Public catalog reads must not rewrite 21 rows on every server cold start.
+  // Compare actual seed fields and keys, so changed definitions or missing
+  // schedules still get repaired; unrelated custom types cannot hide gaps.
+  const matchesSeed = (row: object | undefined, seed: object) => row !== undefined &&
+    Object.entries(seed).every(([key, value]) => Reflect.get(row, key) === value);
+  const missingSchedules = types.some((type) =>
+    Array.from({ length: LEAGUE_LEVELS_SEEDED }, (_, index) => index + 1)
+      .some((level) => !scheduleKeys.has(`${type.key}:${level}`)));
+  if (missingSchedules) await ensurePlatformAccount(prisma);
 
   for (const metric of METRIC_TYPES) {
     if (!isRaceEligibleMetric(metric.key)) {
       throw new Error(`Metric "${metric.key}" is not race-eligible.`);
     }
-    await prisma.metricTypeDefinition.upsert({
-      where: { key: metric.key },
-      update: metric,
-      create: metric,
-    });
+    if (!matchesSeed(metricsByKey.get(metric.key), metric)) {
+      await prisma.metricTypeDefinition.upsert({
+        where: { key: metric.key },
+        update: metric,
+        create: metric,
+      });
+    }
   }
 
-  for (const type of buildRaceTypes()) {
-    await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
-  }
-
-  if (metricCount >= METRIC_TYPES.length && leagueCount >= expectedLeagues && raceTypeCount >= buildRaceTypes().length && scheduleCount >= expectedSchedules) {
-    return;
+  for (const type of types) {
+    if (!matchesSeed(typesByKey.get(type.key), type)) {
+      await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
+    }
   }
 
   for (const metric of METRIC_TYPES) {
     for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+      if (leagueKeys.has(`${metric.key}:${level}`)) continue;
       const name = LEAGUE_NAMES[level - 1] ?? `League ${level}`;
       const minPoints = (level - 1) * LEAGUE_POINT_BAND;
       await prisma.leagueLevel.upsert({
@@ -251,11 +266,11 @@ async function seedCompetitionCatalog() {
     }
   }
 
-  for (const type of buildRaceTypes()) {
-    await prisma.raceType.upsert({ where: { key: type.key }, update: type, create: type });
-
+  for (const type of types) {
     const base = baseScheduleFor(type);
     for (let level = 1; level <= LEAGUE_LEVELS_SEEDED; level++) {
+      // Preserve configured schedules. Only fill genuinely missing data.
+      if (scheduleKeys.has(`${type.key}:${level}`)) continue;
       const scaled = scaleSchedule(base, level, type.entrantCount);
       assertViable(type, scaled);
 

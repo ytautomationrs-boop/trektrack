@@ -59,7 +59,6 @@ export function AuthScreen() {
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.brandBlock}>
           <AstaLogo size={88} />
-          <Text style={styles.logo}>ASTA</Text>
           <Text style={styles.tagline}>Race. Win. Climb.</Text>
         </View>
 
@@ -107,7 +106,6 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
   screen: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.xs },
   brandBlock: { alignItems: "center", marginBottom: spacing.xl },
-  logo: { fontFamily: fonts.display, fontSize: 48, color: colors.accent, fontStyle: "italic", marginTop: spacing.sm },
   tagline: { fontFamily: fonts.body, fontSize: 18, color: colors.sub, marginTop: spacing.xs },
   form: { width: "100%", gap: spacing.sm },
   input: {
