@@ -1,3 +1,4 @@
+import {listenWatchScores} from '../../lib/watch';
 import { GamePanel } from "./GamePanel";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -57,6 +58,12 @@ export function EventDetailScreen() {
       return()=>clearInterval(timer);
     }, [load])
   );
+
+  useFocusEffect(useCallback(()=>{
+    let active=true;
+    const listener=listenWatchScores(update=>{if(active&&update.eventId===eventId)setEvent(current=>current&&(current.game?.version??0)<update.game.version?{...current,game:update.game,status:update.status}:current);});
+    return()=>{active=false;void listener.then(handle=>handle?.remove());};
+  },[eventId]));
 
   const shareEvent = () => {
     if (!event) return;
@@ -201,7 +208,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   hero: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   heroIcon: { width: 56, height: 56, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, textAlign: "center", marginTop: spacing.md },
+  title: { fontFamily: fonts.display, fontSize: 24, color: colors.text, textAlign: "center", marginTop: spacing.md },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", marginTop: 3 },
   description: { fontFamily: fonts.body, fontSize: 13, color: colors.text, textAlign: "center", lineHeight: 19, marginTop: spacing.md },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
@@ -211,7 +218,7 @@ const styles = StyleSheet.create({
   leaveButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   deleteButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.accent, minHeight: 44 },
   deleteButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.accent },
-  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   countRow: { flexDirection: "row", justifyContent: "space-between", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },
   countText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },

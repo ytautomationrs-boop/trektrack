@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
   chooserOverlay: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, backgroundColor: colors.glass },
   chooserCard: { width: "100%", maxWidth: 420, backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.xl },
   chooserHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  chooserTitle: { fontFamily: fonts.display, textTransform: "uppercase", color: colors.text, fontSize: 28 },
+  chooserTitle: { fontFamily: fonts.display, color: colors.text, fontSize: 28 },
   closeChooser: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
   chooserDescription: { fontFamily: fonts.body, color: colors.sub, fontSize: 14, lineHeight: 20, marginTop: spacing.sm, marginBottom: spacing.xl },
   chooserOptions: { flexDirection: "row", gap: spacing.md },

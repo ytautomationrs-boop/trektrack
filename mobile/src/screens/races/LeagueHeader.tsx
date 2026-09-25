@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   metricLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   label: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, textTransform: "uppercase", letterSpacing: 0.6 },
-  leagueName: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, marginTop: 2 },
+  leagueName: { fontFamily: fonts.display, fontSize: 24, color: colors.text, marginTop: 2 },
   pointsBlock: { alignItems: "flex-end" },
   pointsValue: { fontFamily: fonts.bodyBold, fontSize: 26, color: colors.accent },
 

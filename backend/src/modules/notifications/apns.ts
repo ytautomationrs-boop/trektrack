@@ -16,7 +16,7 @@ async function send(token:string,payload:object,sandbox:boolean):Promise<{status
  return new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>{session.destroy();reject(new Error('APNs timed out'));},8000);
   session.on('error',error=>{clearTimeout(timer);session.destroy();reject(error);});
-  const req=session.request({':method':'POST',':path':`/3/device/${token}`,authorization:`bearer ${auth}`,'apns-topic':process.env.APNS_BUNDLE_ID||'com.asta.app','apns-push-type':'alert','apns-priority':'10'});
+  const req=session.request({':method':'POST',':path':`/3/device/${token}`,authorization:`bearer ${auth}`,'apns-topic':process.env.APNS_BUNDLE_ID||'com.reecewheeler.asta','apns-push-type':'alert','apns-priority':'10'});
   let status=0,body='';req.on('response',headers=>{status=Number(headers[':status']);});req.on('data',chunk=>body+=chunk);req.on('error',error=>{clearTimeout(timer);session.destroy();reject(error);});
   req.on('end',()=>{clearTimeout(timer);session.close();let reason;try{reason=JSON.parse(body).reason;}catch{} resolve({status,reason});});req.end(JSON.stringify(payload));
  });

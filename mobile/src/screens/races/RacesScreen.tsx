@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
-  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   headerButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   cardMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" },
   visibilityPill: {

@@ -92,16 +92,12 @@ export function listSocialSports() {
 }
 
 export async function listSocialEvents(viewerId: string) {
-  const events = await prisma.socialEvent.findMany({
-    where: {
-      status: { not: "CANCELLED" },
-      OR: [{ visibility: "PUBLIC", status: "UPCOMING", startsAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } }, { hostUserId: viewerId }, { participants: { some: { userId: viewerId, status: "JOINED" } } }],
-    },
-    include: eventInclude,
-    orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
-    take: 80,
-  });
-  return events.map((event) => decorateEvent(event, viewerId));
+  const membership = [{ hostUserId: viewerId }, { participants: { some: { userId: viewerId, status: "JOINED" as const } } }];
+  const [active, past] = await Promise.all([
+    prisma.socialEvent.findMany({where:{status:{in:['UPCOMING','LIVE']},OR:[{visibility:'PUBLIC',status:'UPCOMING',startsAt:{gte:new Date(Date.now()-3600000)}},...membership]},include:eventInclude,orderBy:{startsAt:'asc'},take:80}),
+    prisma.socialEvent.findMany({where:{status:'COMPLETED',OR:membership},include:eventInclude,orderBy:{startsAt:'desc'},take:40}),
+  ]);
+  return [...active,...past].map(event=>decorateEvent(event,viewerId));
 }
 
 export async function getSocialEvent(eventId: string, viewerId: string, inviteCode?: string | null) {

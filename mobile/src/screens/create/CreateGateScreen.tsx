@@ -58,6 +58,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, textAlign: "center" },
+  title: { fontFamily: fonts.display, fontSize: 24, color: colors.text, textAlign: "center" },
   body: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, textAlign: "center", lineHeight: 20 },
 });

@@ -547,7 +547,7 @@ export function CreateRaceScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2, marginBottom: spacing.lg },
 
   label: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.sm },
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent2,
     borderWidth: 2,
     backgroundColor: colors.surfaceRaised,
-    fontFamily: fonts.display, textTransform: "uppercase",
+    fontFamily: fonts.display,
     fontSize: 18,
   },
   inputLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub, marginBottom: spacing.sm },
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: spacing.sm },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   durationInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
-  durationInput: { flex: 1, fontFamily: fonts.display, textTransform: "uppercase", fontSize: 18 },
+  durationInput: { flex: 1, fontFamily: fonts.display, fontSize: 18 },
   durationSuffix: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   durationChip: { flexGrow: 1, flexBasis: "45%", backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   rowItem: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },

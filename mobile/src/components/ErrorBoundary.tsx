@@ -114,7 +114,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { flexGrow: 1, justifyContent: "center", padding: spacing.xl, gap: spacing.md },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 28, color: colors.text, textAlign: "center" },
+  title: { fontFamily: fonts.display, fontSize: 28, color: colors.text, textAlign: "center" },
   body: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, textAlign: "center", lineHeight: 20, marginBottom: spacing.sm },
   primaryButton: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },

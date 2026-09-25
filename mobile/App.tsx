@@ -1,3 +1,5 @@
+import {syncWatchSession} from './src/lib/watch';
+import {getToken} from './src/lib/tokenStorage';
 import "@expo/metro-runtime";
 import React, { useEffect, useState } from "react";
 import { View, StatusBar, Platform, Text, StyleSheet, ActivityIndicator } from "react-native";
@@ -69,6 +71,7 @@ export default function App() {
 function AppRoot() {
   useEffect(() => { void configureNativeExperience(); }, []);
   useFonts({
+    Montserrat_600SemiBold: {uri: Asset.fromModule(Platform.OS === "web" ? require("./assets/fonts/Montserrat-SemiBold.woff2") : require("./assets/fonts/Montserrat-SemiBold.ttf")).uri, display: FontDisplay.SWAP},
     ASTAHeading: { uri: Asset.fromModule(require("./assets/fonts/ASTAHeading.ttf")).uri, display: FontDisplay.SWAP },
     Figtree_400Regular: { uri: Asset.fromModule(Figtree_400Regular).uri, display: FontDisplay.SWAP },
     Figtree_500Medium: { uri: Asset.fromModule(Figtree_500Medium).uri, display: FontDisplay.SWAP },
@@ -76,6 +79,7 @@ function AppRoot() {
     Figtree_700Bold: { uri: Asset.fromModule(Figtree_700Bold).uri, display: FontDisplay.SWAP },
   });
   const app = useAppState();
+  useEffect(()=>{if(app.session)void getToken().then(syncWatchSession);},[app.session?.userId]);
   const [restoring, setRestoring] = useState(true);
   const [restoreError, setRestoreError] = useState<Error | null>(null);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
@@ -158,6 +162,7 @@ function Splash({ message }: { message: string }) {
  */
 function AppShell() {
   const app = useAppState();
+  useEffect(()=>{if(app.session)void getToken().then(syncWatchSession);},[app.session?.userId]);
 
   useEffect(() => {
     if (!app.session) return;

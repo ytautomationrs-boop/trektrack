@@ -1,3 +1,5 @@
+import {prisma} from '../../lib/prisma.js';
+import {scoreGame,scoreChoices,type Game} from './scoring.js';
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { updateGame } from "./game.js";
 import { z, ZodError } from "zod";
@@ -55,6 +57,10 @@ function sendEventError(reply: FastifyReply, err: unknown) {
 }
 
 export async function socialEventRoutes(app: FastifyInstance) {
+  app.get('/social-events/watch',{preHandler:requireAuth},async(req)=>{
+    const events=await prisma.socialEvent.findMany({where:{hostUserId:req.userId,status:'LIVE'},select:{id:true,name:true,sportKey:true,game:true},orderBy:{startsAt:'desc'},take:20});
+    return {events:events.filter(e=>e.game).map(e=>{const {actions,operationIds,...game}=e.game as Game;return {...e,game,score:scoreGame(e.sportKey,e.game as Game),choices:scoreChoices(e.sportKey)};})};
+  });
   app.post("/social-events/:id/game", {preHandler:requireAuth}, async(req,reply)=>{
     try {
       const {id}=req.params as {id:string};

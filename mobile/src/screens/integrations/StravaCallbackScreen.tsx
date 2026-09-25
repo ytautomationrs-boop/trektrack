@@ -79,7 +79,7 @@ export function StravaCallbackScreen({ onDone }: { onDone: () => void }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 18, color: colors.text, textAlign: "center" },
+  title: { fontFamily: fonts.display, fontSize: 18, color: colors.text, textAlign: "center" },
   text: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, textAlign: "center", marginTop: spacing.sm },
   button: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
   buttonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },

@@ -600,7 +600,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   balanceCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center", gap: spacing.sm },
   balanceLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
   balanceValue: { fontFamily: fonts.bodyBold, fontSize: 36, color: colors.text },
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   verifyButtonDisabled: { opacity: 0.5 },
   verifyButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   feeDisclosure: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, lineHeight: 15 },
-  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text },
   sponsorNote: {
     flexDirection: "row",
     gap: spacing.sm,

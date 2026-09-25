@@ -358,10 +358,12 @@ export async function listConversations(viewerId: string) {
   // Pick one message per conversation in SQL; do not repeat both avatars on 150 rows.
   const [messages, unread] = await Promise.all([
     prisma.$queryRaw<Array<{id:string;senderId:string;recipientId:string;body:string;createdAt:Date;readAt:Date|null;partnerId:string}>>`
-      SELECT * FROM (SELECT DISTINCT ON (CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END)
-      *, CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END AS "partnerId"
-      FROM "DirectMessage" WHERE "senderId"=${viewerId} OR "recipientId"=${viewerId}
-      ORDER BY CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END, "createdAt" DESC, "id" DESC) recent
+      WITH messages AS (
+        SELECT *, CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END AS "partnerId"
+        FROM "DirectMessage" WHERE "senderId"=${viewerId} OR "recipientId"=${viewerId}
+      )
+      SELECT * FROM (SELECT DISTINCT ON ("partnerId") * FROM messages
+        ORDER BY "partnerId", "createdAt" DESC, "id" DESC) recent
       ORDER BY "createdAt" DESC LIMIT 50`,
     prisma.directMessage.groupBy({by:['senderId'],where:{recipientId:viewerId,readAt:null},_count:{_all:true}}),
   ]);
@@ -481,4 +483,12 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
       raceResult: post.raceEntry,
     })),
   };
+}
+
+export async function getProfileGallery(viewerId:string,playerId:string) {
+ const [posts,games]=await Promise.all([
+  prisma.$queryRaw<Array<{id:string;body:string;imageUrl:string|null;createdAt:Date}>>`SELECT id, body, "createdAt", CASE WHEN "imageUrl" LIKE 'data:%' THEN NULL ELSE "imageUrl" END AS "imageUrl" FROM "SocialPost" WHERE "authorId"=${playerId} ORDER BY "createdAt" DESC LIMIT 60`,
+  prisma.socialEvent.findMany({where:{status:'COMPLETED',AND:[{OR:[{hostUserId:playerId},{participants:{some:{userId:playerId,status:'JOINED'}}}]},{OR:[{visibility:'PUBLIC'},{hostUserId:viewerId},{participants:{some:{userId:viewerId,status:'JOINED'}}}]}]},select:{id:true,name:true,sportKey:true,game:true,startsAt:true},orderBy:{startsAt:'desc'},take:40}),
+ ]);
+ return {posts,games:games.map(event=>({id:event.id,name:event.name,sportKey:event.sportKey,summary:event.game?gameSummary(event.sportKey,event.game as unknown as Game):'',finishedAt:(event.game as unknown as Game)?.finishedAt ?? event.startsAt}))};
 }

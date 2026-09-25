@@ -980,7 +980,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, marginBottom: spacing.md },
+  title: { fontFamily: fonts.display, fontSize: 24, color: colors.text, marginBottom: spacing.md },
 
   tabScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 54 },
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
   statCard: { width: "31%", minWidth: 94, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   statValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },
   statLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
-  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text, marginTop: spacing.md },
   controlStrip: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   controlPill: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minWidth: 92 },
   controlPillValue: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },

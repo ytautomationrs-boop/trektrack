@@ -1,3 +1,4 @@
+import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
@@ -50,6 +51,7 @@ function ordinal(n: number) {
 }
 
 export function ProfileScreen() {
+  const galleryUser = useAppState().session;
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [points, setPoints] = useState<RacePointEntry[]>([]);
@@ -71,6 +73,7 @@ export function ProfileScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <IdentityCard />
         <ProfileShortcuts />
+        {galleryUser && <ProfileGallery playerId={galleryUser.userId} />}
 
         {/* ── Race / league ───────────────────────────────────────────── */}
         <ModelHeading title="Competitions" subtitle="Fixed-prize races, ranked into leagues per metric." />
@@ -960,7 +963,7 @@ const styles = StyleSheet.create({
   },
 
   modelHeading: { marginTop: spacing.xxl, marginBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.surfaceRaised, paddingTop: spacing.lg },
-  modelHeadingTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 22, color: colors.text },
+  modelHeadingTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
   modelHeadingSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2, lineHeight: 17 },
 
   challengeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
@@ -968,7 +971,7 @@ const styles = StyleSheet.create({
   challengeSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
   challengeStatus: { fontFamily: fonts.bodySemiBold, fontSize: 11 },
 
-  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.xs },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.xs },
   sectionHint: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginBottom: spacing.md, lineHeight: 17 },
 
   badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -982,7 +985,7 @@ const styles = StyleSheet.create({
   badgeMuted: { opacity: 0.75 },
   badgeHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   badgeMetric: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, textTransform: "uppercase", letterSpacing: 0.5 },
-  badgeLeague: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 19, color: colors.text, marginTop: 2 },
+  badgeLeague: { fontFamily: fonts.display, fontSize: 19, color: colors.text, marginTop: 2 },
   badgeTrack: { height: 5, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, marginTop: spacing.sm, overflow: "hidden" },
   badgeFill: { height: 5, backgroundColor: colors.accent, borderRadius: radii.pill },
   badgePoints: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.sm },
@@ -991,7 +994,7 @@ const styles = StyleSheet.create({
 
   pointMetric: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, width: 62, textTransform: "capitalize" },
   card: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, marginTop: spacing.lg },
-  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 14, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, fontSize: 14, color: colors.text },
   cardBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2, lineHeight: 17 },
 
   codeRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
@@ -1078,7 +1081,7 @@ const styles = StyleSheet.create({
   },
   playerInitialLarge: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.accent },
   playerAvatarLargeImage: { width: "100%", height: "100%", borderRadius: radii.pill },
-  profileCardName: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 20, color: colors.text },
+  profileCardName: { fontFamily: fonts.display, fontSize: 20, color: colors.text },
   wideFriendButton: {
     minHeight: 42,
     borderRadius: radii.sm,

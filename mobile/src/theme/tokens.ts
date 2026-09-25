@@ -38,7 +38,7 @@ export const statusLabels: Record<keyof typeof statusColors, string> = {
 };
 
 export const fonts = {
-  display: "ASTAHeading",
+  display: "Montserrat_600SemiBold",
   body: "Figtree_400Regular",
   bodyMedium: "Figtree_500Medium",
   bodySemiBold: "Figtree_600SemiBold",

@@ -54,7 +54,7 @@ export function LeaguesScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  title: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   subtitle: { fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: colors.sub, marginTop: spacing.sm, marginBottom: spacing.xl },
   loading: { marginTop: spacing.xl },
 });

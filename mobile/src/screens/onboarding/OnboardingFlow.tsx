@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     gap: spacing.xl,
   },
   hero: { alignItems: "center", gap: spacing.xs },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, marginTop: spacing.sm },
+  title: { fontFamily: fonts.display, fontSize: 24, color: colors.text, marginTop: spacing.sm },
   subtitle: {
     fontFamily: fonts.body,
     fontSize: 15,

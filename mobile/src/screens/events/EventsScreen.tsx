@@ -119,8 +119,9 @@ export function EventsScreen() {
     navigation.navigate("CreateEvent");
   }, [navigation, route.params?.openCreate]);
 
-  const joined = useMemo(() => events.filter((event) => event.hasJoined), [events]);
-  const publicEvents = useMemo(() => events.filter((event) => event.visibility === "PUBLIC"), [events]);
+  const past = useMemo(() => events.filter(e=>e.status === "COMPLETED" && (e.hasJoined || e.isHost)).sort((a,b)=>Date.parse(b.game?.finishedAt ?? b.startsAt)-Date.parse(a.game?.finishedAt ?? a.startsAt)),[events]);
+  const joined = useMemo(() => events.filter((event) => event.hasJoined && event.status !== "COMPLETED"), [events]);
+  const publicEvents = useMemo(() => events.filter((event) => event.visibility === "PUBLIC" && event.status === "UPCOMING"), [events]);
   const otherPublicEvents = useMemo(
     () => publicEvents.filter((event) => !event.hasJoined && !event.isHost),
     [publicEvents]
@@ -187,6 +188,7 @@ export function EventsScreen() {
         ))}
           </>
         )}
+        {past.length > 0 && <><Text style={styles.sectionTitle}>Past events</Text>{past.map(event=><EventCard key={event.id} event={event} onOpen={()=>navigation.navigate("EventDetail",{eventId:event.id,preview:event})}/>)}</>}
       </ScrollView>
     </SafeAreaView></PageMotion>
   );
@@ -508,10 +510,10 @@ const styles = StyleSheet.create({
   viewTabText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   viewTabTextActive: { color: colors.bg },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
-  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   headerSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
   createButton: { width: 42, height: 42, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
   sectionSubtitle: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.sub, marginTop: -spacing.sm, marginBottom: spacing.md },
   panel: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   panelTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
@@ -540,7 +542,7 @@ const styles = StyleSheet.create({
   timeValueWrap: { alignItems: "center", justifyContent: "center", minHeight: 58 },
   timeValue: { fontFamily: fonts.bodyBold, fontSize: 36, color: colors.text, lineHeight: 42 },
   timeLabel: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.sub, marginTop: -2, textTransform: "uppercase" },
-  timeColon: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.sub, paddingHorizontal: spacing.sm, marginTop: -8 },
+  timeColon: { fontFamily: fonts.display, fontSize: 24, color: colors.sub, paddingHorizontal: spacing.sm, marginTop: -8 },
   selectorControl: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
   selectorButton: { width: 36, height: 38, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   selectorValue: { flex: 1, alignItems: "center", minWidth: 0 },
@@ -561,7 +563,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   eventIcon: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 16, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, fontSize: 16, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   visibilityPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.sm, paddingVertical: 4 },
   visibilityText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },

@@ -1,3 +1,4 @@
+import { getProfileGallery } from "./service.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z, ZodError } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
@@ -139,6 +140,8 @@ export async function socialRoutes(app: FastifyInstance) {
       return sendSocialError(reply, err);
     }
   });
+
+  app.get("/players/:id/gallery", {preHandler:requireAuth}, async req => getProfileGallery(req.userId,(req.params as {id:string}).id));
 
   app.get("/players/:id", { preHandler: requireAuth }, async (req, reply) => {
     try {

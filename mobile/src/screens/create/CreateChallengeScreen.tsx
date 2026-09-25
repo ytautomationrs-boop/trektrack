@@ -289,7 +289,7 @@ export function CreateChallengeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2, marginBottom: spacing.lg },
   label: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.sm },
   hint: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: spacing.sm, lineHeight: 17 },

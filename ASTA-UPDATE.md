@@ -10,7 +10,7 @@ The camera crash fix adds iOS camera and photo privacy descriptions and native p
 
 The in-app inbox stores invites, DMs, likes, comments, follows, and game start/finish alerts. Apple push delivery is implemented but requires a paid Apple Developer team, an APNs signing key and push provisioning. Personal Team installations continue to build with push signing disabled.
 
-For a paid team, enable Push Notifications in the App target's Signing & Capabilities and set user-defined build setting `ASTA_PUSH_ENTITLEMENTS` to `App/Push.entitlements` for Debug and Release. The project supplies development/production `ASTA_APNS_ENVIRONMENT` respectively. Set Hostinger environment variables `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the .p8 contents, actual or escaped newlines), and `APNS_BUNDLE_ID=com.asta.app`. Never commit the private key. Rebuild/install, then select Enable phone notifications in the inbox. Both Xcode sandbox and production tokens are supported. Without these credentials the inbox works; the UI does not claim phone notifications are enabled.
+Push Notifications is enabled in the App target using `App/Push.entitlements` for Debug and Release. The project supplies development/production `ASTA_APNS_ENVIRONMENT` respectively. Set Hostinger environment variables `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY` (the .p8 contents, actual or escaped newlines), and `APNS_BUNDLE_ID=com.reecewheeler.asta`. Never commit the private key. Rebuild/install, then select Enable phone notifications in the inbox. Both Xcode sandbox and production tokens are supported. Without these credentials the inbox works; the UI does not claim phone notifications are enabled.
 
 ## Games and sharing
 
@@ -23,3 +23,16 @@ Completed games can be posted to ASTA with an optional compressed photo. Device 
 Events open from existing list previews; event detail/join responses omit large embedded participant avatars. Joining locks only the relevant event and returns one refreshed result. Conversations query the latest message per partner instead of reading repeated user/photo data; threads fetch the latest 100 messages and optimistically show sends. Photos are resized/compressed before upload and new photos are stored separately with cacheable URLs. Page transitions use short opacity/translation animations and honor Reduce Motion. Focused polling stops when screens are not active.
 
 Game mutations use row locks, version checks and operation IDs to avoid duplicate points. Tests cover scoring, host/full-event restrictions, join limits, duplicate/stale operations, pause behavior and HTTP cache/session behavior. Actual camera capture and APNs delivery still require testing on the rebuilt physical device.
+
+
+## September 25: messaging, fast scoring, Watch, profiles
+
+The latest-conversation PostgreSQL query now binds its partner expression once in a CTE. A real PGlite regression test reproduces Prisma's separate bound parameters. Scoring uses a conditional JSON write with retries instead of an interactive transaction per point. The phone queues taps immediately, persists pending operations per account/event, and retries uncertain saves with the same operation ID. Undo/pause/finish wait for pending saves. Unsaved points can be explicitly discarded; re-open a game after restarting to resume its queue.
+
+Completed joined/hosted games move into Past events and appear automatically in the profile Games grid. Posts use a three-column thumbnail grid. Public profile game results obey the event's visibility. Headings use Montserrat SemiBold with no forced uppercase; the ASTA wordmark and body font remain unchanged. The web heading font is compressed and never blocks initial rendering.
+
+The `ASTAWatch` watchOS 10+ companion is embedded in the iPhone target. Start a full game as host on iPhone, then open ASTA on Apple Watch and select it. Sport-specific buttons submit through WatchConnectivity and native iPhone networking while the phone is in the background. The phone must be nearby and connected to the server; this is not a standalone cellular Watch client. Pending watch points persist and can be retried without duplicating scores. Signing out clears the phone-side Keychain token and invalidates the watch session. Private credentials never go to the watch.
+
+Apple rejected the former generic `com.asta.app` identifier as unavailable. The registered identifier is now `com.reecewheeler.asta`, with watch companion `com.reecewheeler.asta.watchkitapp`, team `K2B23SBUZ8`. The new build installs alongside an old differently identified app and requires signing in again. Do not delete the old app automatically.
+
+Validation: backend and mobile TypeScript checks; 37 unit/integration tests, including real PostgreSQL conversation parameters, scoring permissions/concurrency/idempotency, queued/offline score retries; signed iPhone/Watch build; isolated browser check of three rapid taps under 1.5-second network delay, Past events and 390px profile grid. Physical Watch scoring and real push delivery still require device validation.

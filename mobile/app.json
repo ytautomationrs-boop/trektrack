@@ -15,7 +15,7 @@
       "resizeMode": "contain"
     },
     "ios": {
-      "bundleIdentifier": "com.streak.demo",
+      "bundleIdentifier": "com.reecewheeler.asta",
       "supportsTablet": false,
       "infoPlist": {
         "NSHealthShareUsageDescription": "ASTA reads your steps and workouts from Health to verify competition results. Nothing is written back to Health.",

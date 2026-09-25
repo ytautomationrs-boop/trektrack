@@ -1,3 +1,4 @@
+import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -308,7 +309,7 @@ function SocialFeedScreen() {
 function SinglePostScreen() {
   const route=useRoute<any>();const navigation=useNavigation<any>();const [post,setPost]=useState<SocialPost|null>(null);const [error,setError]=useState('');
   useFocusEffect(useCallback(()=>{let active=true;void getSocialPost(route.params.postId).then(r=>{if(active)setPost(r.post);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[route.params.postId]));
-  return <PageMotion><ScrollView style={styles.screen} contentContainerStyle={styles.feedContent}><Text style={styles.pageTitle}>POST</Text>{error?<Text style={styles.postBody}>{error}</Text>:post?<PostCard post={post} friends={[]} onChange={setPost} onOpenProfile={()=>navigation.navigate('SocialProfile',{playerId:post.author.id})}/>:<ActivityIndicator color={colors.accent}/>}</ScrollView></PageMotion>;
+  return <PageMotion><ScrollView style={styles.screen} contentContainerStyle={styles.feedContent}><Text style={styles.pageTitle}>Post</Text>{error?<Text style={styles.postBody}>{error}</Text>:post?<PostCard post={post} friends={[]} onChange={setPost} onOpenProfile={()=>navigation.navigate('SocialProfile',{playerId:post.author.id})}/>:<ActivityIndicator color={colors.accent}/>}</ScrollView></PageMotion>;
 }
 
 function MessagesScreen() {
@@ -539,15 +540,7 @@ function SocialProfileScreen() {
             </Pressable>
           )}
         </View>
-        <View style={styles.profileGrid}>
-          {profile.posts.map((post) => (
-            <View key={post.id} style={styles.gridPost}>
-              <Ionicons name={post.raceResult ? "trophy-outline" : "chatbubble-outline"} size={18} color={colors.accent} />
-              <Text style={styles.gridText} numberOfLines={3}>{post.raceResult ? post.raceResult.race.name : post.body}</Text>
-            </View>
-          ))}
-          {profile.posts.length === 0 && <Text style={styles.emptyText}>No posts yet.</Text>}
-        </View>
+        <ProfileGallery playerId={profile.player.id} />
       </ScrollView>
     </SafeAreaView></PageMotion>
   );
@@ -766,7 +759,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   feedContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
   instaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  feedTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
+  feedTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.bg },
@@ -814,13 +807,13 @@ const styles = StyleSheet.create({
   resultTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   resultMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   resultScore: { alignItems: "flex-end" },
-  resultPosition: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 20, color: colors.accent },
+  resultPosition: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
   resultPoints: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
   resultPrize: { fontFamily: fonts.body, fontSize: 10, color: colors.sub },
   pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },
   pageHeaderInline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
   headerSpacer: { width: 22 },
-  pageTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 18, color: colors.text },
+  pageTitle: { fontFamily: fonts.display, fontSize: 18, color: colors.text },
   messageRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.sm },
   messageName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   messagePreview: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },

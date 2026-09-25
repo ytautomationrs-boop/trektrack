@@ -154,7 +154,7 @@ export function AlertHost() {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
   card: { width: "100%", maxWidth: 400, backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, gap: spacing.md },
-  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 17, color: colors.text },
+  title: { fontFamily: fonts.display, fontSize: 17, color: colors.text },
   message: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, lineHeight: 20 },
   // Wraps rather than squeezing — a three-button alert at 375px would
   // otherwise clip its labels.

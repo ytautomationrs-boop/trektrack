@@ -1,4 +1,6 @@
-import React,{useCallback,useRef,useState} from 'react';
+import {publishWatchGame} from '../../lib/watch';
+import {useScoreQueue} from '../../games/useScoreQueue';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import {View,Text,Pressable,StyleSheet,TextInput,Image,ActivityIndicator} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
 import {colors,fonts,radii,spacing} from '../../theme/tokens';
@@ -17,8 +19,13 @@ function Timer({game}:{game:Game}) {
 export function GamePanel({event,onChange,onRefresh}:{event:SocialEvent;onChange:(event:SocialEvent)=>void;onRefresh:()=>Promise<void>}) {
  const [teams,setTeams]=useState<[string,string]>(['Team A','Team B']);const [bestOf,setBestOf]=useState<1|3|5>(3);
  const [busy,setBusy]=useState(false);const actionLock=useRef(false);const [photo,setPhoto]=useState<string|null>(null);const [friends,setFriends]=useState<PlayerSummary[]|null>(null);const [invited,setInvited]=useState<string[]>([]);const [posted,setPosted]=useState(false);
- const game=event.game;const score=game?scoreGame(event.sportKey,game):null;const choices=scoreChoices(event.sportKey);
+ useEffect(()=>{if(event.isHost)void publishWatchGame(event);},[event.id,event.game?.version]);
+ const scoring=useScoreQueue(event.id,event.game);
+ useEffect(()=>{const saved=scoring.queue?.snapshot.game;if(saved&&saved.version>(event.game?.version??0))onChange({...event,game:saved});},[scoring.queue?.snapshot.game,event,onChange]);
+ const game=scoring.game;const score=game?scoreGame(event.sportKey,game):null;const choices=scoreChoices(event.sportKey);
  const action=async(action:'start'|'score'|'undo'|'pause'|'resume'|'finish',side?:0|1,value?:number)=>{
+  if(action==='score'&&side!==undefined&&value!==undefined){scoring.queue?.enqueue(side,value);return;}
+  if(scoring.pending)return;
   if(actionLock.current)return;actionLock.current=true;setBusy(true);
   const operationId=`${Date.now()}-${Math.random().toString(36).slice(2)}`;
   try {const result=await updateSocialGame(event.id,{action,operationId,version:game?.version??0,teams,bestOf,side,value});onChange({...event,game:result.game,status:result.status});}
@@ -29,7 +36,7 @@ export function GamePanel({event,onChange,onRefresh}:{event:SocialEvent;onChange
  const finish=()=>showAlert('Finish game?','This saves the final score and stops the timer.',[{text:'Keep playing',style:'cancel'},{text:'Finish game',onPress:()=>void action('finish')}]);
  const publish=async()=>{if(!game||busy)return;setBusy(true);try{await createSocialPost({body:`${event.name}\n${gameSummary(event.sportKey,game)}\n${Math.floor(game.elapsedMs/60000)} minutes · ${event.sportName}`,eventId:event.id,imageUrl:photo});setPosted(true);showAlert('Posted','Your result is now on your ASTA feed.');}catch(e:any){showAlert('Could not post',e.message);}finally{setBusy(false);}};
  return <View style={styles.card}>
-  <Text style={styles.heading}>{game?.finishedAt?'GAME SUMMARY':game?'LIVE GAME':'GAME DAY'}</Text>
+  <Text style={styles.heading}>{game?.finishedAt?'Game summary':game?'Live game':'Game day'}</Text>
   {!game && event.isHost ? <>
    <Text style={styles.body}>{event.participantCount<event.maxPlayers?'Start is available when all players have joined.':'All players are here. Name your teams, then start.'}</Text>
    <View style={styles.row}>{teams.map((team,i)=><TextInput key={i} accessibilityLabel={`Team ${i+1} name`} keyboardAppearance="dark" style={styles.input} value={team} maxLength={32} onChangeText={text=>setTeams(current=>i===0?[text,current[1]]:[current[0],text])}/>)}</View>
@@ -49,8 +56,8 @@ export function GamePanel({event,onChange,onRefresh}:{event:SocialEvent;onChange
    {score.completedSets.length?<Text style={styles.body}>Sets: {score.completedSets.map(s=>s.join('–')).join(' · ')}</Text>:null}
    {score.winner!==null?<Text style={styles.teamName}>{game.teams[score.winner]} won the match</Text>:null}
    {event.isHost&&!game.finishedAt?<>
-    <View style={styles.row}><Pressable style={styles.choice} disabled={busy} onPress={()=>action(game.runningSince?'pause':'resume')}><Text style={styles.white}>{game.runningSince?'Pause timer':'Resume timer'}</Text></Pressable><Pressable style={styles.choice} disabled={busy||!game.actions.length} onPress={()=>action('undo')}><Text style={styles.white}>Undo point</Text></Pressable></View>
-    <Pressable style={styles.button} disabled={busy} onPress={finish}><Text style={styles.white}>Finish game</Text></Pressable>
+    <View style={styles.row}><Pressable style={styles.choice} disabled={busy||scoring.pending>0} onPress={()=>action(game.runningSince?'pause':'resume')}><Text style={styles.white}>{game.runningSince?'Pause timer':'Resume timer'}</Text></Pressable><Pressable style={styles.choice} disabled={busy||scoring.pending>0||!game.actions.length} onPress={()=>action('undo')}><Text style={styles.white}>Undo point</Text></Pressable></View>
+    <Pressable style={styles.button} disabled={busy||scoring.pending>0} onPress={finish}><Text style={styles.white}>Finish game</Text></Pressable>
    </>:null}
    {game.finishedAt&&event.hasJoined?<>
     {photo?<Image source={{uri:photo}} style={styles.photo}/>:null}
@@ -59,10 +66,12 @@ export function GamePanel({event,onChange,onRefresh}:{event:SocialEvent;onChange
     <Text style={styles.body}>Share the result card to Instagram, WhatsApp, Facebook or another installed app.</Text>
    </>:null}
   </>:null}
+  {scoring.pending>0?<Text style={styles.body}>Saving {scoring.pending} {scoring.pending===1?'point':'points'}…</Text>:null}
+  {scoring.error?<><Text style={styles.body}>{scoring.error} Unsaved points remain on this device.</Text><View style={styles.row}><Pressable style={styles.button} onPress={()=>scoring.queue?.retry()}><Text style={styles.white}>Retry saving</Text></Pressable><Pressable style={styles.choice} onPress={()=>showAlert('Discard unsaved points?','Only points that have not been confirmed will be removed.',[{text:'Cancel',style:'cancel'},{text:'Discard',style:'destructive',onPress:()=>{scoring.queue?.discard();void onRefresh();}}])}><Text style={styles.white}>Discard unsaved</Text></Pressable></View></>:null}
   {busy?<ActivityIndicator color={colors.accent}/>:null}
   {event.hasJoined&&event.status==='UPCOMING'?<><Pressable style={styles.choice} onPress={async()=>{try{setFriends((await getFriends()).friends);}catch(e:any){showAlert('Invites',e.message);}}}><Text style={styles.white}>Invite friends</Text></Pressable>
   {friends?.filter(p=>!event.participants.some(e=>e.userId===p.id)).map(p=><Pressable key={p.id} style={styles.invite} disabled={invited.includes(p.id)} onPress={async()=>{setInvited(v=>[...v,p.id]);try{await inviteToSocialEvent(event.id,p.id);}catch(e:any){setInvited(v=>v.filter(id=>id!==p.id));showAlert('Invite',e.message);}}}><Text style={styles.body}>{p.displayName}</Text><Text style={styles.white}>{invited.includes(p.id)?'Invited':'Invite'}</Text></Pressable>)}
   {friends?.length===0?<Text style={styles.body}>Follow a player to invite them, or use Share event.</Text>:null}</>:null}
  </View>;
 }
-const styles=StyleSheet.create({card:{backgroundColor:colors.surface,padding:16,borderRadius:radii.lg,gap:14,marginTop:16},heading:{fontFamily:fonts.display,textTransform:'uppercase',fontSize:24,color:colors.text},body:{fontFamily:fonts.body,fontSize:13,color:colors.sub,lineHeight:20},row:{flexDirection:'row',gap:10},team:{flex:1,gap:8,alignItems:'stretch'},teamName:{fontFamily:fonts.bodyBold,fontSize:15,color:colors.text,textAlign:'center'},score:{fontFamily:fonts.bodyBold,fontSize:40,color:colors.text,textAlign:'center'},timer:{fontFamily:fonts.bodyBold,fontSize:32,color:colors.text,textAlign:'center',fontVariant:['tabular-nums']},input:{flex:1,minWidth:0,backgroundColor:colors.surfaceRaised,color:colors.text,borderRadius:10,padding:10,fontFamily:fonts.body,fontSize:16},button:{flexGrow:1,backgroundColor:colors.accent,borderRadius:12,padding:12,minHeight:44,justifyContent:'center'},choice:{flexGrow:1,backgroundColor:colors.surfaceRaised,borderRadius:12,padding:12},active:{backgroundColor:colors.accent},white:{fontFamily:fonts.bodyBold,fontSize:13,color:colors.onAccent,textAlign:'center'},disabled:{opacity:0.4},photo:{width:'100%',height:220,borderRadius:12},invite:{flexDirection:'row',justifyContent:'space-between',paddingVertical:10}});
+const styles=StyleSheet.create({card:{backgroundColor:colors.surface,padding:16,borderRadius:radii.lg,gap:14,marginTop:16},heading:{fontFamily:fonts.display,fontSize:24,color:colors.text},body:{fontFamily:fonts.body,fontSize:13,color:colors.sub,lineHeight:20},row:{flexDirection:'row',gap:10},team:{flex:1,gap:8,alignItems:'stretch'},teamName:{fontFamily:fonts.bodyBold,fontSize:15,color:colors.text,textAlign:'center'},score:{fontFamily:fonts.bodyBold,fontSize:40,color:colors.text,textAlign:'center'},timer:{fontFamily:fonts.bodyBold,fontSize:32,color:colors.text,textAlign:'center',fontVariant:['tabular-nums']},input:{flex:1,minWidth:0,backgroundColor:colors.surfaceRaised,color:colors.text,borderRadius:10,padding:10,fontFamily:fonts.body,fontSize:16},button:{flexGrow:1,backgroundColor:colors.accent,borderRadius:12,padding:12,minHeight:44,justifyContent:'center'},choice:{flexGrow:1,backgroundColor:colors.surfaceRaised,borderRadius:12,padding:12},active:{backgroundColor:colors.accent},white:{fontFamily:fonts.bodyBold,fontSize:13,color:colors.onAccent,textAlign:'center'},disabled:{opacity:0.4},photo:{width:'100%',height:220,borderRadius:12},invite:{flexDirection:'row',justifyContent:'space-between',paddingVertical:10}});

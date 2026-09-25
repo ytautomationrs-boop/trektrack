@@ -10,6 +10,7 @@ const config = getDefaultConfig(__dirname);
 const appRoot = escapeRegExp(path.resolve(__dirname));
 
 config.maxWorkers = 1;
+config.resolver.assetExts.push("woff2");
 config.resolver.blockList = exclusionList([
   new RegExp(`${appRoot}/dist/.*`),
   new RegExp(`${appRoot}/ios/.*`),

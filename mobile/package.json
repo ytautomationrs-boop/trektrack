@@ -23,6 +23,7 @@
     "@ebarooni/capacitor-calendar": "^8.7.0",
     "@expo-google-fonts/caprasimo": "^0.3.0",
     "@expo-google-fonts/figtree": "^0.3.0",
+    "@expo-google-fonts/montserrat": "^0.4.2",
     "@expo/metro-runtime": "~3.2.3",
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",

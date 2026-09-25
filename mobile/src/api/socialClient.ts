@@ -171,3 +171,6 @@ export function sendMessage(playerId: string, body: string) {
 }
 
 export const getSocialPost=(postId:string)=>request<{post:SocialPost}>(`/social/posts/${encodeURIComponent(postId)}`,{cacheMode:'reload'});
+
+export type ProfileGalleryData={posts:{id:string;body:string;imageUrl:string|null;createdAt:string}[];games:{id:string;name:string;sportKey:string;summary:string;finishedAt:string}[]};
+export const getProfileGallery=(id:string,options?:ReadOptions<ProfileGalleryData>)=>request<ProfileGalleryData>(`/players/${encodeURIComponent(id)}/gallery`,{cacheMode:'reload',...options});
