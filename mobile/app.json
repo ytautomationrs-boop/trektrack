@@ -7,9 +7,11 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "backgroundColor": "#241f19",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "splash": {
-      "backgroundColor": "#241f19",
+      "backgroundColor": "#972541",
       "resizeMode": "contain"
     },
     "ios": {
@@ -20,7 +22,13 @@
         "NSHealthUpdateUsageDescription": "ASTA does not write data to Health.",
         "NSCalendarsWriteOnlyAccessUsageDescription": "ASTA adds games you have joined to your Apple Calendar when you choose Add.",
         "NSCalendarsFullAccessUsageDescription": "ASTA can sync games you have joined with your Apple Calendar.",
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ],
+        "NSCameraUsageDescription": "Take photos to share on your ASTA profile and game summaries.",
+        "NSPhotoLibraryAddUsageDescription": "Save a game summary photo when you choose to share it.",
+        "NSPhotoLibraryUsageDescription": "Choose photos for your ASTA profile and game summaries."
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
@@ -46,7 +54,12 @@
       }
     },
     "plugins": [
-      ["react-native-health", { "isClinicalDataEnabled": false }],
+      [
+        "react-native-health",
+        {
+          "isClinicalDataEnabled": false
+        }
+      ],
       "expo-secure-store",
       "expo-splash-screen",
       "./plugins/withAndroidGradleHeap.js",

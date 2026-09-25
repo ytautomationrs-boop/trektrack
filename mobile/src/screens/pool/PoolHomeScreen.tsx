@@ -156,9 +156,9 @@ function ChallengeCard({ challenge, onPress }: { challenge: Challenge; onPress: 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: spacing.xs, marginBottom: spacing.lg, lineHeight: 18 },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
 
   emptyCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   cardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.48)" },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   metricBadge: { width: 36, height: 36, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   statusPill: { borderRadius: radii.pill, paddingHorizontal: spacing.md, paddingVertical: 4 },
   statusPillText: { fontFamily: fonts.bodyMedium, fontSize: 10 },

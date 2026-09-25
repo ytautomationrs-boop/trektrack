@@ -1,9 +1,10 @@
+import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as ImagePicker from "expo-image-picker";
+import { pickPhoto } from "../../lib/photos";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
@@ -17,6 +18,7 @@ import {
   getPlayerProfile,
   getPostableResults,
   getSocialFeed,
+  getSocialPost,
   likeSocialPost,
   removeFriend,
   requestFriend,
@@ -67,6 +69,7 @@ export function SocialScreen() {
       <Stack.Screen name="SocialFeed" component={SocialFeedScreen} />
       <Stack.Screen name="SocialMessages" component={MessagesScreen} />
       <Stack.Screen name="SocialThread" component={ThreadScreen} />
+      <Stack.Screen name="SocialPost" component={SinglePostScreen} />
       <Stack.Screen name="SocialProfile" component={SocialProfileScreen} />
     </Stack.Navigator>
   );
@@ -127,7 +130,7 @@ function SocialFeedScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load])
   );
 
@@ -166,21 +169,12 @@ function SocialFeedScreen() {
   };
 
   const choosePostPhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.5,
-      base64: true,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    if (!asset?.base64) return showAlert("Photo", "That photo could not be read. Try another one.");
-    if (asset.base64.length > 750_000) return showAlert("Photo", "That photo is too large. Choose a smaller photo or screenshot.");
-    setPostImage(`data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`);
+    try { const photo = await pickPhoto("post"); if (photo) setPostImage(photo); }
+    catch (err: any) { showAlert("Photo", err.message ?? "Could not open photos."); }
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView
         contentContainerStyle={styles.feedContent}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
@@ -212,7 +206,7 @@ function SocialFeedScreen() {
 
         <View style={styles.searchBar}>
           <Ionicons name="search" size={17} color={colors.sub} />
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
@@ -249,7 +243,7 @@ function SocialFeedScreen() {
         <View style={styles.composer}>
           <View style={styles.composerHead}>
             <Avatar player={app.session ?? null} size={38} />
-            <TextInput
+            <TextInput keyboardAppearance="dark"
               style={styles.composerInput}
               value={postText}
               onChangeText={setPostText}
@@ -307,8 +301,14 @@ function SocialFeedScreen() {
           />
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
+}
+
+function SinglePostScreen() {
+  const route=useRoute<any>();const navigation=useNavigation<any>();const [post,setPost]=useState<SocialPost|null>(null);const [error,setError]=useState('');
+  useFocusEffect(useCallback(()=>{let active=true;void getSocialPost(route.params.postId).then(r=>{if(active)setPost(r.post);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[route.params.postId]));
+  return <PageMotion><ScrollView style={styles.screen} contentContainerStyle={styles.feedContent}><Text style={styles.pageTitle}>POST</Text>{error?<Text style={styles.postBody}>{error}</Text>:post?<PostCard post={post} friends={[]} onChange={setPost} onOpenProfile={()=>navigation.navigate('SocialProfile',{playerId:post.author.id})}/>:<ActivityIndicator color={colors.accent}/>}</ScrollView></PageMotion>;
 }
 
 function MessagesScreen() {
@@ -319,7 +319,7 @@ function MessagesScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getConversations();
+      const result = await getConversations({onCached:r=>{setConversations(r.conversations);setLoading(false);}});
       setConversations(result.conversations);
     } catch (err: any) {
       showAlert("Messages", err.message ?? "Couldn't load messages.");
@@ -330,12 +330,14 @@ function MessagesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      const poll=setInterval(()=>{if(typeof document==='undefined'||!document.hidden)void load();},10000);
+      return()=>clearInterval(poll);
     }, [load])
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <View style={styles.pageHeader}>
         <View style={styles.headerSpacer} />
         <Text style={styles.pageTitle}>Messages</Text>
@@ -367,7 +369,7 @@ function MessagesScreen() {
           </Pressable>
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -380,12 +382,14 @@ function ThreadScreen() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const sendLock=useRef(false);
+  const mergeMessages=(incoming:DirectMessage[])=>setMessages(current=>Array.from(new Map([...current,...incoming].map(m=>[m.id,m])).values()).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(-100));
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await getConversation(playerId);
-      setMessages(result.messages);
+      const result = await getConversation(playerId,{onCached:r=>{mergeMessages(r.messages);setLoading(false);}});
+      mergeMessages(result.messages);
     } catch (err: any) {
       showAlert("Messages", err.message ?? "Couldn't load this thread.");
     } finally {
@@ -395,28 +399,35 @@ function ThreadScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      const poll=setInterval(()=>{if(typeof document==='undefined'||!document.hidden)void load();},10000);
+      return()=>clearInterval(poll);
     }, [load])
   );
 
   const send = async () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body || sendLock.current) return;
+    sendLock.current=true;
+    const temporaryId=`pending-${Date.now()}`;
+    setMessages(items=>[...items,{id:temporaryId,senderId:"me",recipientId:playerId,body,createdAt:new Date().toISOString(),readAt:null,isMine:true}]);
     setText("");
     setBusy(true);
     try {
       const result = await sendMessage(playerId, body);
-      setMessages((items) => [...items, result.message]);
+      setMessages((items) => [...items.filter(m=>m.id!==temporaryId&&m.id!==result.message.id), result.message]);
     } catch (err: any) {
-      setText(body);
+      setMessages(items=>items.filter(m=>m.id!==temporaryId));
+      setText(current=>current || body);
       showAlert("Message failed", err.message ?? "Try again.");
     } finally {
+      sendLock.current=false;
       setBusy(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <View style={styles.pageHeader}>
         <View style={styles.headerSpacer} />
         <Text style={styles.pageTitle}>{playerName}</Text>
@@ -424,8 +435,8 @@ function ThreadScreen() {
           <Ionicons name="person-circle-outline" size={23} color={colors.text} />
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.threadContent}>
-        {loading ? <ActivityIndicator color={colors.accent} /> : null}
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.threadContent}>
+        {loading && !messages.length ? <ActivityIndicator color={colors.accent} /> : null}
         {messages.map((message) => (
           <View key={message.id} style={[styles.threadBubble, message.isMine ? styles.threadMine : styles.threadTheirs]}>
             <Text style={[styles.threadText, message.isMine && styles.threadMineText]}>{message.body}</Text>
@@ -433,12 +444,12 @@ function ThreadScreen() {
         ))}
       </ScrollView>
       <View style={styles.threadComposer}>
-        <TextInput style={styles.threadInput} value={text} onChangeText={setText} placeholder="Message" placeholderTextColor={colors.sub} multiline maxLength={500} />
+        <TextInput keyboardAppearance="dark" style={styles.threadInput} value={text} onChangeText={setText} placeholder="Message" placeholderTextColor={colors.sub} multiline maxLength={500} />
         <Pressable style={[styles.threadSend, (!text.trim() || busy) && styles.disabled]} disabled={!text.trim() || busy} onPress={send}>
           {busy ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={16} color={colors.bg} />}
         </Pressable>
       </View>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -463,7 +474,7 @@ function SocialProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
     }, [load])
   );
 
@@ -484,14 +495,14 @@ function SocialProfileScreen() {
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.screen} edges={["top"]}>
+      <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
         <View style={styles.pageHeader}>
           <View style={styles.headerSpacer} />
           <Text style={styles.pageTitle}>Profile</Text>
           <View style={styles.headerSpacer} />
         </View>
         {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
-      </SafeAreaView>
+      </SafeAreaView></PageMotion>
     );
   }
 
@@ -500,7 +511,7 @@ function SocialProfileScreen() {
   const podiums = profile.raceHistory.filter((entry) => entry.finishPosition != null && entry.finishPosition <= 3).length;
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView contentContainerStyle={styles.feedContent}>
         <View style={styles.pageHeaderInline}>
           <View style={styles.headerSpacer} />
@@ -538,7 +549,7 @@ function SocialProfileScreen() {
           {profile.posts.length === 0 && <Text style={styles.emptyText}>No posts yet.</Text>}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -624,6 +635,7 @@ function PostCard({
         <Ionicons name="ellipsis-horizontal" size={18} color={colors.sub} />
       </Pressable>
       {post.raceResult && <ResultPanel result={post.raceResult} />}
+      {post.eventResult ? <View style={{padding:14,backgroundColor:colors.surfaceRaised,borderRadius:12,gap:6}}><Text style={styles.messageName}>{post.eventResult.name}</Text><Text style={styles.postBody}>{post.eventResult.summary}</Text><Text style={styles.messagePreview}>{post.eventResult.sportName} · {Math.floor(post.eventResult.elapsedMs/60000)} minutes</Text></View> : null}
       {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postPhoto} resizeMode="cover" /> : null}
       <Text style={styles.postBody}>{post.body}</Text>
       <View style={styles.postActions}>
@@ -652,7 +664,7 @@ function PostCard({
       )}
       {commentOpen && (
         <View style={styles.commentComposer}>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.commentInput}
             value={commentText}
             onChangeText={setCommentText}
@@ -754,7 +766,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   feedContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
   instaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  feedTitle: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
+  feedTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
   badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.bg },
@@ -762,7 +774,7 @@ const styles = StyleSheet.create({
   story: { width: 68, alignItems: "center", gap: 5 },
   storyText: { maxWidth: 68, fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.sub },
   avatarWrap: { backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.accent },
-  avatarInitial: { fontFamily: fonts.display, color: colors.accent },
+  avatarInitial: { fontFamily: fonts.bodyBold, color: colors.accent },
   searchBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radii.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm },
   searchInput: { flex: 1, minHeight: 34, color: colors.text, fontFamily: fonts.body, fontSize: 14 },
   searchGo: { width: 32, height: 32, borderRadius: radii.sm, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
@@ -802,13 +814,13 @@ const styles = StyleSheet.create({
   resultTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   resultMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   resultScore: { alignItems: "flex-end" },
-  resultPosition: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
+  resultPosition: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 20, color: colors.accent },
   resultPoints: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
   resultPrize: { fontFamily: fonts.body, fontSize: 10, color: colors.sub },
   pageHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },
   pageHeaderInline: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
   headerSpacer: { width: 22 },
-  pageTitle: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.text },
+  pageTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 18, color: colors.text },
   messageRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.sm },
   messageName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   messagePreview: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
@@ -829,7 +841,7 @@ const styles = StyleSheet.create({
   profileTop: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
   profileStats: { flex: 1, flexDirection: "row", justifyContent: "space-between" },
   statMini: { alignItems: "center", flex: 1 },
-  statValue: { fontFamily: fonts.display, fontSize: 19, color: colors.text },
+  statValue: { fontFamily: fonts.bodyBold, fontSize: 19, color: colors.text },
   statLabel: { fontFamily: fonts.body, fontSize: 10, color: colors.sub },
   profileName: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.text, marginTop: spacing.md },
   profileBio: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, lineHeight: 18, marginTop: 3 },

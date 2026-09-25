@@ -18,6 +18,7 @@ import { stravaRoutes } from "./modules/integrations/strava/routes.js";
 import { walletRoutes } from "./modules/wallet/routes.js";
 import { raceRoutes } from "./modules/races/routes.js";
 import { challengeRoutes } from "./modules/challenges/routes.js";
+import { mediaRoutes } from "./modules/media/service.js";
 import { notificationRoutes } from "./modules/notifications/routes.js";
 import { socialRoutes } from "./modules/social/routes.js";
 import { socialEventRoutes } from "./modules/events/routes.js";
@@ -209,6 +210,7 @@ export async function buildServer() {
   await app.register(walletRoutes);
   await app.register(raceRoutes);
   await app.register(challengeRoutes);
+  await app.register(mediaRoutes);
   await app.register(notificationRoutes);
   await app.register(socialRoutes);
   await app.register(socialEventRoutes);

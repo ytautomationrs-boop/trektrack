@@ -406,7 +406,7 @@ function FundPanel() {
         Nobody pays in during the pilot, so a new account has nothing to enter a race with until you fund it.
       </Text>
 
-      <TextInput
+      <TextInput keyboardAppearance="dark"
         style={styles.input}
         placeholder="Their email"
         placeholderTextColor={colors.sub}
@@ -428,7 +428,7 @@ function FundPanel() {
         ))}
       </View>
 
-      <TextInput
+      <TextInput keyboardAppearance="dark"
         style={[styles.input, amountText.trim().length > 0 && !amountIsValid && styles.inputError]}
         placeholder="Amount (R)"
         placeholderTextColor={colors.sub}
@@ -439,7 +439,7 @@ function FundPanel() {
       {amountText.trim() && !amountIsValid ? (
         <Text style={styles.errorText}>Use any Rand amount from R0.01 to R5,000.</Text>
       ) : null}
-      <TextInput
+      <TextInput keyboardAppearance="dark"
         style={styles.input}
         placeholder="Note (e.g. pilot wave 1)"
         placeholderTextColor={colors.sub}
@@ -674,7 +674,7 @@ function InvitesPanel() {
 
       <View style={styles.customInviteCard}>
         <Text style={styles.sectionTitle}>Make your own code</Text>
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.input}
           placeholder="e.g. reece-friends"
           placeholderTextColor={colors.sub}
@@ -683,7 +683,7 @@ function InvitesPanel() {
           value={customCode}
           onChangeText={setCustomCode}
         />
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.input}
           placeholder="Label"
           placeholderTextColor={colors.sub}
@@ -980,7 +980,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, marginBottom: spacing.md },
+  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, marginBottom: spacing.md },
 
   tabScroller: { flexGrow: 0, flexShrink: 0, maxHeight: 54 },
   tabs: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
@@ -1094,7 +1094,7 @@ const styles = StyleSheet.create({
   statCard: { width: "31%", minWidth: 94, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   statValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },
   statLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.md },
   controlStrip: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   controlPill: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, minWidth: 92 },
   controlPillValue: { fontFamily: fonts.bodyBold, fontSize: 17, color: colors.text },

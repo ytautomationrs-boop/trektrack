@@ -63,6 +63,7 @@ export type SocialPost = {
   id: string;
   body: string;
   imageUrl: string | null;
+  eventResult?: {eventId:string;name:string;sportName:string;summary:string;elapsedMs:number} | null;
   createdAt: string;
   author: PlayerSummary;
   raceResult: SocialRaceResult | null;
@@ -108,7 +109,7 @@ export function getPostableResults() {
   return request<{ results: SocialRaceResult[] }>("/social/postable-results");
 }
 
-export function createSocialPost(input: { body: string; raceEntryId?: string | null; imageUrl?: string | null }) {
+export function createSocialPost(input: { body: string; raceEntryId?: string | null; imageUrl?: string | null; eventId?: string | null }) {
   return request<{ post: SocialPost }>("/social/posts", { method: "POST", body: JSON.stringify(input) });
 }
 
@@ -154,12 +155,12 @@ export function removeFriend(playerId: string) {
   return request<{ friendState: FriendState }>(`/friends/${encodeURIComponent(playerId)}`, { method: "DELETE" });
 }
 
-export function getConversations() {
-  return request<{ conversations: ConversationSummary[] }>("/messages/conversations");
+export function getConversations(options?: ReadOptions<{conversations:ConversationSummary[]}>) {
+  return request<{ conversations: ConversationSummary[] }>("/messages/conversations",{cacheMode:"reload",...options});
 }
 
-export function getConversation(playerId: string) {
-  return request<{ messages: DirectMessage[] }>(`/messages/${encodeURIComponent(playerId)}`);
+export function getConversation(playerId: string, options?: ReadOptions<{messages:DirectMessage[]}>) {
+  return request<{ messages: DirectMessage[] }>(`/messages/${encodeURIComponent(playerId)}`, {cacheMode:"reload",...options});
 }
 
 export function sendMessage(playerId: string, body: string) {
@@ -168,3 +169,5 @@ export function sendMessage(playerId: string, body: string) {
     body: JSON.stringify({ body }),
   });
 }
+
+export const getSocialPost=(postId:string)=>request<{post:SocialPost}>(`/social/posts/${encodeURIComponent(postId)}`,{cacheMode:'reload'});

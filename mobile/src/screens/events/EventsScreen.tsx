@@ -1,3 +1,4 @@
+import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -126,7 +127,7 @@ export function EventsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
@@ -161,14 +162,14 @@ export function EventsScreen() {
         {!loading && loadError && events.length === 0 ? <LoadError error={loadError} onRetry={load} /> : null}
 
         {view === "calendar" ? (
-          <EventCalendar events={joined} onOpen={(event) => navigation.navigate("EventDetail", { eventId: event.id })} />
+          <EventCalendar events={joined} onOpen={(event) => navigation.navigate("EventDetail", { eventId: event.id, preview: event })} />
         ) : (
           <>
         {joined.length > 0 ? (
           <>
             <Text style={styles.sectionTitle}>Your events</Text>
             {joined.map((event) => (
-              <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
+              <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id, preview: event })} />
             ))}
           </>
         ) : null}
@@ -182,12 +183,12 @@ export function EventsScreen() {
           </View>
         ) : null}
         {otherPublicEvents.map((event) => (
-          <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
+          <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id, preview: event })} />
         ))}
           </>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -248,7 +249,7 @@ export function CreateEventScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.header}>Create a social game</Text>
-      <CreateEventPanel sports={sports} onCreated={(event) => navigation.replace("EventDetail", { eventId: event.id })} />
+      <CreateEventPanel sports={sports} onCreated={(event) => navigation.replace("EventDetail", { eventId: event.id, preview: event })} />
     </ScrollView>
   );
 }
@@ -309,11 +310,11 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
       </LabeledField>
       {sportKey === "custom" && (
         <LabeledField label="Custom sport">
-          <TextInput style={styles.input} value={customSportName} onChangeText={setCustomSportName} placeholder="Custom game name" placeholderTextColor={colors.sub} />
+          <TextInput keyboardAppearance="dark" style={styles.input} value={customSportName} onChangeText={setCustomSportName} placeholder="Custom game name" placeholderTextColor={colors.sub} />
         </LabeledField>
       )}
       <LabeledField label="Event name">
-        <TextInput style={styles.input} value={name} onChangeText={setName} placeholder={defaultName} placeholderTextColor={colors.sub} />
+        <TextInput keyboardAppearance="dark" style={styles.input} value={name} onChangeText={setName} placeholder={defaultName} placeholderTextColor={colors.sub} />
       </LabeledField>
       <LabeledField label="Date">
         <SelectorControl
@@ -354,10 +355,10 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
         </LabeledField>
       </View>
       <LabeledField label="Location">
-        <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Court, field, club, or address" placeholderTextColor={colors.sub} />
+        <TextInput keyboardAppearance="dark" style={styles.input} value={location} onChangeText={setLocation} placeholder="Court, field, club, or address" placeholderTextColor={colors.sub} />
       </LabeledField>
       <LabeledField label="Details">
-        <TextInput style={[styles.input, styles.description]} value={description} onChangeText={setDescription} placeholder="Rules, team size, skill level, or notes" placeholderTextColor={colors.sub} multiline />
+        <TextInput keyboardAppearance="dark" style={[styles.input, styles.description]} value={description} onChangeText={setDescription} placeholder="Rules, team size, skill level, or notes" placeholderTextColor={colors.sub} multiline />
       </LabeledField>
       <Pressable style={[styles.primaryButton, busy && styles.disabled]} disabled={busy} onPress={submit}>
         {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryButtonText}>Create event</Text>}
@@ -507,10 +508,10 @@ const styles = StyleSheet.create({
   viewTabText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   viewTabTextActive: { color: colors.bg },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
-  header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   headerSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
   createButton: { width: 42, height: 42, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
   sectionSubtitle: { fontFamily: fonts.body, fontSize: 12, lineHeight: 17, color: colors.sub, marginTop: -spacing.sm, marginBottom: spacing.md },
   panel: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, marginBottom: spacing.lg },
   panelTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
@@ -537,9 +538,9 @@ const styles = StyleSheet.create({
   timeColumn: { flex: 1, alignItems: "center", justifyContent: "center", minWidth: 0 },
   timeArrow: { width: 44, height: 28, alignItems: "center", justifyContent: "center" },
   timeValueWrap: { alignItems: "center", justifyContent: "center", minHeight: 58 },
-  timeValue: { fontFamily: fonts.display, fontSize: 36, color: colors.text, lineHeight: 42 },
+  timeValue: { fontFamily: fonts.bodyBold, fontSize: 36, color: colors.text, lineHeight: 42 },
   timeLabel: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.sub, marginTop: -2, textTransform: "uppercase" },
-  timeColon: { fontFamily: fonts.display, fontSize: 32, color: colors.sub, paddingHorizontal: spacing.sm, marginTop: -8 },
+  timeColon: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.sub, paddingHorizontal: spacing.sm, marginTop: -8 },
   selectorControl: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
   selectorButton: { width: 36, height: 38, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   selectorValue: { flex: 1, alignItems: "center", minWidth: 0 },
@@ -548,7 +549,7 @@ const styles = StyleSheet.create({
   stepper: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 4 },
   stepperButton: { width: 34, height: 34, borderRadius: radii.sm, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   stepperValue: { flex: 1, alignItems: "center" },
-  stepperNumber: { fontFamily: fonts.display, fontSize: 18, color: colors.text },
+  stepperNumber: { fontFamily: fonts.bodyBold, fontSize: 18, color: colors.text },
   stepperLabel: { fontFamily: fonts.body, fontSize: 10, color: colors.sub, marginTop: -3 },
   segment: { flex: 1, flexDirection: "row", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: 3 },
   segmentButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
@@ -560,7 +561,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   eventIcon: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 16, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   visibilityPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.sm, paddingVertical: 4 },
   visibilityText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },

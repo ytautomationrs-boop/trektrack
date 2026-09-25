@@ -1,3 +1,6 @@
+import { notifyActivity } from "../notifications/inbox.js";
+import { gameSummary, type Game } from "../events/scoring.js";
+import { storePhoto } from "../media/service.js";
 import { prisma } from "../../lib/prisma.js";
 import { getLeagueStandings } from "../races/leagues.js";
 
@@ -72,6 +75,7 @@ function postInclude(viewerId: string) {
   return {
     author: { select: playerSelect },
     raceEntry: { include: raceResultInclude },
+    event: { select: { id:true, name:true, sportName:true, sportKey:true, game:true } },
     _count: { select: { likes: true, comments: true, shares: true } },
     likes: { where: { userId: viewerId }, select: { id: true }, take: 1 },
     comments: {
@@ -90,6 +94,7 @@ function serializePost(post: any) {
     createdAt: post.createdAt,
     author: serializePlayer(post.author),
     raceResult: post.raceEntry ? serializeRaceResult(post.raceEntry) : null,
+    eventResult: post.event?.game ? {eventId:post.event.id,name:post.event.name,sportName:post.event.sportName,summary:gameSummary(post.event.sportKey,post.event.game as Game),elapsedMs:(post.event.game as Game).elapsedMs} : null,
     likeCount: post._count?.likes ?? 0,
     commentCount: post._count?.comments ?? 0,
     shareCount: post._count?.shares ?? 0,
@@ -103,7 +108,7 @@ function serializePost(post: any) {
   };
 }
 
-async function findSerializablePost(postId: string, viewerId: string) {
+export async function findSerializablePost(postId: string, viewerId: string) {
   const post = await prisma.socialPost.findUnique({
     where: { id: postId },
     include: postInclude(viewerId),
@@ -164,7 +169,7 @@ export async function listPostableResults(viewerId: string) {
   return entries.map(serializeRaceResult);
 }
 
-export async function createSocialPost(viewerId: string, input: { body: string; raceEntryId?: string | null; imageUrl?: string | null }) {
+export async function createSocialPost(viewerId: string, input: { body: string; raceEntryId?: string | null; imageUrl?: string | null; eventId?: string | null }) {
   const body = input.body.trim();
   if (!body) throw Object.assign(new Error("Write something before posting."), { statusCode: 400, code: "empty_post" });
 
@@ -178,15 +183,19 @@ export async function createSocialPost(viewerId: string, input: { body: string; 
     raceEntryId = entry.id;
   }
 
+  if (input.eventId) {
+    const event=await prisma.socialEvent.findFirst({where:{id:input.eventId,status:'COMPLETED',participants:{some:{userId:viewerId,status:'JOINED'}}},select:{id:true}});
+    if (!event) throw Object.assign(new Error('Only participants can share a completed game.'),{statusCode:403});
+  }
   const post = await prisma.socialPost.create({
-    data: { authorId: viewerId, body, raceEntryId, imageUrl: input.imageUrl ?? null },
+    data: { authorId: viewerId, body, raceEntryId, eventId: input.eventId ?? null, imageUrl: await storePhoto(viewerId, input.imageUrl) },
     include: postInclude(viewerId),
   });
   return serializePost(post);
 }
 
 export async function setSocialPostLike(viewerId: string, postId: string, liked: boolean) {
-  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true } });
+  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true, authorId:true } });
   if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
 
   if (liked) {
@@ -199,16 +208,18 @@ export async function setSocialPostLike(viewerId: string, postId: string, liked:
     await prisma.socialPostLike.deleteMany({ where: { postId, userId: viewerId } });
   }
 
+  if(liked && post.authorId!==viewerId) void notifyActivity(post.authorId,'like',`like:${postId}:${viewerId}`,'New like','Someone liked your post.',{postId});
   return findSerializablePost(postId, viewerId);
 }
 
 export async function createSocialPostComment(viewerId: string, postId: string, body: string) {
   const text = body.trim();
   if (!text) throw Object.assign(new Error("Write a comment first."), { statusCode: 400, code: "empty_comment" });
-  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true } });
+  const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true, authorId:true } });
   if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
 
-  await prisma.socialPostComment.create({ data: { postId, userId: viewerId, body: text } });
+  const comment=await prisma.socialPostComment.create({ data: { postId, userId: viewerId, body: text } });
+  if(post.authorId!==viewerId) void notifyActivity(post.authorId,"comment",`comment:${comment.id}`,"New comment","Someone commented on your post.",{postId});
   return findSerializablePost(postId, viewerId);
 }
 
@@ -282,6 +293,7 @@ export async function requestFriend(viewerId: string, playerId: string) {
 
   if (!existing) {
     await prisma.friendship.create({ data: { requesterId: viewerId, addresseeId: playerId, status: "ACCEPTED", acceptedAt: new Date() } });
+    void notifyActivity(playerId,'follow',`follow:${viewerId}`,'New follower','Someone followed you on ASTA.',{playerId:viewerId});
     return { friendState: "friends" as const };
   }
 
@@ -343,29 +355,21 @@ async function assertCanMessage(viewerId: string, playerId: string) {
 }
 
 export async function listConversations(viewerId: string) {
-  const messages = await prisma.directMessage.findMany({
-    where: { OR: [{ senderId: viewerId }, { recipientId: viewerId }] },
-    include: {
-      sender: { select: playerSelect },
-      recipient: { select: playerSelect },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 150,
-  });
-
-  const seen = new Set<string>();
-  const conversations = [];
-  for (const message of messages) {
-    const other = message.senderId === viewerId ? message.recipient : message.sender;
-    if (seen.has(other.id)) continue;
-    seen.add(other.id);
-    conversations.push({
-      player: serializePlayer(other),
-      lastMessage: serializeMessage(message, viewerId),
-      unreadCount: messages.filter((m) => m.senderId === other.id && m.recipientId === viewerId && !m.readAt).length,
-    });
-  }
-  return conversations;
+  // Pick one message per conversation in SQL; do not repeat both avatars on 150 rows.
+  const [messages, unread] = await Promise.all([
+    prisma.$queryRaw<Array<{id:string;senderId:string;recipientId:string;body:string;createdAt:Date;readAt:Date|null;partnerId:string}>>`
+      SELECT * FROM (SELECT DISTINCT ON (CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END)
+      *, CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END AS "partnerId"
+      FROM "DirectMessage" WHERE "senderId"=${viewerId} OR "recipientId"=${viewerId}
+      ORDER BY CASE WHEN "senderId"=${viewerId} THEN "recipientId" ELSE "senderId" END, "createdAt" DESC, "id" DESC) recent
+      ORDER BY "createdAt" DESC LIMIT 50`,
+    prisma.directMessage.groupBy({by:['senderId'],where:{recipientId:viewerId,readAt:null},_count:{_all:true}}),
+  ]);
+  if(!messages.length)return [];
+  const players=await prisma.user.findMany({where:{id:{in:messages.map(m=>m.partnerId)}},select:playerSelect});
+  const byId=new Map(players.map(p=>[p.id,p]));
+  const counts=new Map(unread.map(u=>[u.senderId,u._count._all]));
+  return messages.flatMap(m=>{const player=byId.get(m.partnerId);return player?[{player:serializePlayer(player),lastMessage:serializeMessage(m,viewerId),unreadCount:counts.get(m.partnerId)??0}]:[];});
 }
 
 function serializeMessage(message: { id: string; senderId: string; recipientId: string; body: string; createdAt: Date; readAt: Date | null }, viewerId: string) {
@@ -381,24 +385,13 @@ function serializeMessage(message: { id: string; senderId: string; recipientId: 
 }
 
 export async function getConversation(viewerId: string, playerId: string) {
-  await assertCanMessage(viewerId, playerId);
-  const messages = await prisma.directMessage.findMany({
-    where: {
-      OR: [
-        { senderId: viewerId, recipientId: playerId },
-        { senderId: playerId, recipientId: viewerId },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    take: 100,
-  });
-
-  await prisma.directMessage.updateMany({
-    where: { senderId: playerId, recipientId: viewerId, readAt: null },
-    data: { readAt: new Date() },
-  });
-
-  return { messages: messages.map((message) => serializeMessage(message, viewerId)) };
+  const [,messages]=await Promise.all([
+    assertCanMessage(viewerId,playerId),
+    prisma.directMessage.findMany({where:{OR:[{senderId:viewerId,recipientId:playerId},{senderId:playerId,recipientId:viewerId}]},orderBy:[{createdAt:'desc'},{id:'desc'}],take:100}),
+  ]);
+  const unread=messages.filter(m=>m.recipientId===viewerId && !m.readAt).map(m=>m.id);
+  if(unread.length) void prisma.directMessage.updateMany({where:{id:{in:unread},recipientId:viewerId,readAt:null},data:{readAt:new Date()}}).catch(error=>console.error('[messages] read receipt failed',error));
+  return {messages:messages.reverse().map(message=>serializeMessage(message,viewerId))};
 }
 
 export async function sendMessage(viewerId: string, playerId: string, body: string) {
@@ -406,6 +399,7 @@ export async function sendMessage(viewerId: string, playerId: string, body: stri
   const message = await prisma.directMessage.create({
     data: { senderId: viewerId, recipientId: playerId, body: body.trim() },
   });
+  void notifyActivity(playerId,"message",`message:${message.id}`,"New message","You have a new message on ASTA.",{playerId:viewerId});
   return { message: serializeMessage(message, viewerId) };
 }
 

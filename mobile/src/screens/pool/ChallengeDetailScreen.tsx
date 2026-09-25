@@ -248,7 +248,7 @@ export function ChallengeDetailScreen() {
         {!challenge.hasJoined && challenge.status === "OPEN" && (
           <>
             {challenge.visibility === "INVITE_ONLY" && (
-              <TextInput
+              <TextInput keyboardAppearance="dark"
                 style={styles.input}
                 value={inviteCodeInput}
                 onChangeText={setInviteCodeInput}
@@ -438,7 +438,7 @@ function ActiveParticipantActions({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontFamily: fonts.display, fontSize: 26, color: colors.text },
+  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
 
   statusCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.lg },
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   },
   warningText: { flex: 1, fontFamily: fonts.body, fontSize: 13, color: colors.text, lineHeight: 19 },
 
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   targetsCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   targetRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm },
   targetMetric: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },

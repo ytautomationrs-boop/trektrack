@@ -328,7 +328,7 @@ export function CreateRaceScreen() {
 
         {/* a) NAME */}
         <Text style={styles.label}>Race name</Text>
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.input}
           value={name}
           onChangeText={setName}
@@ -360,7 +360,7 @@ export function CreateRaceScreen() {
         <Text style={styles.label}>Duration</Text>
         <Text style={styles.labelHint}>Choose how many days the competition lasts. Whole days only.</Text>
         <View style={styles.durationInputRow}>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={[styles.input, styles.durationInput]}
             value={durationText}
             onChangeText={(value) => {
@@ -413,7 +413,7 @@ export function CreateRaceScreen() {
         {format === "SQUAD" && (
           <>
             <Text style={styles.label}>Your squad's name</Text>
-            <TextInput
+            <TextInput keyboardAppearance="dark"
               style={styles.input}
               value={squadName}
               onChangeText={setSquadName}
@@ -453,7 +453,7 @@ export function CreateRaceScreen() {
           <View style={styles.feeCard}>
             {configLoading && <ActivityIndicator color={colors.accent} style={styles.inlineLoader} />}
             <Text style={styles.inputLabel}>Entry fee (R)</Text>
-            <TextInput
+            <TextInput keyboardAppearance="dark"
               style={[styles.input, styles.entryFeeInput, !entryFeeIsValid && styles.inputError]}
               value={entryFeeText}
               onChangeText={setEntryFeeText}
@@ -547,7 +547,7 @@ export function CreateRaceScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2, marginBottom: spacing.lg },
 
   label: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.sm },
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     borderColor: colors.accent2,
     borderWidth: 2,
     backgroundColor: colors.surfaceRaised,
-    fontFamily: fonts.display,
+    fontFamily: fonts.display, textTransform: "uppercase",
     fontSize: 18,
   },
   inputLabel: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub, marginBottom: spacing.sm },
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: spacing.sm },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   durationInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
-  durationInput: { flex: 1, fontFamily: fonts.display, fontSize: 18 },
+  durationInput: { flex: 1, fontFamily: fonts.display, textTransform: "uppercase", fontSize: 18 },
   durationSuffix: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   durationChip: { flexGrow: 1, flexBasis: "45%", backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md },
   rowItem: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   retryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   feeRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.md },
   feeLabel: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
-  feeValue: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
+  feeValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.accent },
   divider: { height: 1, backgroundColor: colors.surfaceRaised, marginVertical: spacing.md },
   prizeRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 },
   prizePos: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
@@ -645,7 +645,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   trophyPosition: { fontFamily: fonts.bodySemiBold, fontSize: 11 },
-  trophyValue: { fontFamily: fonts.display, fontSize: 14, color: colors.text, marginTop: 2 },
+  trophyValue: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.text, marginTop: 2 },
 
   conditionCard: {
     backgroundColor: colors.surfaceRaised,

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { storePhoto } from "../media/service.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 
@@ -34,7 +35,7 @@ export async function accountRoutes(app: FastifyInstance) {
       where: { id: req.userId },
       data: {
         ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
-        ...(body.avatarUrl !== undefined ? { avatarUrl: body.avatarUrl || null } : {}),
+        ...(body.avatarUrl !== undefined ? { avatarUrl: await storePhoto(req.userId, body.avatarUrl) } : {}),
         ...(body.bio !== undefined ? { bio: body.bio || null } : {}),
       },
       select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },

@@ -1,14 +1,25 @@
 import type { FastifyInstance } from "fastify";
+import { apnsConfigured } from "./apns.js";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
 
 const RegisterPushTokenSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().min(1).max(512).refine(value=>/^apns:[a-fA-F0-9]{64,200}$/.test(value)||/^(ExponentPushToken|ExpoPushToken)\[[^\]]+\]$/.test(value),"Invalid push token"),
   platform: z.enum(["IOS", "ANDROID", "WEB"]),
 });
 
 export async function notificationRoutes(app: FastifyInstance) {
+  app.get('/notifications', {preHandler:requireAuth}, async req=>{
+    const [notifications,unreadCount]=await Promise.all([
+      prisma.appNotification.findMany({where:{userId:req.userId},orderBy:{createdAt:'desc'},take:60}),
+      prisma.appNotification.count({where:{userId:req.userId,readAt:null}}),
+    ]);return {notifications,unreadCount,pushAvailable:apnsConfigured()};
+  });
+  app.post('/notifications/read', {preHandler:requireAuth}, async req=>{
+    const {ids}=z.object({ids:z.array(z.string().min(1)).max(60)}).parse(req.body);
+    await prisma.appNotification.updateMany({where:{userId:req.userId,id:{in:ids},readAt:null},data:{readAt:new Date()}});return {read:true};
+  });
   /**
    * Registers (or re-registers) this device's Expo push token.
    *

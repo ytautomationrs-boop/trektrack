@@ -1,3 +1,4 @@
+import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -163,7 +164,7 @@ export function RacesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} tintColor={colors.accent} />}
@@ -245,7 +246,7 @@ export function RacesScreen() {
           />
         ))}
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
-  header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   headerButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -538,7 +539,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   cardMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" },
   visibilityPill: {

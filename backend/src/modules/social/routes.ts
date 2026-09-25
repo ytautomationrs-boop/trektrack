@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
 import { isMissingRuntimeSchemaError, withRuntimeSchemaRepair } from "../../lib/runtimeRepair.js";
 import {
+  findSerializablePost,
   acceptFriend,
   createSocialPostComment,
   createSocialPost,
@@ -31,6 +32,7 @@ const MessageBody = z.object({
 
 const SocialPostBody = z.object({
   body: z.string().trim().min(1).max(500),
+  eventId: z.string().trim().min(1).optional().nullable(),
   raceEntryId: z.string().trim().min(1).optional().nullable(),
   imageUrl: z.string().max(800_000).refine((value) => value.startsWith("data:image/"), "Choose a valid photo.").optional().nullable(),
 });
@@ -65,6 +67,7 @@ function sendSocialError(reply: FastifyReply, err: unknown) {
 }
 
 export async function socialRoutes(app: FastifyInstance) {
+  app.get('/social/posts/:id',{preHandler:requireAuth},async(req,reply)=>{try{const {id}=req.params as {id:string};return {post:await findSerializablePost(id,req.userId)};}catch(error){return sendSocialError(reply,error);}});
   app.get("/social/feed", { preHandler: requireAuth }, async (req, reply) => {
     try {
       return reply.send({ posts: await withRuntimeSchemaRepair("social feed", () => listSocialFeed(req.userId)) });

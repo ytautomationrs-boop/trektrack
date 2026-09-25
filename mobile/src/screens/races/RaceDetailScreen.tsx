@@ -489,7 +489,7 @@ export function RaceDetailScreen() {
             <Text style={styles.sectionTitle}>Got a squad code?</Text>
             <View style={styles.newSquadCard}>
               <Text style={styles.squadMeta}>Paste the code the squad's captain sent you.</Text>
-              <TextInput
+              <TextInput keyboardAppearance="dark"
                 style={styles.input}
                 value={joinCode}
                 onChangeText={setJoinCode}
@@ -512,7 +512,7 @@ export function RaceDetailScreen() {
               <>
                 <Text style={styles.sectionTitle}>Or start your own</Text>
                 <View style={styles.newSquadCard}>
-                  <TextInput
+                  <TextInput keyboardAppearance="dark"
                     style={styles.input}
                     value={squadName}
                     onChangeText={setSquadName}
@@ -697,7 +697,7 @@ function RegisterCard({ race, onOpenProfile }: { race: RaceDetail["race"]; onOpe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  title: { fontFamily: fonts.display, fontSize: 26, color: colors.text, textTransform: "capitalize" },
+  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
   raceMetaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.md },
   metaPill: {
@@ -763,7 +763,7 @@ const styles = StyleSheet.create({
   },
   withdrawBtnText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
 
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   registerCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md },
   registerTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: spacing.md },
   registerHeadline: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.text },

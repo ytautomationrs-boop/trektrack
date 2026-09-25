@@ -10,6 +10,7 @@ vi.mock("../../lib/prisma.js", () => ({ prisma: db }));
 vi.mock("../races/leagues.js", () => ({
   getLeagueStandings: vi.fn(async () => ({ standings: [], primaryMetricKey: "steps" })),
 }));
+vi.mock("../notifications/inbox.js", () => ({notifyActivity:vi.fn()}));
 import { getPlayerProfile } from "./service.js";
 
 // Emulate Prisma's selection against a record containing large media. The

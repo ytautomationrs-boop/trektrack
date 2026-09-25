@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
+import { updateGame } from "./game.js";
 import { z, ZodError } from "zod";
 import { requireAuth } from "../../middleware/auth.js";
 import { isMissingRuntimeSchemaError, withRuntimeSchemaRepair } from "../../lib/runtimeRepair.js";
 import {
   SocialEventError,
+  inviteToEvent,
   createSocialEvent,
   deleteSocialEvent,
   getSocialEvent,
@@ -40,7 +42,7 @@ function sendEventError(reply: FastifyReply, err: unknown) {
     });
   }
   if (err instanceof SocialEventError) {
-    const status = err.code === "not_found" ? 404 : err.code === "event_full" ? 409 : 400;
+    const status = err.code === "not_found" ? 404 : ["event_full", "game_changed"].includes(err.code) ? 409 : 400;
     return reply.code(status).send({ error: err.code, message: err.message });
   }
   if (err instanceof ZodError) {
@@ -53,6 +55,16 @@ function sendEventError(reply: FastifyReply, err: unknown) {
 }
 
 export async function socialEventRoutes(app: FastifyInstance) {
+  app.post("/social-events/:id/game", {preHandler:requireAuth}, async(req,reply)=>{
+    try {
+      const {id}=req.params as {id:string};
+      const body=z.object({action:z.enum(['start','score','undo','pause','resume','finish']),operationId:z.string().min(8).max(80),version:z.number().int().nonnegative(),side:z.union([z.literal(0),z.literal(1)]).optional(),value:z.number().int().optional(),teams:z.tuple([z.string().trim().min(1).max(32),z.string().trim().min(1).max(32)]).optional(),bestOf:z.union([z.literal(1),z.literal(3),z.literal(5)]).optional()}).parse(req.body);
+      return await updateGame(id,req.userId,body);
+    } catch(error) {return sendEventError(reply,error);}
+  });
+  app.post('/social-events/:id/invite',{preHandler:requireAuth},async(req,reply)=>{
+    try {const {id}=req.params as {id:string};const {playerId}=z.object({playerId:z.string().min(1)}).parse(req.body);return await inviteToEvent(id,req.userId,playerId);} catch(error){return sendEventError(reply,error);}
+  });
   app.get("/social-events/sports", { preHandler: requireAuth }, async (_req, reply) => {
     return reply.send({ sports: listSocialSports() });
   });

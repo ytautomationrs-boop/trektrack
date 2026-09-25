@@ -1,4 +1,6 @@
-import React, { useCallback, useState } from "react";
+import { GamePanel } from "./GamePanel";
+import { PageMotion } from "../../components/PageMotion";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -23,27 +25,36 @@ export function EventDetailScreen() {
   const navigation = useNavigation<any>();
   const eventId: string = route.params?.eventId;
   const inviteCode: string | undefined = route.params?.code;
-  const [event, setEvent] = useState<SocialEvent | null>(null);
+  const preview = typeof route.params?.preview === "object" && route.params.preview?.id === eventId ? route.params.preview as SocialEvent : null;
+  const [event, setEvent] = useState<SocialEvent | null>(preview);
+  const hasLoaded=useRef(Boolean(preview));
+  const mutationGeneration=useRef(0);
+  useEffect(()=>{mutationGeneration.current++;hasLoaded.current=Boolean(preview);setEvent(preview);},[eventId]);
+  const applyEvent=(next:SocialEvent)=>setEvent(current=>current?.id===next.id && (current.game?.version??0)>(next.game?.version??0)?current:next);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if(!hasLoaded.current)setLoading(true);
+    const generation=mutationGeneration.current;
     try {
-      const result = await getSocialEvent(eventId, inviteCode);
-      setEvent(result.event);
-      setLoadError(null);
+      const result = await getSocialEvent(eventId, inviteCode, {onCached:(r)=>{if(generation===mutationGeneration.current){hasLoaded.current=true;applyEvent(r.event);}}});
+      hasLoaded.current=true;
+      if(generation===mutationGeneration.current)applyEvent(result.event);
+      if(generation===mutationGeneration.current)setLoadError(null);
     } catch (err) {
-      setLoadError(err as Error);
+      if(generation===mutationGeneration.current)setLoadError(err as Error);
     } finally {
-      setLoading(false);
+      if(generation===mutationGeneration.current)setLoading(false);
     }
   }, [eventId, inviteCode]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      void load();
+      const timer=setInterval(()=>{if(typeof document==='undefined'||!document.hidden)void load();},10000);
+      return()=>clearInterval(timer);
     }, [load])
   );
 
@@ -62,6 +73,7 @@ export function EventDetailScreen() {
     setBusy(true);
     try {
       const result = await joinSocialEvent(event.id, inviteCode ?? event.inviteCode);
+      mutationGeneration.current++;
       setEvent(result.event);
       showAlert("You're in", "You've joined this event.");
     } catch (err: any) {
@@ -76,6 +88,7 @@ export function EventDetailScreen() {
     setBusy(true);
     try {
       const result = await leaveSocialEvent(event.id);
+      mutationGeneration.current++;
       setEvent(result.event);
       showAlert("Left event", "You're no longer listed as a player.");
     } catch (err: any) {
@@ -109,18 +122,18 @@ export function EventDetailScreen() {
 
   if (!event) {
     return (
-      <SafeAreaView style={styles.screen} edges={["top"]}>
+      <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
         <ScrollView contentContainerStyle={styles.content}>
           {loadError ? <LoadError error={loadError} onRetry={load} /> : <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xxl }} />}
         </ScrollView>
-      </SafeAreaView>
+      </SafeAreaView></PageMotion>
     );
   }
 
   const isFull = event.participantCount >= event.maxPlayers;
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
@@ -140,21 +153,22 @@ export function EventDetailScreen() {
             <Ionicons name="share-outline" size={16} color={colors.bg} />
             <Text style={styles.shareButtonText}>Share event</Text>
           </Pressable>
-          {event.isHost ? (
+          {event.isHost && event.status==="UPCOMING" ? (
             <Pressable style={[styles.deleteButton, busy && styles.disabled]} disabled={busy} onPress={confirmDelete}>
               {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.deleteButtonText}>Delete event</Text>}
             </Pressable>
-          ) : event.hasJoined ? (
+          ) : event.hasJoined && event.status==="UPCOMING" ? (
             <Pressable style={[styles.leaveButton, busy && styles.disabled]} disabled={busy} onPress={leave}>
               {busy ? <ActivityIndicator color={colors.sub} /> : <Text style={styles.leaveButtonText}>Leave event</Text>}
             </Pressable>
-          ) : (
+          ) : !event.hasJoined && event.status==="UPCOMING" ? (
             <Pressable style={[styles.shareButton, (busy || isFull) && styles.disabled]} disabled={busy || isFull} onPress={join}>
               {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.shareButtonText}>{isFull ? "Full" : "Join"}</Text>}
             </Pressable>
-          )}
+          ) : null}
         </View>
 
+        <GamePanel event={event} onChange={(next)=>{mutationGeneration.current++;applyEvent(next);}} onRefresh={load}/>
         <Text style={styles.sectionTitle}>Players</Text>
         <View style={styles.card}>
           <View style={styles.countRow}>
@@ -178,7 +192,7 @@ export function EventDetailScreen() {
           ))}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -187,7 +201,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   hero: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   heroIcon: { width: 56, height: 56, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
-  title: { fontFamily: fonts.display, fontSize: 28, color: colors.text, textAlign: "center", marginTop: spacing.md },
+  title: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, textAlign: "center", marginTop: spacing.md },
   subtitle: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", marginTop: 3 },
   description: { fontFamily: fonts.body, fontSize: 13, color: colors.text, textAlign: "center", lineHeight: 19, marginTop: spacing.md },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
@@ -197,14 +211,14 @@ const styles = StyleSheet.create({
   leaveButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   deleteButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.accent, minHeight: 44 },
   deleteButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.accent },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.md },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg },
   countRow: { flexDirection: "row", justifyContent: "space-between", paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.surfaceRaised },
   countText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
   playerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingTop: spacing.md },
   avatar: { width: 36, height: 36, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
   avatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
-  avatarText: { fontFamily: fonts.display, fontSize: 15, color: colors.accent },
+  avatarText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.accent },
   playerName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   playerMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
   disabled: { opacity: 0.5 },

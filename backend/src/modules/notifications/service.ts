@@ -1,3 +1,4 @@
+import { sendApplePush } from "./apns.js";
 import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
@@ -56,7 +57,9 @@ export async function notifyUser(userId: string, kind: NotificationKind, payload
     const tokens = await prisma.pushToken.findMany({ where: { userId }, select: { token: true } });
     if (tokens.length === 0) return;
 
-    const messages: ExpoPushMessage[] = tokens
+    const appleResults = await Promise.allSettled(tokens.filter(t=>t.token.startsWith('apns:')).map(t=>sendApplePush(t.token.slice(5),payload.title,payload.body,{kind,...payload.data})));
+    for(const result of appleResults)if(result.status==='rejected')console.error('[push] Apple delivery failed:',result.reason?.message);
+    const messages: ExpoPushMessage[] = tokens.filter(t=>!t.token.startsWith('apns:'))
       .map((t) => t.token)
       .filter((token) => {
         if (Expo.isExpoPushToken(token)) return true;

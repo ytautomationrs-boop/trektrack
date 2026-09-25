@@ -1,6 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Modal, Pressable, StyleSheet, Platform } from "react-native";
-import { NavigationContainer, DefaultTheme, useNavigationContainerRef } from "@react-navigation/native";
+import { NavigationContainer, getPathFromState, DefaultTheme, useNavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +18,8 @@ import { EventsScreen, CreateEventScreen } from "../screens/events/EventsScreen"
 import { EventDetailScreen } from "../screens/events/EventDetailScreen";
 import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
+import { NotificationsScreen } from "../screens/notifications/NotificationsScreen";
+import { getNotifications, openNotification } from "../api/notificationClient";
 import { AstaLogo } from "../components/AstaLogo";
 
 const Tab = createBottomTabNavigator();
@@ -86,7 +88,11 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Profile: "person-outline",
 };
 
+function withoutPreviews(state: any): any {
+  return {...state,routes:state.routes.map((route:any)=>({...route,params:route.params ? Object.fromEntries(Object.entries(route.params).filter(([key])=>key!=="preview")) : undefined,state:route.state ? withoutPreviews(route.state) : undefined}))};
+}
 const linking = {
+  getPathFromState: (state:any,options:any)=>getPathFromState(withoutPreviews(state),options),
   prefixes: [],
   config: {
     screens: {
@@ -163,7 +169,7 @@ function CreateTabButton({ onCompetition, onSocialGame }: { onCompetition: () =>
   );
 }
 
-function AppHeader({ canGoBack, onBack }: { canGoBack: boolean; onBack: () => void }) {
+function AppHeader({ canGoBack, onBack, onNotifications, unread }: { canGoBack: boolean; onBack: () => void; onNotifications: () => void; unread: number }) {
   const insets = useSafeAreaInsets();
   const capacitorTop = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 47 : 0;
   const topInset = Math.max(insets.top, capacitorTop);
@@ -178,7 +184,10 @@ function AppHeader({ canGoBack, onBack }: { canGoBack: boolean; onBack: () => vo
           ) : null}
         </View>
         <AstaLogo width={86} height={44} backgroundColor={colors.bg} />
-        <View style={styles.headerSide} />
+        <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Notifications, ${unread} unread` : 'Notifications'} style={styles.backButton} onPress={onNotifications}>
+          <Ionicons name="notifications-outline" size={23} color={colors.text}/>
+          {unread>0?<View style={{position:'absolute',right:5,top:4,width:8,height:8,borderRadius:4,backgroundColor:colors.accent}}/>:null}
+        </Pressable>
       </View>
     </View>
   );
@@ -187,6 +196,14 @@ function AppHeader({ canGoBack, onBack }: { canGoBack: boolean; onBack: () => vo
 export function RootNavigator() {
   const navigationRef = useNavigationContainerRef();
   const [canGoBack, setCanGoBack] = useState(false);
+  const [unread,setUnread]=useState(0);
+  useEffect(()=>{
+    const refresh=()=>{if(typeof document!=='undefined' && document.hidden)return;void getNotifications().then(r=>setUnread(r.unreadCount)).catch(()=>{});};
+    const first=setTimeout(refresh,4500),timer=setInterval(refresh,30000);
+    const open=(event:any)=>{if(navigationRef.isReady())openNotification(navigationRef,event.detail??{});};
+    if(typeof window!=='undefined'){window.addEventListener('asta-notifications',refresh);window.addEventListener('asta-open-notification',open);}
+    return()=>{clearTimeout(first);clearInterval(timer);if(typeof window!=='undefined'){window.removeEventListener('asta-notifications',refresh);window.removeEventListener('asta-open-notification',open);}};
+  },[navigationRef]);
   const updateBackState = useCallback(() => {
     setCanGoBack(navigationRef.isReady() && navigationRef.canGoBack());
   }, [navigationRef]);
@@ -201,8 +218,9 @@ export function RootNavigator() {
       <Tab.Navigator
         backBehavior="history"
         screenOptions={({ route }) => ({
+          tabBarHideOnKeyboard: true,
           headerShown: true,
-          header: () => <AppHeader canGoBack={canGoBack} onBack={goBack} />,
+          header: () => <AppHeader canGoBack={canGoBack} onBack={goBack} unread={unread} onNotifications={() => (navigationRef as any).navigate("Notifications")} />,
           tabBarStyle: {
             backgroundColor: colors.surface,
             borderTopColor: colors.surfaceRaised,
@@ -242,6 +260,7 @@ export function RootNavigator() {
         />
         <Tab.Screen name="Events" component={EventsStackScreen} />
         <Tab.Screen name="Profile" component={ProfileStackScreen} />
+        <Tab.Screen name="Notifications" component={NotificationsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>
       </Tab.Navigator>
     </NavigationContainer>
   );
@@ -263,7 +282,7 @@ const styles = StyleSheet.create({
   chooserOverlay: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, backgroundColor: colors.glass },
   chooserCard: { width: "100%", maxWidth: 420, backgroundColor: colors.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: colors.line, padding: spacing.xl },
   chooserHeading: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  chooserTitle: { fontFamily: fonts.display, color: colors.text, fontSize: 28 },
+  chooserTitle: { fontFamily: fonts.display, textTransform: "uppercase", color: colors.text, fontSize: 28 },
   closeChooser: { width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: radii.pill, backgroundColor: colors.surfaceRaised },
   chooserDescription: { fontFamily: fonts.body, color: colors.sub, fontSize: 14, lineHeight: 20, marginTop: spacing.sm, marginBottom: spacing.xl },
   chooserOptions: { flexDirection: "row", gap: spacing.md },

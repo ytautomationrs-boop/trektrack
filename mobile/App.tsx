@@ -1,3 +1,4 @@
+import "@expo/metro-runtime";
 import React, { useEffect, useState } from "react";
 import { View, StatusBar, Platform, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -23,6 +24,7 @@ import { LoadError } from "./src/components/LoadError";
 import { getSocialEvents } from "./src/api/eventClient";
 import { getSocialFeed } from "./src/api/socialClient";
 import { AlertHost } from "./src/lib/alert";
+import { configureNativeExperience } from "./src/lib/nativeExperience";
 import { AstaLogo } from "./src/components/AstaLogo";
 
 // iOS zooms a web input whenever its rendered font is below 16px. Capacitor
@@ -65,7 +67,9 @@ export default function App() {
 }
 
 function AppRoot() {
+  useEffect(() => { void configureNativeExperience(); }, []);
   useFonts({
+    ASTAHeading: { uri: Asset.fromModule(require("./assets/fonts/ASTAHeading.ttf")).uri, display: FontDisplay.SWAP },
     Figtree_400Regular: { uri: Asset.fromModule(Figtree_400Regular).uri, display: FontDisplay.SWAP },
     Figtree_500Medium: { uri: Asset.fromModule(Figtree_500Medium).uri, display: FontDisplay.SWAP },
     Figtree_600SemiBold: { uri: Asset.fromModule(Figtree_600SemiBold).uri, display: FontDisplay.SWAP },
@@ -141,8 +145,8 @@ function AppRoot() {
 function Splash({ message }: { message: string }) {
   return (
     <View style={styles.splash}>
-      <AstaLogo width={150} height={84} backgroundColor={colors.bg} />
-      <ActivityIndicator color={colors.accent} style={styles.splashSpinner} />
+      <AstaLogo width={104} height={28} backgroundColor={colors.accent} />
+      <ActivityIndicator color={colors.onAccent} style={styles.splashSpinner} />
       <Text style={styles.splashMessage}>{message}</Text>
     </View>
   );
@@ -161,7 +165,7 @@ function AppShell() {
     // or a browser without push support is a normal outcome, not a failure
     // worth interrupting anyone over. Registration is idempotent server-side
     // (upsert on the token), so re-running it per session is harmless.
-    registerForPushNotifications();
+    void registerForPushNotifications().catch(() => {});
   }, [app.session?.userId]);
 
   useEffect(() => {
@@ -192,7 +196,7 @@ function AppShell() {
 }
 
 const styles = StyleSheet.create({
-  splash: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, padding: 24 },
+  splash: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, padding: 24 },
   splashSpinner: { marginTop: 18 },
-  splashMessage: { marginTop: 12, fontFamily: "Figtree_600SemiBold", fontSize: 14, color: colors.sub },
+  splashMessage: { marginTop: 12, fontFamily: "Figtree_600SemiBold", fontSize: 12, color: colors.onAccent },
 });

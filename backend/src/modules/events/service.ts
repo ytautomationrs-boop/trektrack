@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
+import { notifyActivity } from "../notifications/inbox.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const SOCIAL_SPORTS = [
   { key: "tennis", name: "Tennis", icon: "tennisball-outline" },
   { key: "squash", name: "Squash", icon: "scan-circle-outline" },
   { key: "padel", name: "Padel", icon: "radio-button-on-outline" },
+  { key: "rugby", name: "Rugby union", icon: "american-football-outline" },
   { key: "touch_rugby", name: "Touch rugby", icon: "american-football-outline" },
   { key: "football", name: "Football", icon: "football-outline" },
   { key: "basketball", name: "Basketball", icon: "basketball-outline" },
@@ -32,10 +34,10 @@ function sportNameFor(key: string, customName?: string | null) {
 }
 
 const eventInclude = {
-  host: { select: { id: true, displayName: true, avatarUrl: true, bio: true, createdAt: true } },
+  host: { select: { id: true, displayName: true, bio: true, createdAt: true } },
   participants: {
     where: { status: "JOINED" },
-    include: { user: { select: { id: true, displayName: true, avatarUrl: true, bio: true, createdAt: true } } },
+    include: { user: { select: { id: true, displayName: true, bio: true, createdAt: true } } },
     orderBy: { joinedAt: "asc" },
   },
 } as const;
@@ -44,11 +46,11 @@ async function findEvent(eventId: string) {
   return prisma.socialEvent.findUnique({ where: { id: eventId }, include: eventInclude });
 }
 
-function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date }) {
+function serializePlayer(user: { id: string; displayName: string; bio: string | null; createdAt: Date }) {
   return {
     id: user.id,
     displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
+    avatarUrl: null,
     bio: user.bio,
     joinedAt: user.createdAt,
   };
@@ -68,6 +70,7 @@ function decorateEvent(event: EventWithRelations, viewerId: string) {
     visibility: event.visibility,
     inviteCode: event.hostUserId === viewerId || joined ? event.inviteCode : null,
     status: event.status,
+    game: event.game,
     host: serializePlayer(event.host),
     isHost: event.hostUserId === viewerId,
     hasJoined: joined,
@@ -91,9 +94,8 @@ export function listSocialSports() {
 export async function listSocialEvents(viewerId: string) {
   const events = await prisma.socialEvent.findMany({
     where: {
-      status: "UPCOMING",
-      startsAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
-      OR: [{ visibility: "PUBLIC" }, { hostUserId: viewerId }, { participants: { some: { userId: viewerId, status: "JOINED" } } }],
+      status: { not: "CANCELLED" },
+      OR: [{ visibility: "PUBLIC", status: "UPCOMING", startsAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } }, { hostUserId: viewerId }, { participants: { some: { userId: viewerId, status: "JOINED" } } }],
     },
     include: eventInclude,
     orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }],
@@ -154,47 +156,51 @@ export async function createSocialEvent(input: {
 }
 
 export async function joinSocialEvent(eventId: string, userId: string, inviteCode?: string | null) {
-  const event = await findEvent(eventId);
-  if (!event) throw new SocialEventError("not_found", "Event not found.");
-  if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event is no longer open.");
-  if (event.startsAt.getTime() < Date.now()) throw new SocialEventError("event_started", "This event has already started.");
-  if (event.visibility === "PRIVATE" && event.inviteCode !== inviteCode?.trim().toLowerCase()) {
-    throw new SocialEventError("invalid_invite", "That invite link or code is not valid for this event.");
-  }
-  if (event.participants.length >= event.maxPlayers && !event.participants.some((p) => p.userId === userId)) {
-    throw new SocialEventError("event_full", "This event is full.");
-  }
-
-  await prisma.socialEventParticipant.upsert({
-    where: { eventId_userId: { eventId, userId } },
-    create: { eventId, userId, status: "JOINED" },
-    update: { status: "JOINED", leftAt: null, joinedAt: new Date() },
-  });
-  return getSocialEvent(eventId, userId);
+  await prisma.$transaction(async (tx) => {
+    const [event] = await tx.$queryRaw<Array<{hostUserId:string;status:string;visibility:string;inviteCode:string|null;maxPlayers:number}>>`SELECT "hostUserId", "status", "visibility", "inviteCode", "maxPlayers" FROM "SocialEvent" WHERE "id"=${eventId} FOR UPDATE`;
+    if (!event) throw new SocialEventError("not_found", "Event not found.");
+    const entries = await tx.socialEventParticipant.findMany({where:{eventId,status:"JOINED"},select:{userId:true}});
+    if (entries.some(p=>p.userId===userId)) return;
+    if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event has already started.");
+    if (event.visibility === "PRIVATE" && event.inviteCode !== inviteCode?.trim().toLowerCase()) throw new SocialEventError("invalid_invite", "Use a valid invite to join this event.");
+    if (entries.length >= event.maxPlayers) throw new SocialEventError("event_full", "This event is full.");
+    await tx.socialEventParticipant.upsert({where:{eventId_userId:{eventId,userId}},create:{eventId,userId,status:"JOINED"},update:{status:"JOINED",leftAt:null,joinedAt:new Date()}});
+  }, {timeout:10000});
+  return getSocialEvent(eventId,userId,inviteCode);
 }
 
 export async function leaveSocialEvent(eventId: string, userId: string) {
-  const event = await findEvent(eventId);
-  if (!event) throw new SocialEventError("not_found", "Event not found.");
-  if (event.hostUserId === userId) throw new SocialEventError("host_cannot_leave", "Hosts stay listed on their own event.");
-  await prisma.socialEventParticipant.updateMany({
-    where: { eventId, userId, status: "JOINED" },
-    data: { status: "LEFT", leftAt: new Date() },
+  await prisma.$transaction(async tx=>{
+    const [event] = await tx.$queryRaw<Array<{hostUserId:string;status:string}>>`SELECT "hostUserId", "status" FROM "SocialEvent" WHERE "id"=${eventId} FOR UPDATE`;
+    if (!event) throw new SocialEventError("not_found","Event not found.");
+    if (event.hostUserId===userId) throw new SocialEventError("host_cannot_leave","Hosts stay listed on their own event.");
+    if (event.status!=="UPCOMING") throw new SocialEventError("event_closed","A game in progress cannot be left.");
+    await tx.socialEventParticipant.updateMany({where:{eventId,userId,status:"JOINED"},data:{status:"LEFT",leftAt:new Date()}});
   });
-  return getSocialEvent(eventId, userId);
+  // Return the updated event to its former participant without exposing it to others.
+  const event=await findEvent(eventId);
+  if (!event) throw new SocialEventError("not_found","Event not found.");
+  return decorateEvent(event,userId);
+}
+
+export async function inviteToEvent(eventId:string,viewerId:string,playerId:string) {
+  const event=await getSocialEvent(eventId,viewerId);
+  if (!event.hasJoined) throw new SocialEventError("not_joined","Join the event before inviting players.");
+  if(event.status!=="UPCOMING") throw new SocialEventError("event_closed","This game has already started.");
+  const friend=await prisma.friendship.findFirst({where:{status:"ACCEPTED",OR:[{requesterId:viewerId,addresseeId:playerId},{requesterId:playerId,addresseeId:viewerId}]},select:{id:true}});
+  if(!friend) throw new SocialEventError("not_connected","You can invite players you follow.");
+  await notifyActivity(playerId,'event_invite',`${eventId}:invite:${viewerId}`,'Game invitation',`You are invited to ${event.name}.`,{eventId,...(event.inviteCode?{code:event.inviteCode}:{})});
+  return {invited:true};
 }
 
 export async function deleteSocialEvent(eventId: string, userId: string) {
-  const event = await findEvent(eventId);
-  if (!event) throw new SocialEventError("not_found", "Event not found.");
-  if (event.hostUserId !== userId) throw new SocialEventError("not_host", "Only the host can delete this event.");
-  if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event can no longer be deleted.");
-
-  // A delete action should actually remove the event. The participant rows
-  // are deleted by the database relation's ON DELETE CASCADE rule, so a
-  // deleted event cannot remain visible in a participant's calendar.
-  await prisma.socialEvent.delete({
-    where: { id: eventId },
+  return prisma.$transaction(async tx => {
+    const rows = await tx.$queryRaw<Array<{hostUserId:string;status:string}>>`SELECT "hostUserId", "status" FROM "SocialEvent" WHERE id = ${eventId} FOR UPDATE`;
+    const event=rows[0];
+    if (!event) throw new SocialEventError("not_found", "Event not found.");
+    if (event.hostUserId !== userId) throw new SocialEventError("not_host", "Only the host can delete this event.");
+    if (event.status !== "UPCOMING") throw new SocialEventError("event_closed", "This event can no longer be deleted.");
+    await tx.socialEvent.delete({where:{id:eventId}});
+    return {id:eventId};
   });
-  return { id: eventId };
 }

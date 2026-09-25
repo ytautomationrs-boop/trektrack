@@ -176,7 +176,7 @@ export function CreateChallengeScreen() {
         <Text style={styles.subheader}>Pooled stakes, zero platform cut — finishers split everything.</Text>
 
         <Text style={styles.label}>Title</Text>
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.input}
           value={title}
           onChangeText={setTitle}
@@ -211,7 +211,7 @@ export function CreateChallengeScreen() {
           return (
             <View key={req.metricKey} style={styles.targetRow}>
               <Text style={styles.targetLabel}>{metric.displayName}</Text>
-              <TextInput
+              <TextInput keyboardAppearance="dark"
                 style={styles.targetInput}
                 value={displayTarget(req.target, metric)}
                 onChangeText={(t) => setRequirements((prev) => prev.map((r) => (r.metricKey === req.metricKey ? { ...r, target: parseTarget(t, metric) } : r)))}
@@ -254,7 +254,7 @@ export function CreateChallengeScreen() {
             </Pressable>
           ))}
         </View>
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.input}
           value={customStake}
           onChangeText={setCustomStake}
@@ -289,7 +289,7 @@ export function CreateChallengeScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, fontSize: 28, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   subheader: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2, marginBottom: spacing.lg },
   label: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.sm },
   hint: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: spacing.sm, lineHeight: 17 },

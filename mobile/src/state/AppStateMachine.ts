@@ -51,7 +51,8 @@ class AppStateMachineImpl {
     // Deregister BEFORE the JWT is cleared — the call is authenticated, and
     // without it this device keeps receiving the signed-out account's race
     // results and payout amounts.
-    unregisterForPushNotifications().finally(() => clearPersistedSession());
+    void unregisterForPushNotifications();
+    void clearPersistedSession();
     this.session = null;
     this.onboardingStep = "intro";
     this.emit();

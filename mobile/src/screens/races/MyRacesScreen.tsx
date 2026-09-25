@@ -322,8 +322,8 @@ function RaceRow({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, fontSize: 30, color: colors.text, marginBottom: spacing.lg },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text, marginBottom: spacing.lg },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.lg, marginBottom: spacing.md },
 
   emptyCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 16, color: colors.text },
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
   cardSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.sm },
   visibilityPill: {
@@ -382,7 +382,7 @@ const styles = StyleSheet.create({
   noParticipants: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.sm },
 
   resultRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
-  resultPos: { fontFamily: fonts.display, fontSize: 20, color: colors.accent },
+  resultPos: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 20, color: colors.accent },
   resultPoints: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
   resultPrize: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.won, marginLeft: "auto" },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },

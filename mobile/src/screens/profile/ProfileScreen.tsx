@@ -1,12 +1,13 @@
+import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import * as ImagePicker from "expo-image-picker";
+import { pickPhoto } from "../../lib/photos";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
-import { getProfileStats, getStravaStatus, disconnectStrava, getAppConfig, updateProfile } from "../../api/client";
+import { getProfileStats, getAppConfig, updateProfile } from "../../api/client";
 import { getLeagueStandings, getLeagueHistory, lookUpRaceCode } from "../../api/raceClient";
 import {
   acceptFriend,
@@ -26,10 +27,9 @@ import {
   type ProfileRaceHistoryEntry,
   type PlayerSummary,
 } from "../../api/socialClient";
-import { connectStravaAccount } from "../../integrations/strava";
 import { useAppState } from "../../state/useAppState";
 import { formatMetricValue } from "../../utils/metricValue";
-import type { ProfileStats, StravaStatus } from "../../api/types";
+import type { ProfileStats } from "../../api/types";
 import type { LeagueStandings, MetricStanding, RacePointEntry } from "../../api/raceTypes";
 import { iconFor } from "../../theme/metricIcons";
 
@@ -67,7 +67,7 @@ export function ProfileScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top"]}>
+    <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView contentContainerStyle={styles.content}>
         <IdentityCard />
         <ProfileShortcuts />
@@ -82,12 +82,11 @@ export function ProfileScreen() {
         {/* ── Account ─────────────────────────────────────────────────── */}
         <ModelHeading title="Account" subtitle="" />
         <AdminRow />
-        <StravaSection />
         <StatusSection />
         <SupportAndLegalRows />
         <LogoutRow />
       </ScrollView>
-    </SafeAreaView>
+    </SafeAreaView></PageMotion>
   );
 }
 
@@ -128,18 +127,8 @@ function IdentityCard() {
   const [busy, setBusy] = useState(false);
 
   const choosePhoto = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.45,
-      base64: true,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    if (!asset?.base64) return showAlert("Profile photo", "That photo could not be read. Try another one.");
-    if (asset.base64.length > 550_000) return showAlert("Profile photo", "That photo is too large. Choose a smaller photo or screenshot.");
-    setAvatarUrl(`data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`);
+    try { const photo = await pickPhoto("avatar"); if (photo) setAvatarUrl(photo); }
+    catch (err: any) { showAlert("Photo", err.message ?? "Could not open photos."); }
   };
 
   const save = async () => {
@@ -188,12 +177,12 @@ function IdentityCard() {
       </Pressable>
       {editing && (
         <View style={styles.editProfilePanel}>
-          <TextInput style={styles.codeInput} value={displayName} onChangeText={setDisplayName} placeholder="Unique username" placeholderTextColor={colors.sub} autoCapitalize="none" autoCorrect={false} />
+          <TextInput keyboardAppearance="dark" style={styles.codeInput} value={displayName} onChangeText={setDisplayName} placeholder="Unique username" placeholderTextColor={colors.sub} autoCapitalize="none" autoCorrect={false} />
           <Pressable style={styles.photoPickerButton} onPress={choosePhoto}>
             <Ionicons name="images-outline" size={18} color={colors.accent} />
             <Text style={styles.photoPickerText}>{avatarUrl ? "Choose a different photo" : "Choose photo from phone"}</Text>
           </Pressable>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={[styles.codeInput, styles.bioInput]}
             value={bio}
             onChangeText={setBio}
@@ -363,7 +352,7 @@ export function SocialSection() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Search players</Text>
         <View style={styles.codeRow}>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.codeInput}
             value={query}
             onChangeText={setQuery}
@@ -587,7 +576,7 @@ function PlayerProfileCard({
             )}
           </View>
           <View style={styles.messageComposer}>
-            <TextInput
+            <TextInput keyboardAppearance="dark"
               style={styles.messageInput}
               value={messageText}
               onChangeText={onMessageTextChange}
@@ -761,7 +750,7 @@ function JoinByCodeSection() {
       <Text style={styles.cardTitle}>Have a race code?</Text>
       <Text style={styles.cardBody}>Private races are joined with a code from whoever created them.</Text>
       <View style={styles.codeRow}>
-        <TextInput
+        <TextInput keyboardAppearance="dark"
           style={styles.codeInput}
           value={code}
           onChangeText={setCode}
@@ -810,48 +799,6 @@ function PointsHistory({ entries }: { entries: RacePointEntry[] }) {
         ))}
       </View>
     </>
-  );
-}
-
-function StravaSection() {
-  const [status, setStatus] = useState<StravaStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useFocusEffect(
-    useCallback(() => {
-      getStravaStatus().then(setStatus).catch(() => setStatus(null));
-    }, [])
-  );
-
-  const toggle = async () => {
-    setBusy(true);
-    try {
-      if (status?.connected) {
-        await disconnectStrava();
-      } else {
-        await connectStravaAccount();
-      }
-      setStatus(await getStravaStatus());
-    } catch (err: any) {
-      showAlert("Strava", err.message ?? "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <View style={styles.rowCard}>
-      <View style={styles.rowIcon}>
-        <Ionicons name="bicycle-outline" size={18} color={colors.sub} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.cardTitle}>Strava</Text>
-        <Text style={styles.cardBody}>Optional — stronger GPS verification for running and cycling races.</Text>
-      </View>
-      <Pressable style={[styles.smallCta, busy && styles.disabled]} disabled={busy} onPress={toggle}>
-        <Text style={styles.smallCtaText}>{status?.connected ? "Disconnect" : "Connect"}</Text>
-      </Pressable>
-    </View>
   );
 }
 
@@ -968,7 +915,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarInitial: { fontFamily: fonts.display, fontSize: 30, color: colors.accent },
+  avatarInitial: { fontFamily: fonts.bodyBold, fontSize: 30, color: colors.accent },
   avatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   name: { fontFamily: fonts.bodySemiBold, fontSize: 18, color: colors.text, marginTop: spacing.md },
   email: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
@@ -1002,7 +949,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     alignItems: "center",
   },
-  statCardValue: { fontFamily: fonts.display, fontSize: 20, color: colors.text },
+  statCardValue: { fontFamily: fonts.bodyBold, fontSize: 20, color: colors.text },
   statCardLabel: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   primaryMetricCard: {
     backgroundColor: colors.surface,
@@ -1013,7 +960,7 @@ const styles = StyleSheet.create({
   },
 
   modelHeading: { marginTop: spacing.xxl, marginBottom: spacing.md, borderTopWidth: 1, borderTopColor: colors.surfaceRaised, paddingTop: spacing.lg },
-  modelHeadingTitle: { fontFamily: fonts.display, fontSize: 22, color: colors.text },
+  modelHeadingTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 22, color: colors.text },
   modelHeadingSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2, lineHeight: 17 },
 
   challengeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm },
@@ -1021,7 +968,7 @@ const styles = StyleSheet.create({
   challengeSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
   challengeStatus: { fontFamily: fonts.bodySemiBold, fontSize: 11 },
 
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.xs },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text, marginTop: spacing.xl, marginBottom: spacing.xs },
   sectionHint: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginBottom: spacing.md, lineHeight: 17 },
 
   badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -1035,7 +982,7 @@ const styles = StyleSheet.create({
   badgeMuted: { opacity: 0.75 },
   badgeHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   badgeMetric: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, textTransform: "uppercase", letterSpacing: 0.5 },
-  badgeLeague: { fontFamily: fonts.display, fontSize: 19, color: colors.text, marginTop: 2 },
+  badgeLeague: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 19, color: colors.text, marginTop: 2 },
   badgeTrack: { height: 5, backgroundColor: colors.surfaceRaised, borderRadius: radii.pill, marginTop: spacing.sm, overflow: "hidden" },
   badgeFill: { height: 5, backgroundColor: colors.accent, borderRadius: radii.pill },
   badgePoints: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: spacing.sm },
@@ -1044,7 +991,7 @@ const styles = StyleSheet.create({
 
   pointMetric: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, width: 62, textTransform: "capitalize" },
   card: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, marginTop: spacing.lg },
-  cardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
+  cardTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 14, color: colors.text },
   cardBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2, lineHeight: 17 },
 
   codeRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
@@ -1104,7 +1051,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  playerInitial: { fontFamily: fonts.display, fontSize: 15, color: colors.accent },
+  playerInitial: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.accent },
   playerAvatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   playerName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   playerSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 1 },
@@ -1129,9 +1076,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  playerInitialLarge: { fontFamily: fonts.display, fontSize: 22, color: colors.accent },
+  playerInitialLarge: { fontFamily: fonts.bodyBold, fontSize: 22, color: colors.accent },
   playerAvatarLargeImage: { width: "100%", height: "100%", borderRadius: radii.pill },
-  profileCardName: { fontFamily: fonts.display, fontSize: 20, color: colors.text },
+  profileCardName: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 20, color: colors.text },
   wideFriendButton: {
     minHeight: 42,
     borderRadius: radii.sm,

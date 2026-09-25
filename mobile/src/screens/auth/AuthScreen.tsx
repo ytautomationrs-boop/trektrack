@@ -64,9 +64,9 @@ export function AuthScreen() {
 
         <View style={styles.form}>
           {mode === "signup" && (
-            <TextInput style={styles.input} placeholder="Unique username" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} autoCapitalize="none" autoCorrect={false} />
+            <TextInput keyboardAppearance="dark" style={styles.input} placeholder="Unique username" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} autoCapitalize="none" autoCorrect={false} />
           )}
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.input}
             placeholder="Email"
             placeholderTextColor={colors.sub}
@@ -75,9 +75,9 @@ export function AuthScreen() {
             value={email}
             onChangeText={setEmail}
           />
-          <TextInput style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} />
+          <TextInput keyboardAppearance="dark" style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} />
           {mode === "signup" && (
-            <TextInput
+            <TextInput keyboardAppearance="dark"
               style={styles.input}
               placeholder="Invite code"
               placeholderTextColor={colors.sub}

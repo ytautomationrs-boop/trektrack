@@ -266,7 +266,7 @@ function DepositPanel({ onDone, onCancel }: { onDone: (w: Wallet) => void; onCan
     <View style={styles.panel}>
       <Text style={styles.panelTitle}>Deposit</Text>
       <AmountChips value={customText.trim() ? null : amountCents} onChange={(c) => { setAmountCents(c); setCustomText(""); }} />
-      <TextInput
+      <TextInput keyboardAppearance="dark"
         style={styles.customInput}
         placeholder="Custom amount (R)"
         placeholderTextColor={colors.sub}
@@ -468,7 +468,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
         </View>
       )}
 
-      <TextInput
+      <TextInput keyboardAppearance="dark"
         style={styles.customInput}
         placeholder="Amount (R)"
         placeholderTextColor={colors.sub}
@@ -482,14 +482,14 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
           <Text style={styles.panelHint}>
             We pay this one out by hand during the pilot, so it lands in your account rather than going through a card processor.
           </Text>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.customInput}
             placeholder="Bank (e.g. Capitec)"
             placeholderTextColor={colors.sub}
             value={eftBankName}
             onChangeText={setEftBankName}
           />
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.customInput}
             placeholder="Account number"
             placeholderTextColor={colors.sub}
@@ -497,7 +497,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
             value={eftAccountNumber}
             onChangeText={setEftAccountNumber}
           />
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.customInput}
             placeholder="Name on the account"
             placeholderTextColor={colors.sub}
@@ -515,7 +515,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
           </Pressable>
           {showBankList && (
             <View style={styles.bankList}>
-              <TextInput
+              <TextInput keyboardAppearance="dark"
                 style={styles.bankSearchInput}
                 placeholder="Search banks…"
                 placeholderTextColor={colors.sub}
@@ -535,7 +535,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
             </View>
           )}
 
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.customInput}
             placeholder="Account number"
             placeholderTextColor={colors.sub}
@@ -547,7 +547,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
           {manualNameEntry ? (
             <View style={{ gap: spacing.xs }}>
               <Text style={styles.panelHint}>Paystack can't auto-verify South African account names — enter the account holder's name yourself.</Text>
-              <TextInput
+              <TextInput keyboardAppearance="dark"
                 style={styles.customInput}
                 placeholder="Account holder name"
                 placeholderTextColor={colors.sub}
@@ -572,7 +572,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
         </View>
       ) : (
         <View style={{ gap: spacing.sm }}>
-          <TextInput
+          <TextInput keyboardAppearance="dark"
             style={styles.customInput}
             placeholder="PayPal email"
             placeholderTextColor={colors.sub}
@@ -600,10 +600,10 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
-  header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
+  header: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 24, color: colors.text },
   balanceCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center", gap: spacing.sm },
   balanceLabel: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
-  balanceValue: { fontFamily: fonts.display, fontSize: 36, color: colors.text },
+  balanceValue: { fontFamily: fonts.bodyBold, fontSize: 36, color: colors.text },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, width: "100%" },
   actionButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.surfaceRaised, paddingVertical: spacing.md },
   actionButtonPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   verifyButtonDisabled: { opacity: 0.5 },
   verifyButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   feeDisclosure: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, lineHeight: 15 },
-  sectionTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  sectionTitle: { fontFamily: fonts.display, textTransform: "uppercase", fontSize: 15, color: colors.text },
   sponsorNote: {
     flexDirection: "row",
     gap: spacing.sm,

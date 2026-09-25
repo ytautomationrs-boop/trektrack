@@ -76,6 +76,8 @@ model User {
   stravaConnection       StravaConnection?
   pushTokens             PushToken[]
   notificationLogs       NotificationLog[]
+  appNotifications       AppNotification[]
+  mediaAssets            MediaAsset[]
   ledgerEntries          LedgerEntry[]
   // Ledger entries THIS user performed as an admin (currently only
   // sponsorship grants) — distinct from ledgerEntries above, which is every
@@ -155,6 +157,8 @@ model DirectMessage {
 }
 
 model SocialPost {
+  eventId String?
+  event SocialEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
   id          String     @id @default(cuid())
   authorId    String
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -219,6 +223,7 @@ enum SocialEventVisibility {
 }
 
 enum SocialEventStatus {
+  LIVE
   UPCOMING
   CANCELLED
   COMPLETED
@@ -246,6 +251,8 @@ model SocialEvent {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
+  game Json?
+  resultPosts SocialPost[]
   participants SocialEventParticipant[]
 
   @@index([status, startsAt])
@@ -1594,4 +1601,29 @@ enum CheckInReviewStatus {
   FLAGGED
   CONFIRMED_CHEAT
   DISMISSED
+}
+
+model AppNotification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind String
+  title String
+  body String
+  data Json
+  dedupeKey String
+  createdAt DateTime @default(now())
+  readAt DateTime?
+  @@unique([userId, dedupeKey])
+  @@index([userId, readAt, createdAt])
+}
+
+model MediaAsset {
+  id String @id
+  ownerId String
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contentType String
+  bytes Bytes
+  createdAt DateTime @default(now())
+  @@index([ownerId, createdAt])
 }

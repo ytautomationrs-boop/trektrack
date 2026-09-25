@@ -1,92 +1,55 @@
-import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
-import { registerPushToken, deregisterPushToken } from "../api/client";
-
-/**
- * Push-notification registration.
- *
- * Every failure path here is non-fatal by design. Notifications are a
- * convenience layer over a product that has to work without them — someone
- * who denies the permission prompt, uses a browser with no push support, or
- * runs a build with no project id must still be able to race, stake, check
- * in and get paid. So nothing in this module throws to its caller; it
- * reports what happened and the app carries on.
- *
- * ## Web needs VAPID keys
- *
- * On web, Expo issues a push token via the browser Push API, which requires
- * a VAPID key pair configured on the Expo project. Without it,
- * getExpoPushTokenAsync throws and this returns "unsupported" — which is the
- * honest state for the pilot until those keys exist. See DEPLOYMENT.md.
- *
- * Note also that iOS Safari only delivers web push to a site the user has
- * added to their home screen as a PWA. Desktop and Android browsers do not
- * have that restriction.
- */
-
-export type PushRegistrationResult =
-  | { status: "registered"; token: string }
-  | { status: "denied" }
-  | { status: "unsupported"; reason: string };
-
+import { Platform } from 'react-native';
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core';
+import { registerPushToken, deregisterPushToken } from '../api/client';
+import { getToken } from '../lib/tokenStorage';
 let cachedToken: string | null = null;
-
-// Show notifications while the app is in the foreground too. Without this,
-// Expo's default is to deliver silently when the app is already open — which
-// for a check-in reminder means the person most likely to act on it is the
-// one who never sees it.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
-export async function registerForPushNotifications(): Promise<PushRegistrationResult> {
-  try {
-    const existing = await Notifications.getPermissionsAsync();
-    let granted = existing.granted;
-
-    if (!granted && existing.canAskAgain) {
-      const requested = await Notifications.requestPermissionsAsync();
-      granted = requested.granted;
-    }
-    if (!granted) return { status: "denied" };
-
-    // projectId is required by Expo's push service to route a token. It comes
-    // from app.json's `extra.eas.projectId` once the project is linked to
-    // EAS; before that it is genuinely absent rather than wrong, so this
-    // reports unsupported instead of guessing.
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
-    const { data: token } = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
-
-    await registerPushToken(token, Platform.OS === "ios" ? "IOS" : Platform.OS === "android" ? "ANDROID" : "WEB");
-    cachedToken = token;
-    return { status: "registered", token };
-  } catch (err: any) {
-    // The common causes are all environmental rather than bugs: no VAPID key
-    // on web, no projectId, a simulator with no push entitlement.
-    return { status: "unsupported", reason: err?.message ?? "Push notifications aren't available here." };
-  }
+let handles: PluginListenerHandle[] = [];
+let registering: Promise<unknown> | null = null;
+let generation=0;
+export function registerForPushNotifications(askPermission=false): Promise<any> {
+ if(registering)return registering;
+ registering=register(askPermission).finally(()=>{registering=null;});return registering;
 }
-
-/**
- * Stops this device receiving the signed-out account's notifications.
- *
- * Worth doing properly: without it, a shared or handed-on device keeps
- * delivering someone else's race results and payout amounts to whoever holds
- * it next.
- */
-export async function unregisterForPushNotifications(): Promise<void> {
-  if (!cachedToken) return;
-  try {
-    await deregisterPushToken(cachedToken);
-  } catch {
-    // Best-effort. The backend also prunes tokens Expo reports as
-    // DeviceNotRegistered, so a missed deregistration self-heals.
-  } finally {
-    cachedToken = null;
-  }
+async function register(askPermission:boolean) {
+ if(Capacitor.isNativePlatform()) {
+  if(Capacitor.getPlatform()!=='ios')return {status:'unsupported'};
+  const {PushNotifications}=await import('@capacitor/push-notifications');
+  let permissions=await PushNotifications.checkPermissions();
+  if(permissions.receive==='prompt' && askPermission)permissions=await PushNotifications.requestPermissions();
+  if(permissions.receive!=='granted')return {status:permissions.receive};
+  const current=++generation;const session=await getToken();
+  await Promise.all(handles.map(h=>h.remove()));handles=[];
+  let resolveRegistration!:(value:any)=>void, rejectRegistration!:(reason:any)=>void;
+  const registered=new Promise((resolve,reject)=>{resolveRegistration=resolve;rejectRegistration=reject;});
+  const timer=setTimeout(()=>rejectRegistration(new Error('Phone notification registration timed out')),10000);
+  handles.push(await PushNotifications.addListener('registrationError',error=>{clearTimeout(timer);rejectRegistration(error);}));
+  handles.push(await PushNotifications.addListener('registration',async({value})=>{
+   if(current!==generation || session!==await getToken()){clearTimeout(timer);resolveRegistration({status:'cancelled'});return;}
+   try {await registerPushToken(`apns:${value}`,'IOS');cachedToken=`apns:${value}`;resolveRegistration({status:'registered'});} catch(error){rejectRegistration(error);} finally {clearTimeout(timer);}
+  }));
+  handles.push(await PushNotifications.addListener('pushNotificationReceived',()=>window.dispatchEvent(new Event('asta-notifications'))));
+  handles.push(await PushNotifications.addListener('pushNotificationActionPerformed',({notification})=>{
+   window.dispatchEvent(new CustomEvent('asta-open-notification',{detail:notification.data}));
+  }));
+  void PushNotifications.register().catch(error=>{clearTimeout(timer);rejectRegistration(error);});return registered;
+ }
+ if(Platform.OS==='web')return {status:'unsupported'};
+ const Notifications=await import('expo-notifications');
+ const {default:Constants}=await import('expo-constants');
+ let permission=await Notifications.getPermissionsAsync();
+ if(!permission.granted && permission.canAskAgain && askPermission)permission=await Notifications.requestPermissionsAsync();
+ if(!permission.granted)return {status:'denied'};
+ Notifications.setNotificationHandler({handleNotification:async()=>({shouldShowAlert:true,shouldPlaySound:false,shouldSetBadge:false})});
+ const session=await getToken(), current=++generation;
+ const projectId=Constants.expoConfig?.extra?.eas?.projectId;
+ const {data:token}=await Notifications.getExpoPushTokenAsync(projectId?{projectId}:undefined);
+ if(current!==generation||session!==await getToken())return {status:'cancelled'};
+ await registerPushToken(token,Platform.OS==='ios'?'IOS':'ANDROID');cachedToken=token;
+ return {status:'registered'};
+}
+export async function unregisterForPushNotifications() {
+ generation++;
+ const pending=cachedToken?deregisterPushToken(cachedToken).catch(()=>{}):Promise.resolve();cachedToken=null;
+ await Promise.all(handles.map(h=>h.remove()));handles=[];
+ await pending;
 }

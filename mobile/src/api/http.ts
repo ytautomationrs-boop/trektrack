@@ -84,8 +84,7 @@ export type ApiError = Error & {
   isNetworkError?: boolean;
 };
 
-async function authHeader(): Promise<Record<string, string>> {
-  const token = await getToken();
+async function authHeader(token: string | null): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -108,7 +107,7 @@ export function setSessionExpiredHandler(fn: (() => void) | null) {
 export function clearApiCache(pathPrefix?: string) {
   cacheGeneration++;
   clearTimeout(saveTimer);
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined" && (!pathPrefix || [...previewPaths].some(path=>path.startsWith(pathPrefix)))) {
     try { window.localStorage.removeItem(PREVIEW_KEY); } catch { /* optional */ }
   }
   for (const key of getCache.keys()) {
@@ -137,12 +136,16 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
   }
 
   const run = async () => {
-    const result = await requestUncached<T>(path, { ...rest, timeoutMs });
+    const result = await requestUncached<T>(path, { ...rest, timeoutMs }, token);
     if (isCacheableGet && generation === cacheGeneration && token === await getToken()) {
       getCache.set(cacheKey, { value: result, expiresAt: Date.now() + GET_CACHE_TTL_MS, previewUntil: Date.now() + PREVIEW_TTL_MS });
       if (previewPaths.has(path)) savePreviews(token);
     } else if (method !== "GET") {
-      clearApiCache();
+      if(path.startsWith('/notifications/'))clearApiCache('/notifications');
+      else if(path.startsWith('/messages/'))clearApiCache('/messages');
+      else if(path.startsWith('/social-events'))clearApiCache('/social-events');
+      else if(path.startsWith('/push-tokens')) { /* Device registration changes no screen data. */ }
+      else clearApiCache();
     }
     return result;
   };
@@ -156,13 +159,13 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
   return pending;
 }
 
-async function requestUncached<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+async function requestUncached<T>(path: string, init: RequestInit & { timeoutMs?: number }, token: string | null): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  const auth = await authHeader();
+  const auth = await authHeader(token);
   const wasAuthenticated = "Authorization" in auth;
   const headers = { ...(rest.body == null ? {} : { "Content-Type": "application/json" }), ...auth, ...(rest.headers ?? {}) };
 
@@ -182,7 +185,7 @@ async function requestUncached<T>(path: string, init?: RequestInit & { timeoutMs
         (body?.error === "invalid_credentials" ? "That email or password is incorrect." : `Request failed: ${res.status}`));
       error.code = body?.error;
       error.status = res.status;
-      if (res.status === 401 && wasAuthenticated) onSessionExpired?.();
+      if (res.status === 401 && wasAuthenticated && token === await getToken()) onSessionExpired?.();
       throw error;
     }
     return body as T;
@@ -193,7 +196,7 @@ async function requestUncached<T>(path: string, init?: RequestInit & { timeoutMs
     const retryable = status ? status >= 500 : true;
     if (isRead && retryable && timeoutMs === DEFAULT_TIMEOUT_MS) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 });
+      return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 }, token);
     }
     if (status) throw error;
     const wrapped: ApiError = new Error(controller.signal.aborted
