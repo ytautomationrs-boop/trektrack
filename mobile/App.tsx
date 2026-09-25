@@ -15,7 +15,20 @@ import { PaystackCallbackScreen } from "./src/screens/integrations/PaystackCallb
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { registerForPushNotifications } from "./src/notifications/register";
 import { ErrorBoundary } from "./src/components/ErrorBoundary";
+import { LoadError } from "./src/components/LoadError";
+import { getSocialEvents } from "./src/api/eventClient";
+import { getSocialFeed } from "./src/api/socialClient";
 import { AlertHost } from "./src/lib/alert";
+import { AstaLogo } from "./src/components/AstaLogo";
+
+// iOS zooms a web input whenever its rendered font is below 16px. Capacitor
+// hosts this build in WKWebView, so enforce the accessible iOS minimum once
+// for every input rather than relying on every screen to remember it.
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = "input,textarea,select{font-size:16px!important}html{touch-action:manipulation}";
+  document.head.appendChild(style);
+}
 
 /**
  * Web only. Both Strava's OAuth redirect and Paystack's checkout redirect
@@ -48,7 +61,7 @@ export default function App() {
 }
 
 function AppRoot() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Caprasimo_400Regular,
     Figtree_400Regular,
     Figtree_500Medium,
@@ -57,6 +70,8 @@ function AppRoot() {
   });
   const app = useAppState();
   const [restoring, setRestoring] = useState(true);
+  const [restoreError, setRestoreError] = useState<Error | null>(null);
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [webCallback, setWebCallback] = useState<WebCallback>(detectWebCallback);
 
   // A token that the server rejects ends the session here rather than
@@ -68,6 +83,8 @@ function AppRoot() {
   }, []);
 
   useEffect(() => {
+    setRestoring(true);
+    setRestoreError(null);
     restoreSession()
       .then((user) => {
         if (user) {
@@ -84,10 +101,11 @@ function AppRoot() {
           app.advanceOnboarding("done");
         }
       })
+      .catch((error: Error) => setRestoreError(error))
       .finally(() => setRestoring(false));
-  }, []);
+  }, [restoreAttempt]);
 
-  if (!fontsLoaded) return <Splash message="Loading ASTA" />;
+  if (!fontsLoaded && !fontError) return <Splash message="Loading ASTA" />;
 
   // Takes priority over the restoring spinner below — the user is mid-flow
   // on a URL that isn't meant to show the normal app shell at all.
@@ -107,13 +125,21 @@ function AppRoot() {
 
   if (restoring) return <Splash message="Restoring your session" />;
 
+  if (restoreError) {
+    return (
+      <View style={styles.splash}>
+        <LoadError error={restoreError} onRetry={() => setRestoreAttempt((n) => n + 1)} />
+      </View>
+    );
+  }
+
   return <AppShell />;
 }
 
 function Splash({ message }: { message: string }) {
   return (
     <View style={styles.splash}>
-      <Text style={styles.splashTitle}>ASTA</Text>
+      <AstaLogo width={150} height={84} backgroundColor={colors.bg} />
       <ActivityIndicator color={colors.accent} style={styles.splashSpinner} />
       <Text style={styles.splashMessage}>{message}</Text>
     </View>
@@ -136,6 +162,16 @@ function AppShell() {
     registerForPushNotifications();
   }, [app.session?.userId]);
 
+  useEffect(() => {
+    if (!app.session) return;
+    // Give the launch screen priority, then warm the other main tabs.
+    const timer = setTimeout(() => {
+      void getSocialEvents().catch(() => {});
+      void getSocialFeed().catch(() => {});
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [app.session?.userId]);
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
@@ -155,7 +191,6 @@ function AppShell() {
 
 const styles = StyleSheet.create({
   splash: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, padding: 24 },
-  splashTitle: { fontFamily: "Caprasimo_400Regular", fontSize: 36, color: colors.accent, fontStyle: "italic" },
   splashSpinner: { marginTop: 18 },
   splashMessage: { marginTop: 12, fontFamily: "Figtree_600SemiBold", fontSize: 14, color: colors.sub },
 });

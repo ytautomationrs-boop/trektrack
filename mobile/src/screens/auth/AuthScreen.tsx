@@ -45,6 +45,7 @@ export function AuthScreen() {
         bio: user.bio ?? null,
         isAdmin: user.isAdmin,
       });
+      if (mode === "login") app.advanceOnboarding("done");
     } catch (err: any) {
       setError(err.message ?? "Something went wrong");
     } finally {
@@ -64,7 +65,7 @@ export function AuthScreen() {
 
         <View style={styles.form}>
           {mode === "signup" && (
-            <TextInput style={styles.input} placeholder="Display name" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} />
+            <TextInput style={styles.input} placeholder="Unique username" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} autoCapitalize="none" autoCorrect={false} />
           )}
           <TextInput
             style={styles.input}

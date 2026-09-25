@@ -49,6 +49,7 @@ export type SocialRaceResult = {
 export type SocialPost = {
   id: string;
   body: string;
+  imageUrl: string | null;
   createdAt: string;
   author: PlayerSummary;
   raceResult: SocialRaceResult | null;
@@ -94,7 +95,7 @@ export function getPostableResults() {
   return request<{ results: SocialRaceResult[] }>("/social/postable-results");
 }
 
-export function createSocialPost(input: { body: string; raceEntryId?: string | null }) {
+export function createSocialPost(input: { body: string; raceEntryId?: string | null; imageUrl?: string | null }) {
   return request<{ post: SocialPost }>("/social/posts", { method: "POST", body: JSON.stringify(input) });
 }
 

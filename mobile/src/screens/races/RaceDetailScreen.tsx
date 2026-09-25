@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +16,7 @@ import { raceUrl } from "../../lib/webLinks";
 
 // No websocket infra exists yet — this is how fill counts and live
 // standings stay close to live while a race is still changeable.
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 60_000;
 
 function formatCents(cents: number) {
   return `R${(cents / 100).toLocaleString()}`;
@@ -71,6 +71,7 @@ export function RaceDetailScreen() {
   const raceId: string = route.params?.raceId;
 
   const [data, setData] = useState<RaceDetail | null>(null);
+  const hasDataRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [squadName, setSquadName] = useState("");
@@ -83,9 +84,11 @@ export function RaceDetailScreen() {
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
-      if (!opts.silent) setLoading(true);
+      if (!opts.silent && !hasDataRef.current) setLoading(true);
       try {
-        setData(await getRace(raceId));
+        const next = await getRace(raceId);
+        hasDataRef.current = true;
+        setData(next);
         setLoadError(null);
       } catch (err) {
         // A silent poll that fails leaves what's on screen alone — the

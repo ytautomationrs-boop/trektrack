@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, RefreshControl, ScrollView, StyleS
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
@@ -83,6 +84,7 @@ function SocialFeedScreen() {
   const [searchResults, setSearchResults] = useState<PlayerSummary[]>([]);
   const [postText, setPostText] = useState("");
   const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const [postImage, setPostImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [loadWarning, setLoadWarning] = useState<string | null>(null);
@@ -94,22 +96,33 @@ function SocialFeedScreen() {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    const [feed, friendsResult, inbox, postable] = await Promise.allSettled([
-      getSocialFeed(),
-      getFriends(),
-      getConversations(),
-      getPostableResults(),
-    ]);
-    if (feed.status === "fulfilled") setPosts(feed.value.posts);
-    if (friendsResult.status === "fulfilled") setFriends(friendsResult.value);
-    if (inbox.status === "fulfilled") setConversations(inbox.value.conversations);
-    if (postable.status === "fulfilled") setResults(postable.value.results);
+    if (posts.length === 0) setLoading(true);
+    setLoadWarning(null);
 
-    const failed = [feed, friendsResult, inbox, postable].find((result) => result.status === "rejected") as PromiseRejectedResult | undefined;
-    setLoadWarning(failed ? failed.reason?.message ?? "Some social data could not load." : null);
-    setLoading(false);
-  }, []);
+    const noteFailure = (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Some social data could not load.";
+      setLoadWarning((current) => current ?? message);
+    };
+
+    void getFriends()
+      .then((result) => setFriends(result))
+      .catch(noteFailure);
+    void getConversations()
+      .then((result) => setConversations(result.conversations))
+      .catch(noteFailure);
+    void getPostableResults()
+      .then((result) => setResults(result.results))
+      .catch(noteFailure);
+
+    try {
+      const feed = await getSocialFeed();
+      setPosts(feed.posts);
+    } catch (err) {
+      noteFailure(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [posts.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -135,19 +148,34 @@ function SocialFeedScreen() {
   };
 
   const publish = async () => {
-    const body = postText.trim();
-    if (!body) return showAlert("Post", "Write something before posting.");
+    const body = postText.trim() || (postImage ? "Shared a photo" : "");
+    if (!body) return showAlert("Post", "Write something or choose a photo before posting.");
     setBusy("post");
     try {
-      const result = await createSocialPost({ body, raceEntryId: selectedResultId });
+      const result = await createSocialPost({ body, raceEntryId: selectedResultId, imageUrl: postImage });
       setPosts((items) => [result.post, ...items]);
       setPostText("");
       setSelectedResultId(null);
+      setPostImage(null);
     } catch (err: any) {
       showAlert("Couldn't post", err.message ?? "Try again.");
     } finally {
       setBusy(null);
     }
+  };
+
+  const choosePostPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.5,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.base64) return showAlert("Photo", "That photo could not be read. Try another one.");
+    if (asset.base64.length > 750_000) return showAlert("Photo", "That photo is too large. Choose a smaller photo or screenshot.");
+    setPostImage(`data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`);
   };
 
   return (
@@ -158,8 +186,7 @@ function SocialFeedScreen() {
       >
         <View style={styles.instaHeader}>
           <View style={styles.wordmarkGroup}>
-            <AstaLogo size={34} backgroundColor={colors.bg} />
-            <Text style={styles.wordmark}>ASTA</Text>
+            <AstaLogo width={96} height={44} backgroundColor={colors.bg} />
           </View>
           <Pressable style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text} />
@@ -245,9 +272,23 @@ function SocialFeedScreen() {
               ))}
             </ScrollView>
           )}
-          <Pressable style={[styles.postButton, (!postText.trim() || busy === "post") && styles.disabled]} disabled={!postText.trim() || busy === "post"} onPress={publish}>
+          {postImage ? (
+            <View style={styles.postImagePreviewWrap}>
+              <Image source={{ uri: postImage }} style={styles.postImagePreview} />
+              <Pressable style={styles.removePhoto} onPress={() => setPostImage(null)}>
+                <Ionicons name="close" size={18} color={colors.text} />
+              </Pressable>
+            </View>
+          ) : null}
+          <View style={styles.composerActions}>
+            <Pressable style={styles.photoButton} onPress={choosePostPhoto}>
+              <Ionicons name="image-outline" size={19} color={colors.accent} />
+              <Text style={styles.photoButtonText}>Photo</Text>
+            </Pressable>
+          <Pressable style={[styles.postButton, ((!postText.trim() && !postImage) || busy === "post") && styles.disabled]} disabled={(!postText.trim() && !postImage) || busy === "post"} onPress={publish}>
             {busy === "post" ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.postButtonText}>Post</Text>}
           </Pressable>
+          </View>
         </View>
 
         {loading && posts.length === 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.xl }} /> : null}
@@ -592,6 +633,7 @@ function PostCard({
         <Ionicons name="ellipsis-horizontal" size={18} color={colors.sub} />
       </Pressable>
       {post.raceResult && <ResultPanel result={post.raceResult} />}
+      {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postPhoto} resizeMode="cover" /> : null}
       <Text style={styles.postBody}>{post.body}</Text>
       <View style={styles.postActions}>
         <Pressable style={styles.postActionButton} onPress={toggleLike} disabled={busy === "like"}>
@@ -736,7 +778,13 @@ const styles = StyleSheet.create({
   searchGo: { width: 32, height: 32, borderRadius: radii.sm, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   composer: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md, marginTop: spacing.lg, marginBottom: spacing.lg },
   composerHead: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
-  composerInput: { flex: 1, minHeight: 62, color: colors.text, fontFamily: fonts.body, fontSize: 14, lineHeight: 19 },
+  composerInput: { flex: 1, minHeight: 62, color: colors.text, fontFamily: fonts.body, fontSize: 16, lineHeight: 21 },
+  composerActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  photoButton: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: spacing.sm },
+  photoButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accent },
+  postImagePreviewWrap: { position: "relative" },
+  postImagePreview: { width: "100%", height: 220, borderRadius: radii.md, backgroundColor: colors.surfaceRaised },
+  removePhoto: { position: "absolute", right: spacing.sm, top: spacing.sm, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.7)", alignItems: "center", justifyContent: "center" },
   resultRow: { gap: spacing.sm },
   resultChip: { flexDirection: "row", alignItems: "center", gap: 5, maxWidth: 190, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   resultChipActive: { backgroundColor: colors.accent },
@@ -749,6 +797,7 @@ const styles = StyleSheet.create({
   postName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   postMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub },
   postBody: { fontFamily: fonts.body, fontSize: 14, color: colors.text, lineHeight: 20, marginTop: spacing.md },
+  postPhoto: { width: "100%", height: 300, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, marginTop: spacing.md },
   postActions: { flexDirection: "row", alignItems: "center", gap: spacing.lg, marginTop: spacing.md },
   postActionButton: { flexDirection: "row", alignItems: "center", gap: 5, minHeight: 32 },
   postActionText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub },

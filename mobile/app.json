@@ -18,6 +18,8 @@
       "infoPlist": {
         "NSHealthShareUsageDescription": "ASTA reads your steps and workouts from Health to verify competition results. Nothing is written back to Health.",
         "NSHealthUpdateUsageDescription": "ASTA does not write data to Health.",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "ASTA adds games you have joined to your Apple Calendar when you choose Add.",
+        "NSCalendarsFullAccessUsageDescription": "ASTA can sync games you have joined with your Apple Calendar.",
         "UIBackgroundModes": ["fetch", "remote-notification"]
       },
       "entitlements": {
@@ -38,7 +40,10 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "backgroundColor": "#241f19"
+      "backgroundColor": "#241f19",
+      "meta": {
+        "viewport": "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      }
     },
     "plugins": [
       ["react-native-health", { "isClinicalDataEnabled": false }],

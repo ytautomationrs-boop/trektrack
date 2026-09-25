@@ -3,6 +3,7 @@ import { View, Pressable, StyleSheet, Platform } from "react-native";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
@@ -126,21 +127,34 @@ function CreateTabButton({ onPress }: { onPress: () => void }) {
 }
 
 function AppHeader() {
+  const insets = useSafeAreaInsets();
+  const capacitorTop = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 47 : 0;
+  const topInset = Math.max(insets.top, capacitorTop);
   return (
-    <View style={styles.appHeader}>
-      <AstaLogo width={96} height={56} backgroundColor={colors.bg} />
+    <View style={[styles.appHeader, { paddingTop: topInset + 4 }]}>
+      <AstaLogo width={86} height={44} backgroundColor={colors.bg} />
     </View>
   );
 }
 
 export function RootNavigator() {
+  const insets = useSafeAreaInsets();
+  const capacitorBottom = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 34 : 0;
+  const bottomInset = Math.max(insets.bottom, capacitorBottom);
   return (
     <NavigationContainer theme={navTheme} linking={linking}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: true,
           header: () => <AppHeader />,
-          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.surfaceRaised, height: 62, paddingBottom: 8, paddingTop: 6 },
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.surfaceRaised,
+            height: 68 + bottomInset,
+            paddingBottom: Math.max(bottomInset, 12),
+            paddingTop: 8,
+            paddingHorizontal: 10,
+          },
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.sub,
           tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11 },
@@ -174,12 +188,14 @@ export function RootNavigator() {
 
 const styles = StyleSheet.create({
   appHeader: {
-    height: 70,
-    alignItems: "center",
-    justifyContent: "center",
+    minHeight: 72,
+    alignItems: "flex-start",
+    justifyContent: "flex-end",
     backgroundColor: colors.bg,
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceRaised,
+    paddingHorizontal: 22,
+    paddingBottom: 8,
   },
   createButtonWrap: { flex: 1, alignItems: "center", justifyContent: "flex-start" },
   createButtonCircle: {

@@ -131,7 +131,7 @@ function OverviewPanel() {
   const [loadError, setLoadError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!overview) setLoading(true);
     try {
       setOverview(await getAdminOverview());
       setLoadError(null);
@@ -140,7 +140,7 @@ function OverviewPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [overview]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -230,7 +230,7 @@ function UsersPanel() {
   const [loadError, setLoadError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (users.length === 0) setLoading(true);
     try {
       const result = await getAdminUsers();
       setUsers(result.users);
@@ -240,7 +240,7 @@ function UsersPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [users.length]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

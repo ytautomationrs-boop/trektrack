@@ -101,7 +101,7 @@ export function WalletScreen() {
   const config = useAppConfig();
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!wallet && entries.length === 0) setLoading(true);
     setLoadError(null);
     const ledgerPromise = getLedger()
       .then((ledger) => {
@@ -122,7 +122,7 @@ export function WalletScreen() {
     }
 
     await ledgerPromise;
-  }, []);
+  }, [entries.length, wallet]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

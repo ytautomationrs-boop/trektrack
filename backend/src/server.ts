@@ -58,6 +58,7 @@ export function rateLimitKey(jwtVerifier: TokenVerifier, authorization: string |
 
 export async function buildServer() {
   const app = Fastify({
+    bodyLimit: 1_200_000,
     logger: true,
     // Behind a production hosting proxy, req.ip is the proxy's address unless
     // we trust forwarded headers, which would make every request look like it

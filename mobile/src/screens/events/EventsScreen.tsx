@@ -9,6 +9,8 @@ import { showAlert } from "../../lib/alert";
 import { shareCode } from "../../lib/shareCode";
 import { eventUrl } from "../../lib/webLinks";
 import { createSocialEvent, getSocialEvents, getSocialSports, type SocialEvent, type SocialSport } from "../../api/eventClient";
+import { Capacitor } from "@capacitor/core";
+import { CapacitorCalendar } from "@ebarooni/capacitor-calendar";
 
 const FALLBACK_SPORTS: SocialSport[] = [
   { key: "tennis", name: "Tennis", icon: "tennisball-outline" },
@@ -82,9 +84,10 @@ export function EventsScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [view, setView] = useState<"events" | "calendar">("events");
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (events.length === 0) setLoading(true);
     const sportsPromise = getSocialSports().then((r) => setSports(r.sports)).catch(() => {});
     try {
       const result = await getSocialEvents();
@@ -96,7 +99,7 @@ export function EventsScreen() {
       setLoading(false);
     }
     await sportsPromise;
-  }, []);
+  }, [events.length]);
 
   useFocusEffect(
     useCallback(() => {
@@ -113,6 +116,21 @@ export function EventsScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
+        <View style={styles.viewTabs}>
+          <Pressable style={[styles.viewTab, view === "events" && styles.viewTabActive]} onPress={() => setView("events")}>
+            <Ionicons name="people-outline" size={16} color={view === "events" ? colors.bg : colors.sub} />
+            <Text style={[styles.viewTabText, view === "events" && styles.viewTabTextActive]}>Discover</Text>
+          </Pressable>
+          <Pressable style={[styles.viewTab, view === "calendar" && styles.viewTabActive]} onPress={() => setView("calendar")}>
+            <Ionicons name="calendar-outline" size={16} color={view === "calendar" ? colors.bg : colors.sub} />
+            <Text style={[styles.viewTabText, view === "calendar" && styles.viewTabTextActive]}>My calendar</Text>
+          </Pressable>
+        </View>
+
+        {view === "calendar" ? (
+          <EventCalendar events={joined} onOpen={(event) => navigation.navigate("EventDetail", { eventId: event.id })} />
+        ) : (
+          <>
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.header}>Events</Text>
@@ -152,8 +170,60 @@ export function EventsScreen() {
         {open.map((event) => (
           <EventCard key={event.id} event={event} onOpen={() => navigation.navigate("EventDetail", { eventId: event.id })} />
         ))}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function EventCalendar({ events, onOpen }: { events: SocialEvent[]; onOpen: (event: SocialEvent) => void }) {
+  const upcoming = [...events].filter((event) => new Date(event.startsAt).getTime() >= Date.now()).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+
+  const addToCalendar = async (event: SocialEvent) => {
+    if (!Capacitor.isNativePlatform()) {
+      showAlert("Apple Calendar", "Calendar sync is available in the iPhone app.");
+      return;
+    }
+    const startDate = new Date(event.startsAt).getTime();
+    try {
+      await CapacitorCalendar.createEventWithPrompt({
+        title: event.name,
+        location: event.location ?? undefined,
+        description: event.description ?? "ASTA social event",
+        startDate,
+        endDate: startDate + 60 * 60 * 1000,
+      });
+    } catch (error: any) {
+      showAlert("Calendar sync", error?.message ?? "The event could not be added to Apple Calendar.");
+    }
+  };
+
+  return (
+    <View>
+      <Text style={styles.header}>My calendar</Text>
+      <Text style={styles.headerSub}>Games you have joined, in date order.</Text>
+      {upcoming.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>No upcoming games</Text>
+          <Text style={styles.emptyText}>Join an event and it will appear here.</Text>
+        </View>
+      ) : upcoming.map((event) => (
+        <View key={event.id} style={styles.calendarRow}>
+          <Pressable style={styles.calendarMain} onPress={() => onOpen(event)}>
+            <Text style={styles.calendarDate}>{new Date(event.startsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.calendarTitle}>{event.name}</Text>
+              <Text style={styles.calendarMeta}>{formatDateTime(event.startsAt)}{event.location ? ` · ${event.location}` : ""}</Text>
+            </View>
+          </Pressable>
+          <Pressable style={styles.calendarSync} onPress={() => addToCalendar(event)}>
+            <Ionicons name="calendar-outline" size={17} color={colors.accent} />
+            <Text style={styles.calendarSyncText}>Add</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -399,6 +469,11 @@ function EventCard({ event, onOpen }: { event: SocialEvent; onOpen: () => void }
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  viewTabs: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: radii.lg, padding: 4, marginBottom: spacing.lg },
+  viewTab: { flex: 1, minHeight: 42, borderRadius: radii.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
+  viewTabActive: { backgroundColor: colors.accent },
+  viewTabText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
+  viewTabTextActive: { color: colors.bg },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
   headerSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
@@ -413,7 +488,7 @@ const styles = StyleSheet.create({
   sportChipActive: { backgroundColor: colors.accent },
   sportChipText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
   sportChipTextActive: { color: colors.bg },
-  input: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 14 },
+  input: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 16 },
   description: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: spacing.sm },
   flexInput: { flex: 1 },
@@ -466,6 +541,13 @@ const styles = StyleSheet.create({
   secondaryButton: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   secondaryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.text },
   tapHint: { fontFamily: fonts.body, fontSize: 11, color: colors.sub },
+  calendarRow: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.md, marginTop: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  calendarMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  calendarDate: { width: 48, fontFamily: fonts.bodyBold, fontSize: 13, color: colors.accent, textAlign: "center" },
+  calendarTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
+  calendarMeta: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
+  calendarSync: { alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44 },
+  calendarSyncText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.accent, marginTop: 2 },
   emptyCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center" },
   emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   emptyText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 4 },

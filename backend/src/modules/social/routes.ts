@@ -32,6 +32,7 @@ const MessageBody = z.object({
 const SocialPostBody = z.object({
   body: z.string().trim().min(1).max(500),
   raceEntryId: z.string().trim().min(1).optional().nullable(),
+  imageUrl: z.string().max(800_000).refine((value) => value.startsWith("data:image/"), "Choose a valid photo.").optional().nullable(),
 });
 
 const CommentBody = z.object({

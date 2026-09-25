@@ -71,7 +71,7 @@ export function MyRacesScreen() {
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (entries.length === 0) setLoading(true);
     const standingsPromise = getLeagueStandings()
       .then((value) => {
         setStandings(value);
@@ -91,7 +91,7 @@ export function MyRacesScreen() {
     }
 
     await standingsPromise;
-  }, []);
+  }, [entries.length]);
 
   // Refresh on focus: entering a race from the Competitions list should show
   // up here immediately, not after a manual pull.

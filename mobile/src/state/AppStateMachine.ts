@@ -1,5 +1,6 @@
 import { logout as clearPersistedSession } from "../api/client";
 import { unregisterForPushNotifications } from "../notifications/register";
+import { setStoredSession } from "../lib/tokenStorage";
 
 // Single logic class driving cross-screen flow state: onboarding progress
 // and session. Screens are dumb consumers via the useAppState() hook below —
@@ -11,7 +12,7 @@ import { unregisterForPushNotifications } from "../notifications/register";
 // A race has no daily verdict to interrupt you with, and prizes land in the
 // wallet rather than behind a celebration modal, so both are gone.
 
-export type OnboardingStep = "intro" | "connect_health" | "permission_denied" | "pick_starter_metric" | "done";
+export type OnboardingStep = "intro" | "done";
 
 // isAdmin gates whether Create is a live action during the pilot — see
 // screens/create/CreateRaceScreen.tsx.
@@ -42,6 +43,7 @@ class AppStateMachineImpl {
   // ── Session ──────────────────────────────────────────────
   setSession(session: Session) {
     this.session = session;
+    setStoredSession(session);
     this.emit();
   }
 

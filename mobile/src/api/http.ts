@@ -17,8 +17,12 @@ import { API_BASE_URL } from "./config";
  * is strictly better than an unbounded one that surfaces nothing.
  */
 
-/** Long enough for Hostinger cold-start/database latency, short enough that a hung request doesn't strand the UI. */
-const DEFAULT_TIMEOUT_MS = 45_000;
+/** Long enough for normal mobile latency, short enough that a hung request doesn't strand the UI. */
+const DEFAULT_TIMEOUT_MS = 15_000;
+const GET_CACHE_TTL_MS = 30_000;
+const inFlightGets = new Map<string, Promise<unknown>>();
+let cacheGeneration = 0;
+const getCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 export type ApiError = Error & {
   /** Server-supplied slug, e.g. "insufficient_balance". Absent on network/timeout failures. */
@@ -49,7 +53,51 @@ export function setSessionExpiredHandler(fn: (() => void) | null) {
   onSessionExpired = fn;
 }
 
+export function clearApiCache(pathPrefix?: string) {
+  cacheGeneration++;
+  for (const key of getCache.keys()) {
+    if (!pathPrefix || key.startsWith(pathPrefix)) getCache.delete(key);
+  }
+  for (const key of inFlightGets.keys()) {
+    if (!pathPrefix || key.startsWith(pathPrefix)) inFlightGets.delete(key);
+  }
+}
+
 export async function request<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
+  const method = (rest.method ?? "GET").toUpperCase();
+  const isCacheableGet = method === "GET" && rest.body == null && !rest.headers;
+  const token = await getToken();
+  const cacheKey = `${path}::${token ?? "anonymous"}`;
+  const generation = cacheGeneration;
+
+  if (isCacheableGet) {
+    const cached = getCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+    const pending = inFlightGets.get(cacheKey);
+    if (pending) return pending as Promise<T>;
+  }
+
+  const run = async () => {
+    const result = await requestUncached<T>(path, { ...rest, timeoutMs });
+    if (isCacheableGet && generation === cacheGeneration && token === await getToken()) {
+      getCache.set(cacheKey, { value: result, expiresAt: Date.now() + GET_CACHE_TTL_MS });
+    } else if (method !== "GET") {
+      clearApiCache();
+    }
+    return result;
+  };
+
+  if (!isCacheableGet) return run();
+
+  const pending = run().finally(() => {
+    if (inFlightGets.get(cacheKey) === pending) inFlightGets.delete(cacheKey);
+  });
+  inFlightGets.set(cacheKey, pending);
+  return pending;
+}
+
+async function requestUncached<T>(path: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
   const { timeoutMs = DEFAULT_TIMEOUT_MS, ...rest } = init ?? {};
 
   const controller = new AbortController();
@@ -76,9 +124,20 @@ export async function request<T>(path: string, init?: RequestInit & { timeoutMs?
         : "Couldn't reach ASTA. Check your connection and try again."
     );
     wrapped.isNetworkError = true;
+    // Hostinger can cold-start after sitting idle. Retry reads once before
+    // showing an error; mutations are never repeated automatically.
+    if ((rest.method ?? "GET").toUpperCase() === "GET" && timeoutMs === DEFAULT_TIMEOUT_MS) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 });
+    }
     throw wrapped;
   } finally {
     clearTimeout(timer);
+  }
+
+  if (res.status >= 500 && (rest.method ?? "GET").toUpperCase() === "GET" && timeoutMs === DEFAULT_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    return requestUncached<T>(path, { ...rest, timeoutMs: DEFAULT_TIMEOUT_MS + 5_000 });
   }
 
   if (!res.ok) {

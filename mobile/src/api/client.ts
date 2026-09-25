@@ -1,5 +1,6 @@
-import { getToken, setToken, clearToken } from "../lib/tokenStorage";
-import { request } from "./http";
+import { getToken, setToken, clearToken, getStoredSession, setStoredSession } from "../lib/tokenStorage";
+import { request, clearApiCache, type ApiError } from "./http";
+import { getRaces } from "./raceClient";
 import type { LedgerEntry, MetricTypeDefinition, PaystackBank, PaystackDepositIntent, ProfileStats, StravaStatus, Wallet, WithdrawDestination } from "./types";
 
 // Shared API calls — auth, metrics, wallet, profile, integrations.
@@ -29,7 +30,9 @@ export async function login(email: string, password: string) {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+  clearApiCache();
   await setToken(data.token);
+  setStoredSession(toStoredSession(data.user));
   return data.user;
 }
 
@@ -43,24 +46,68 @@ export async function signUp(input: { email: string; password: string; displayNa
     method: "POST",
     body: JSON.stringify(input),
   });
+  clearApiCache();
   await setToken(data.token);
+  setStoredSession(toStoredSession(data.user));
   return data.user;
+}
+
+function toStoredSession(user: SessionUser) {
+  return {
+    userId: user.id,
+    displayName: user.displayName,
+    email: user.email,
+    avatarUrl: user.avatarUrl ?? null,
+    bio: user.bio ?? null,
+    isAdmin: user.isAdmin,
+  };
 }
 
 /** Restores a session from a previously-stored JWT on app launch. Returns null if there's no token or it's no longer valid (expired/revoked). */
 export async function restoreSession() {
   const token = await getToken();
   if (!token) return null;
+  const stored = getStoredSession();
+  // Start the first screen's main request alongside session validation.
+  // The shared request cache deduplicates it when the screen mounts.
+  void getRaces({ scope: "my_league" }).catch(() => {});
+  if (stored) {
+    // A returning user should see the app immediately. Validate and refresh
+    // their profile in the background; a rejected token still triggers the
+    // global expired-session handler in http.ts.
+    void request<{ user: SessionUser }>("/me", { timeoutMs: 8_000 })
+      .then(({ user }) => setStoredSession(toStoredSession(user)))
+      .catch(() => {});
+    return {
+      id: stored.userId,
+      displayName: stored.displayName,
+      email: stored.email,
+      avatarUrl: stored.avatarUrl,
+      bio: stored.bio,
+      walletBalanceCents: 0,
+      isAdmin: stored.isAdmin,
+    };
+  }
   try {
-    const data = await request<{ user: SessionUser }>("/me", { timeoutMs: 8_000 });
+    const data = await request<{ user: SessionUser }>("/me", { timeoutMs: 4_000 });
+    setStoredSession(toStoredSession(data.user));
     return data.user;
-  } catch {
-    await clearToken();
-    return null;
+  } catch (error) {
+    const status = (error as ApiError).status;
+    if (status === 401 || status === 404) {
+      clearApiCache();
+      await clearToken();
+      setStoredSession(null);
+      return null;
+    }
+    // A slow/offline server is not evidence that the saved login expired.
+    throw error;
   }
 }
 
 export async function logout() {
+  clearApiCache();
+  setStoredSession(null);
   await clearToken();
 }
 

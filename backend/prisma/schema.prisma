@@ -159,6 +159,7 @@ model SocialPost {
   authorId    String
   author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   body        String
+  imageUrl    String?
   raceEntryId String?
   raceEntry   RaceEntry? @relation(fields: [raceEntryId], references: [id], onDelete: SetNull)
   createdAt   DateTime   @default(now())

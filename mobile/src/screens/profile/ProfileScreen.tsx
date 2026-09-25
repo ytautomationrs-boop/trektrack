@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { showAlert } from "../../lib/alert";
@@ -125,6 +126,21 @@ function IdentityCard() {
   const [bio, setBio] = useState(app.session?.bio ?? "");
   const [busy, setBusy] = useState(false);
 
+  const choosePhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.45,
+      base64: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (!asset?.base64) return showAlert("Profile photo", "That photo could not be read. Try another one.");
+    if (asset.base64.length > 550_000) return showAlert("Profile photo", "That photo is too large. Choose a smaller photo or screenshot.");
+    setAvatarUrl(`data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}`);
+  };
+
   const save = async () => {
     if (displayName.trim().length < 2) {
       showAlert("Profile", "Your display name needs at least 2 characters.");
@@ -171,16 +187,11 @@ function IdentityCard() {
       </Pressable>
       {editing && (
         <View style={styles.editProfilePanel}>
-          <TextInput style={styles.codeInput} value={displayName} onChangeText={setDisplayName} placeholder="Display name" placeholderTextColor={colors.sub} />
-          <TextInput
-            style={styles.codeInput}
-            value={avatarUrl}
-            onChangeText={setAvatarUrl}
-            placeholder="Avatar image URL"
-            placeholderTextColor={colors.sub}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <TextInput style={styles.codeInput} value={displayName} onChangeText={setDisplayName} placeholder="Unique username" placeholderTextColor={colors.sub} autoCapitalize="none" autoCorrect={false} />
+          <Pressable style={styles.photoPickerButton} onPress={choosePhoto}>
+            <Ionicons name="images-outline" size={18} color={colors.accent} />
+            <Text style={styles.photoPickerText}>{avatarUrl ? "Choose a different photo" : "Choose photo from phone"}</Text>
+          </Pressable>
           <TextInput
             style={[styles.codeInput, styles.bioInput]}
             value={bio}
@@ -972,6 +983,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   editProfileText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
+  photoPickerButton: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.md },
+  photoPickerText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   editProfilePanel: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
   bioInput: { minHeight: 78, textAlignVertical: "top" },
   shortcutGrid: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },

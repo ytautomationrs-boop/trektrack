@@ -5,7 +5,10 @@ import { requireAuth } from "../../middleware/auth.js";
 
 const UpdateProfileSchema = z.object({
   displayName: z.string().trim().min(2).max(40).optional(),
-  avatarUrl: z.string().trim().url().max(500).nullable().optional(),
+  avatarUrl: z.string().trim().max(600_000).refine(
+    (value) => value.startsWith("data:image/") || z.string().url().safeParse(value).success,
+    "Choose a valid profile photo.",
+  ).nullable().optional(),
   bio: z.string().trim().max(160).nullable().optional(),
 });
 
@@ -20,6 +23,13 @@ const UpdateProfileSchema = z.object({
 export async function accountRoutes(app: FastifyInstance) {
   app.patch("/me/profile", { preHandler: requireAuth }, async (req, reply) => {
     const body = UpdateProfileSchema.parse(req.body ?? {});
+    if (body.displayName) {
+      const nameTaken = await prisma.user.findFirst({
+        where: { id: { not: req.userId }, displayName: { equals: body.displayName, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (nameTaken) return reply.code(409).send({ error: "username_in_use", message: "That username is already taken." });
+    }
     const user = await prisma.user.update({
       where: { id: req.userId },
       data: {

@@ -97,6 +97,11 @@ export async function authRoutes(app: FastifyInstance) {
 
     const existing = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } });
     if (existing) return reply.code(409).send({ error: "email_in_use", message: "An account with that email already exists — log in instead." });
+    const nameTaken = await prisma.user.findFirst({
+      where: { displayName: { equals: body.displayName, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (nameTaken) return reply.code(409).send({ error: "username_in_use", message: "That username is already taken." });
 
     // No payment-provider call here on purpose: account creation shouldn't
     // depend on a third-party payment processor being reachable/configured.

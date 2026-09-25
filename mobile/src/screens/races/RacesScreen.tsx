@@ -8,9 +8,8 @@ import { showAlert } from "../../lib/alert";
 import { confirmVerifiable } from "../../lib/verifiability";
 import { LoadError } from "../../components/LoadError";
 import { iconFor } from "../../theme/metricIcons";
-import { getCompetitionLeaderboards, getLeagueStandings, getRaces, enterRace } from "../../api/raceClient";
+import { getLeagueStandings, getRaces, enterRace } from "../../api/raceClient";
 import type { LeagueStandings, Race } from "../../api/raceTypes";
-import type { CompetitionLeaderboard } from "../../api/raceTypes";
 import { LeagueHeader } from "./LeagueHeader";
 import { sportImageFor } from "../../theme/sportImages";
 import { shareCode } from "../../lib/shareCode";
@@ -69,27 +68,22 @@ export function RacesScreen() {
   // Which metric's races to show. null = all four.
   const [metricFilter, setMetricFilter] = useState<string | null>(null);
   const [races, setRaces] = useState<Race[]>([]);
-  const [leaderboards, setLeaderboards] = useState<CompetitionLeaderboard[]>([]);
   const [scope, setScope] = useState<"my_league" | "all">("my_league");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showLeagues, setShowLeagues] = useState(false);
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
-      if (!opts.silent) setLoading(true);
+      if (!opts.silent && races.length === 0) setLoading(true);
       const standingsPromise = getLeagueStandings()
         .then((leagueResult) => {
           setStandings(leagueResult);
         })
         .catch(() => {
           if (!opts.silent) setStandings(null);
-        });
-      const leaderboardPromise = getCompetitionLeaderboards()
-        .then((result) => setLeaderboards(result.leaderboards))
-        .catch(() => {
-          if (!opts.silent) setLeaderboards([]);
         });
       try {
         const raceResult = await getRaces({ scope });
@@ -102,9 +96,8 @@ export function RacesScreen() {
         if (!opts.silent) setLoading(false);
       }
       await standingsPromise;
-      await leaderboardPromise;
     },
-    [scope]
+    [scope, races.length]
   );
 
   useEffect(() => {
@@ -112,7 +105,7 @@ export function RacesScreen() {
   }, [load]);
 
   useEffect(() => {
-    const id = setInterval(() => load({ silent: true }), POLL_INTERVAL_MS);
+    const id = setInterval(() => load({ silent: true }), POLL_INTERVAL_MS * 2);
     return () => clearInterval(id);
   }, [load]);
 
@@ -192,12 +185,16 @@ export function RacesScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={styles.header}>Competitions</Text>
-          {/* Also a bottom tab, but kept here as a shortcut for people who
-              enter from the competitions list and want their active races. */}
-          <Pressable style={styles.myRacesLink} onPress={() => navigation.navigate("Profile", { screen: "MyRaces" })}>
-            <Text style={styles.myRacesLinkText}>Your races</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.accent} />
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable style={styles.headerButton} onPress={() => setShowLeagues((value) => !value)}>
+              <Ionicons name="podium-outline" size={16} color={colors.accent} />
+              <Text style={styles.myRacesLinkText}>Leagues</Text>
+            </Pressable>
+            <Pressable style={styles.myRacesLink} onPress={() => navigation.navigate("Profile", { screen: "MyRaces" })}>
+              <Text style={styles.myRacesLinkText}>Your races</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.accent} />
+            </Pressable>
+          </View>
         </View>
 
         <Pressable style={styles.howToggle} onPress={() => setShowHowItWorks((value) => !value)}>
@@ -210,10 +207,9 @@ export function RacesScreen() {
 
         {showHowItWorks && <HowItWorksCard />}
 
-        {/* Hidden once the load has failed — its own null state says "Loading
-            your leagues…" forever, which contradicts the retry state below. */}
-        {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={selectMetric} />}
-        <LeaderboardStrip leaderboards={leaderboards} />
+        {showLeagues && !(loadError && !standings) && (
+          <LeagueHeader standings={standings} onSelectMetric={selectMetric} />
+        )}
 
         {/* Metric filter. Selecting one narrows to that metric's races at
             THAT metric's league level — never a combined or unrelated one. */}
@@ -270,36 +266,6 @@ export function RacesScreen() {
         ))}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function LeaderboardStrip({ leaderboards }: { leaderboards: CompetitionLeaderboard[] }) {
-  if (leaderboards.length === 0) return null;
-  return (
-    <View style={styles.leaderboardCard}>
-      <Text style={styles.leaderboardTitle}>Top points</Text>
-      <View style={styles.leaderboardGrid}>
-        {leaderboards.map((board) => {
-          const leader = board.leaders[0];
-          return (
-            <View key={board.metricKey} style={styles.leaderCell}>
-              <View style={styles.leaderMetricRow}>
-                <Ionicons name={iconFor(board.icon)} size={13} color={colors.accent} />
-                <Text style={styles.leaderMetric}>{board.metricName}</Text>
-              </View>
-              {leader ? (
-                <>
-                  <Text style={styles.leaderName} numberOfLines={1}>{leader.displayName}</Text>
-                  <Text style={styles.leaderPoints}>{leader.totalPoints} pts · {leader.leagueName}</Text>
-                </>
-              ) : (
-                <Text style={styles.leaderPoints}>No points yet</Text>
-              )}
-            </View>
-          );
-        })}
-      </View>
-    </View>
   );
 }
 
@@ -517,6 +483,8 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.lg },
   header: { fontFamily: fonts.display, fontSize: 30, color: colors.text },
   myRacesLink: { flexDirection: "row", alignItems: "center", gap: 2 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  headerButton: { flexDirection: "row", alignItems: "center", gap: 4 },
   myRacesLinkText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.accent },
   howToggle: {
     flexDirection: "row",
@@ -548,14 +516,6 @@ const styles = StyleSheet.create({
   },
   howNumberText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.accent },
   howStepText: { flex: 1, fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17 },
-  leaderboardCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.lg },
-  leaderboardTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginBottom: spacing.md },
-  leaderboardGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  leaderCell: { flexGrow: 1, flexBasis: "45%", backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md },
-  leaderMetricRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  leaderMetric: { fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.sub },
-  leaderName: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text, marginTop: 4 },
-  leaderPoints: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
   scopeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
   metricRow: { flexDirection: "row", gap: spacing.sm, paddingBottom: spacing.lg },
   chip: {

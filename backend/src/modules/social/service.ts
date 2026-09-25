@@ -87,6 +87,7 @@ function serializePost(post: any) {
   return {
     id: post.id,
     body: post.body,
+    imageUrl: post.imageUrl ?? null,
     createdAt: post.createdAt,
     author: serializePlayer(post.author),
     raceResult: post.raceEntry ? serializeRaceResult(post.raceEntry) : null,
@@ -164,7 +165,7 @@ export async function listPostableResults(viewerId: string) {
   return entries.map(serializeRaceResult);
 }
 
-export async function createSocialPost(viewerId: string, input: { body: string; raceEntryId?: string | null }) {
+export async function createSocialPost(viewerId: string, input: { body: string; raceEntryId?: string | null; imageUrl?: string | null }) {
   const body = input.body.trim();
   if (!body) throw Object.assign(new Error("Write something before posting."), { statusCode: 400, code: "empty_post" });
 
@@ -179,7 +180,7 @@ export async function createSocialPost(viewerId: string, input: { body: string; 
   }
 
   const post = await prisma.socialPost.create({
-    data: { authorId: viewerId, body, raceEntryId },
+    data: { authorId: viewerId, body, raceEntryId, imageUrl: input.imageUrl ?? null },
     include: postInclude(viewerId),
   });
   return serializePost(post);
