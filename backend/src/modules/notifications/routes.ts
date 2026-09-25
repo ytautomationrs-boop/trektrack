@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { apnsConfigured } from "./apns.js";
+import { apnsConfigured, sendApplePush } from "./apns.js";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth } from "../../middleware/auth.js";
@@ -10,6 +10,15 @@ const RegisterPushTokenSchema = z.object({
 });
 
 export async function notificationRoutes(app: FastifyInstance) {
+  app.post('/notifications/test', {preHandler:requireAuth,config:{rateLimit:{max:3,timeWindow:'1 minute'}}}, async(req,reply)=>{
+    if(!apnsConfigured())return reply.code(503).send({error:'push_unavailable',message:'Phone notifications are not configured yet.'});
+    const tokens=await prisma.pushToken.findMany({where:{userId:req.userId,token:{startsWith:'apns:'}},select:{token:true}});
+    if(!tokens.length)return reply.code(400).send({error:'no_phone',message:'Enable phone notifications in ASTA on your iPhone first.'});
+    const results=await Promise.allSettled(tokens.map(t=>sendApplePush(t.token.slice(5),'ASTA notification check','Your iPhone notifications are working.',{kind:'test'})));
+    const accepted=results.filter(r=>r.status==='fulfilled').length;
+    if(!accepted){req.log.error({reasons:results.map(r=>r.status==='rejected'?r.reason?.message:null)},'APNs test failed');return reply.code(502).send({error:'push_failed',message:'Apple did not accept the notification. Please enable phone notifications again and retry.'});}
+    return {accepted};
+  });
   app.get('/notifications', {preHandler:requireAuth}, async req=>{
     const [notifications,unreadCount]=await Promise.all([
       prisma.appNotification.findMany({where:{userId:req.userId},orderBy:{createdAt:'desc'},take:60}),

@@ -9,3 +9,5 @@ export function openNotification(navigation:any,data:Record<string,string>) {
  else if(data.postId)navigation.navigate('Social',{screen:'SocialPost',params:{postId:data.postId}});
  else navigation.navigate('Social');
 }
+
+export const testPhoneNotification=()=>request<{accepted:number}>('/notifications/test',{method:'POST',body:'{}'});

@@ -1,18 +1,19 @@
 import React,{useCallback,useState} from 'react';
 import {ActivityIndicator,View,Text,ScrollView,Pressable,StyleSheet,RefreshControl} from 'react-native';
 import {useFocusEffect,useNavigation} from '@react-navigation/native';
-import {getNotifications,readNotifications,openNotification,type Inbox} from '../../api/notificationClient';
+import {getNotifications,readNotifications,openNotification,testPhoneNotification,type Inbox} from '../../api/notificationClient';
 import {registerForPushNotifications} from '../../notifications/register';
 import {colors,fonts,spacing,radii} from '../../theme/tokens';
 import {showAlert} from '../../lib/alert';
 export function NotificationsScreen() {
- const navigation=useNavigation<any>();const [inbox,setInbox]=useState<Inbox|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');
+ const navigation=useNavigation<any>();const [inbox,setInbox]=useState<Inbox|null>(null);const [loading,setLoading]=useState(true);const [error,setError]=useState('');const [testing,setTesting]=useState(false);
  const load=useCallback(async()=>{try{const data=await getNotifications({onCached:setInbox});setInbox(data);setError('');}catch(e:any){setError(e.message);}finally{setLoading(false);}},[]);
  useFocusEffect(useCallback(()=>{void load();},[load]));
  const enable=async()=>{if(!inbox?.pushAvailable){showAlert("Phone alerts","Phone alerts are being set up. Your notifications are available in this inbox.");return;}try{const result=await registerForPushNotifications(true);showAlert('Notifications',result.status==='registered'?'Phone notifications enabled.':result.status==='denied'?'Allow notifications for ASTA in iPhone Settings.':'Notifications remain available in this inbox.');}catch{showAlert('Notifications','Could not register this phone. Your in-app inbox still works.');}};
  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading} onRefresh={load}/>}>
   <Text style={styles.title}>Notifications</Text>
   <Pressable style={styles.button} onPress={enable}><Text style={styles.buttonText}>Enable phone notifications</Text></Pressable>
+  {inbox?.pushAvailable?<Pressable disabled={testing} style={styles.button} onPress={async()=>{setTesting(true);try{await testPhoneNotification();showAlert('Test sent','Apple accepted the test notification. Check your iPhone notification centre.');}catch(e:any){showAlert('Notification check',e.message);}finally{setTesting(false);}}}><Text style={styles.buttonText}>{testing?'Sending…':'Send a test notification'}</Text></Pressable>:null}
   {loading&&!inbox?<ActivityIndicator color={colors.accent}/>:null}
   {error?<Text style={styles.body}>{error}</Text>:null}
   {!loading&&!inbox?.notifications.length?<Text style={styles.body}>Invites, messages, likes and game updates will appear here.</Text>:null}
