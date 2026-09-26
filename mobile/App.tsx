@@ -1,4 +1,4 @@
-import { setHealthSession } from "./src/lib/appleHealth";
+import { setHealthSession, prepareHealthOnStartup } from "./src/lib/appleHealth";
 import {syncWatchSession} from './src/lib/watch';
 import {getToken} from './src/lib/tokenStorage';
 import "@expo/metro-runtime";
@@ -163,6 +163,12 @@ function Splash({ message }: { message: string }) {
  */
 function AppShell() {
   const app = useAppState();
+  useEffect(()=>{
+    if(!app.session || app.onboardingStep!=="done")return;
+    const owner=app.session.userId;
+    const timer=setTimeout(()=>{void getToken().then(token=>prepareHealthOnStartup(token,owner)).catch(()=>{});},800);
+    return()=>clearTimeout(timer);
+  },[app.session?.userId,app.onboardingStep]);
   useEffect(()=>{if(app.session)void getToken().then(syncWatchSession);},[app.session?.userId]);
 
   useEffect(() => {

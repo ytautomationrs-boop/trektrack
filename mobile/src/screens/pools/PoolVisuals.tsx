@@ -2,12 +2,13 @@ import React,{useEffect,useRef,useState} from 'react';
 import {View,Text,ImageBackground,Animated,AccessibilityInfo,StyleSheet} from 'react-native';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import {SportPhoto} from '../../components/SportPhoto';
 import {LinearGradient} from 'expo-linear-gradient';
 import {colors,fonts} from '../../theme/tokens';
 export const poolIcons:Record<string,React.ComponentProps<typeof MaterialCommunityIcons>['name']>={steps:'walk',running:'run-fast',cycling:'bike',swimming:'swim',sleep:'sleep'};
 export const money=(amount:number,_currency?:string)=>`R ${(amount/100).toLocaleString('en-ZA',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 export function ActivityIcon({metric,size=23}:{metric:string;size?:number}){return <View style={v.icon}><MaterialCommunityIcons name={poolIcons[metric]??'heart-pulse'} size={size} color={colors.text}/></View>;}
-export function PoolHero(){return <ImageBackground source={require('../../../assets/pools/coastal-run.jpg')} style={v.hero} imageStyle={{borderRadius:22}}><LinearGradient colors={['transparent',colors.bg]} style={v.shade}><Text style={v.eyebrow}>A little every day.</Text><Text style={v.heroTitle}>{'Better habits.\nShared rewards.'}</Text><Text style={v.subtitle}>Meet your goals. Stay in together.</Text></LinearGradient></ImageBackground>;}
+export function PoolHero(){return <View style={{flexDirection:'row',gap:10}}><SportPhoto sport="cycling" style={{flex:1,width:0,height:112}}/><SportPhoto sport="swimming" style={{flex:1,width:0,height:112}}/></View>;}
 export function ProgressBar({value}:{value:number}){return <View style={v.track}><View style={[v.fill,{width:`${Math.max(0,Math.min(100,value*100))}%`}]}/></View>;}
 const celebrated=new Set<string>();
 export function WinCard({id,amount,currency,shared}:{id:string;amount:number;currency?:string;shared:boolean}){

@@ -3,6 +3,7 @@ export type HealthStatus = { available: boolean; enabled: boolean; poolsEnabled?
 export const AppleHealth = registerPlugin<{
  setSession(value: {token: string | null; owner: string | null}): Promise<void>;
  connect(): Promise<HealthStatus>; connectPools(): Promise<HealthStatus>; disconnect(): Promise<HealthStatus>; refresh(): Promise<HealthStatus>; status(): Promise<HealthStatus>;
+ prepare():Promise<HealthStatus>; openSettings():Promise<void>;
  dailyActivity(value:{metrics:string[]}): Promise<{values:Record<string,number>}>;
  addListener(name: 'changed', cb: (status: HealthStatus) => void): Promise<PluginListenerHandle>;
 }>('ASTAHealth');
@@ -16,4 +17,14 @@ export async function ensurePoolHealth() {
  if (!hasAppleHealth()) throw new Error('Open the updated ASTA iPhone app to set up Apple Health.');
  const status = await AppleHealth.status();
  return status.poolsEnabled ? status : AppleHealth.connectPools();
+}
+
+export async function prepareHealthOnStartup(token:string|null,owner:string) {
+ if (!token || !hasAppleHealth()) return;
+ await AppleHealth.setSession({token,owner});
+ await AppleHealth.prepare();
+}
+export async function openSystemSettings(){
+ if(hasAppleHealth())return AppleHealth.openSettings();
+ throw new Error('Open your phone Settings to change ASTA permissions.');
 }

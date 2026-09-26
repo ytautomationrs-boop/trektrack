@@ -77,7 +77,7 @@ export async function socialEventRoutes(app: FastifyInstance) {
 
   app.get("/social-events", { preHandler: requireAuth }, async (req, reply) => {
     try {
-      return reply.send({ events: await withRuntimeSchemaRepair("list social events", () => listSocialEvents(req.userId)) });
+      return reply.send({ events: await withRuntimeSchemaRepair("list social events", () => listSocialEvents(req.userId, (req.query as {joinedOnly?:string}).joinedOnly === "true")) });
     } catch (err) {
       return sendEventError(reply, err);
     }

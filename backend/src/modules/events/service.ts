@@ -91,10 +91,10 @@ export function listSocialSports() {
   return SOCIAL_SPORTS;
 }
 
-export async function listSocialEvents(viewerId: string) {
+export async function listSocialEvents(viewerId: string, joinedOnly = false) {
   const membership = [{ hostUserId: viewerId }, { participants: { some: { userId: viewerId, status: "JOINED" as const } } }];
   const [active, past] = await Promise.all([
-    prisma.socialEvent.findMany({where:{status:{in:['UPCOMING','LIVE']},OR:[{visibility:'PUBLIC',status:'UPCOMING',startsAt:{gte:new Date(Date.now()-3600000)}},...membership]},include:eventInclude,orderBy:{startsAt:'asc'},take:80}),
+    prisma.socialEvent.findMany({where:{status:{in:['UPCOMING','LIVE']},OR:joinedOnly?membership:[{visibility:'PUBLIC',status:'UPCOMING',startsAt:{gte:new Date(Date.now()-3600000)}},...membership]},include:eventInclude,orderBy:{startsAt:'asc'},take:80}),
     prisma.socialEvent.findMany({where:{status:'COMPLETED',OR:membership},include:eventInclude,orderBy:{startsAt:'desc'},take:40}),
   ]);
   return [...active,...past].map(event=>decorateEvent(event,viewerId));

@@ -17,6 +17,7 @@ import UIKit
     private var enabled = false
     private var poolsEnabled = false
     private var activityEnabled = false
+    private var setupHandled = false
     private var attestKey: String?
     private var poolObservers: [HKObserverQuery] = []
     private var epoch = UUID()
@@ -34,6 +35,7 @@ import UIKit
         if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
            let data = result as? Data, let saved = try? JSONSerialization.jsonObject(with:data) as? [String:Any] {
             token = saved["token"] as? String; owner = saved["owner"] as? String
+            setupHandled = saved["setupHandled"] as? Bool ?? false
             activityEnabled = saved["activityEnabled"] as? Bool ?? false
             enabled = saved["enabled"] as? Bool ?? false; poolsEnabled = saved["poolsEnabled"] as? Bool ?? false; attestKey = saved["attestKey"] as? String; lastSynced = saved["lastSynced"] as? String
         }
@@ -46,7 +48,7 @@ import UIKit
         let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:service]
         SecItemDelete(query as CFDictionary)
         guard let token = token, let owner = owner else { return }
-        var saved: [String:Any] = ["token":token,"owner":owner,"enabled":enabled,"poolsEnabled":poolsEnabled,"activityEnabled":activityEnabled]
+        var saved: [String:Any] = ["token":token,"owner":owner,"enabled":enabled,"poolsEnabled":poolsEnabled,"activityEnabled":activityEnabled,"setupHandled":setupHandled]
         saved["lastSynced"] = lastSynced; saved["attestKey"] = attestKey
         guard let data = try? JSONSerialization.data(withJSONObject:saved) else { return }
         var item = query; item[kSecValueData as String] = data
@@ -56,7 +58,7 @@ import UIKit
     func setSession(_ next: String?, owner nextOwner: String?) {
         if owner != nextOwner {
             epoch = UUID(); running?.cancel(); running = nil
-            enabled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); today = nil; lastSynced = nil; message = nil
+            enabled = false; setupHandled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); today = nil; lastSynced = nil; message = nil
             if let observer = observer { store.stop(observer); self.observer = nil }
             store.disableBackgroundDelivery(for:steps) { _,_ in }
         }
@@ -64,24 +66,29 @@ import UIKit
         if enabled { observe(); Task { await sync() } }
         publish()
     }
+    func prepare() async throws {
+        guard !setupHandled else { if enabled { Task { await sync() } }; return }
+        try await connect()
+    }
     func connect() async throws {
         guard HKHealthStore.isHealthDataAvailable(), token != nil else { throw issue("Sign in on an iPhone to connect Apple Health.") }
+        setupHandled = true; persist()
         if !activityEnabled { try await store.requestAuthorization(toShare: [], read: poolReadTypes) }
         activityEnabled = true
         // A completed prompt does not reveal whether read access was granted.
         enabled = true; persist(); observe()
         do { try await store.enableBackgroundDelivery(for: steps, frequency: .hourly) }
         catch { message = "Background updates unavailable. ASTA will sync when opened." }
-        await sync()
+        Task { await sync() }
     }
     func disconnect() {
-        epoch = UUID(); enabled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); running?.cancel(); running = nil
+        epoch = UUID(); setupHandled = true; enabled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); running?.cancel(); running = nil
         if let observer = observer { store.stop(observer); self.observer = nil }
         store.disableBackgroundDelivery(for: steps) { _,_ in }
         today = nil; lastSynced = nil; message = nil; persist(); publish()
     }
     func state() -> [String:Any] {
-        var value: [String:Any] = ["available":HKHealthStore.isHealthDataAvailable(),"enabled":enabled,"poolsEnabled":poolsEnabled,"syncing":running != nil,"activityEnabled":activityEnabled]
+        var value: [String:Any] = ["available":HKHealthStore.isHealthDataAvailable(),"enabled":enabled,"poolsEnabled":poolsEnabled,"syncing":running != nil,"activityEnabled":activityEnabled,"setupHandled":setupHandled]
         value["todaySteps"] = today; value["lastSyncedAt"] = lastSynced; value["message"] = message
         return value
     }
@@ -132,6 +139,7 @@ import UIKit
     private var poolReadTypes: Set<HKObjectType> { [steps, HKObjectType.workoutType(), HKObjectType.categoryType(forIdentifier:.sleepAnalysis)!] }
     func connectPools() async throws {
         guard HKHealthStore.isHealthDataAvailable(), token != nil else { throw issue("Sign in on an iPhone to connect Apple Health.") }
+        setupHandled = true; persist()
         if !activityEnabled { try await store.requestAuthorization(toShare:[],read:poolReadTypes) }
         activityEnabled = true
         _ = try await verifiedPoolKey(token:token!)
@@ -304,7 +312,7 @@ import UIKit
 public class ASTAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "ASTAHealthPlugin"
     public let jsName = "ASTAHealth"
-    public let pluginMethods: [CAPPluginMethod] = ["setSession","connect","connectPools","disconnect","refresh","status","dailyActivity"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    public let pluginMethods: [CAPPluginMethod] = ["setSession","connect","connectPools","disconnect","refresh","status","dailyActivity","prepare","openSettings"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
     private var observer: NSObjectProtocol?
     public override func load() {
         observer = NotificationCenter.default.addObserver(forName:Notification.Name("ASTAHealthChanged"),object:nil,queue:.main) { [weak self] notification in
@@ -318,5 +326,11 @@ public class ASTAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func disconnect(_ call:CAPPluginCall) { Task { @MainActor in ASTAHealthStore.shared.disconnect(); call.resolve(ASTAHealthStore.shared.state()) } }
     @objc func refresh(_ call:CAPPluginCall) { Task { @MainActor in await ASTAHealthStore.shared.sync(); call.resolve(ASTAHealthStore.shared.state()) } }
     @objc func dailyActivity(_ call:CAPPluginCall) { Task { @MainActor in do { call.resolve(try await ASTAHealthStore.shared.dailyActivity(metrics:call.getArray("metrics",String.self) ?? [])) } catch { call.reject(error.localizedDescription) } } }
+    @objc func prepare(_ call:CAPPluginCall) { Task { @MainActor in do { try await ASTAHealthStore.shared.prepare(); call.resolve(ASTAHealthStore.shared.state()) } catch { call.reject(error.localizedDescription) } } }
+    @objc func openSettings(_ call:CAPPluginCall) { Task { @MainActor in
+        guard let url = URL(string:UIApplication.openSettingsURLString) else { call.reject("Settings are unavailable."); return }
+        let opened = await UIApplication.shared.open(url)
+        if opened { call.resolve() } else { call.reject("Could not open Settings.") }
+    } }
     @objc func status(_ call:CAPPluginCall) { Task { @MainActor in call.resolve(ASTAHealthStore.shared.state()) } }
 }

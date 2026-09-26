@@ -4,6 +4,7 @@ import { NavigationContainer, StackActions, getPathFromState, DefaultTheme, useN
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
@@ -21,7 +22,7 @@ import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 import { NotificationsScreen } from "../screens/notifications/NotificationsScreen";
 import { getNotifications, openNotification } from "../api/notificationClient";
-import { PoolsScreen, PoolDetail } from "../screens/pools/PoolsScreen";
+import { PoolsScreen, PoolDetail, CreatePool } from "../screens/pools/PoolsScreen";
 import { AstaLogo } from "../components/AstaLogo";
 
 import { HomeScreen } from "../screens/home/HomeScreen";
@@ -38,16 +39,19 @@ function HomeStackScreen() {
     <HomeStack.Screen name="HomeDashboard" component={HomeScreen}/>
     <HomeStack.Screen name="RaceDetail" component={RaceDetailScreen}/>
     <HomeStack.Screen name="PoolDetail" component={PoolDetail}/>
+    <HomeStack.Screen name="EventDetail" component={EventDetailScreen}/>
   </HomeStack.Navigator>;
 }
 function PlayStackScreen() {
   return <PlayStack.Navigator screenOptions={{headerShown:false,gestureEnabled:true}}>
     <PlayStack.Screen name="PlayHome" component={PlayScreen}/>
     <PlayStack.Screen name="Pools" component={PoolsScreen}/>
-    <PlayStack.Screen name="RacesList" component={RacesScreen}/>
+    <PlayStack.Screen name="CreatePool" component={CreatePool}/>
+    <PlayStack.Screen name="PoolDetail" component={PoolDetail}/>
+    <PlayStack.Screen name="RacesList" component={PlayScreen}/>
     <PlayStack.Screen name="Leagues" component={LeaguesScreen}/>
     <PlayStack.Screen name="RaceDetail" component={RaceDetailScreen}/>
-    <PlayStack.Screen name="EventsHome" component={EventsScreen}/>
+    <PlayStack.Screen name="EventsHome" component={PlayScreen}/>
     <PlayStack.Screen name="CreateEvent" component={CreateEventScreen}/>
     <PlayStack.Screen name="EventDetail" component={EventDetailScreen}/>
     <PlayStack.Screen name="CreateRace" component={CreateGateScreen}/>
@@ -84,7 +88,7 @@ const navTheme = {
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Home: "home-outline",
-  Play: "game-controller-outline",
+  Play: "fitness-outline",
   Social: "people-outline",
 
   Profile: "person-outline",
@@ -99,6 +103,7 @@ const linking = {
   config: {
     screens: {
       Home: {screens:{HomeDashboard:"home"}},
+      Profile: {initialRouteName:"ProfileHome",screens:{ProfileHome:"profile",Settings:"settings"}},
       Play: {initialRouteName:"PlayHome",screens:{PlayHome:"play",RacesList:"competitions",Leagues:"leagues",RaceDetail:"race/:raceId",EventsHome:"events",EventDetail:"event/:eventId",Pools:{screens:{PoolsHome:"pools",CreatePool:"pools/create",PoolDetail:"pool/:id"}}}},
     },
   },
@@ -263,7 +268,7 @@ export function RootNavigator() {
           tabBarActiveTintColor: colors.accent,
           tabBarInactiveTintColor: colors.sub,
           tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11 },
-          tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => route.name === "Play" ? <MaterialCommunityIcons name="run-fast" size={size} color={color}/> : <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
         })}
       >
         <Tab.Screen name="Home" component={HomeStackScreen}/>
@@ -271,7 +276,7 @@ export function RootNavigator() {
         <Tab.Screen name="Create" component={CreateGateScreen} options={({navigation})=>({
           tabBarLabel:()=>null,
           tabBarButton:()=> <CreateTabButton
-            onPool={()=>navigation.navigate("Play",{screen:"Pools",params:{screen:"CreatePool",initial:false},initial:false})}
+            onPool={()=>navigation.navigate("Play",{screen:"CreatePool",initial:false})}
             onCompetition={()=>navigation.navigate("Play",{screen:"CreateRace",initial:false})}
             onSocialGame={()=>navigation.navigate("Play",{screen:"CreateEvent",initial:false})}/>
         })}/>
