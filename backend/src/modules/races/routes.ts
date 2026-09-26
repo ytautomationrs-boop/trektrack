@@ -1,3 +1,4 @@
+import { healthCompetitionRoutes } from "../health/competitions.js";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { ZodError } from "zod";
 import { ensureCompetitionCatalog, ensureRaceTypeForUserCreatedRace, getCompetitionRaceTypesPayload } from "../../lib/competitionCatalog.js";
@@ -59,6 +60,7 @@ function sendRaceError(reply: FastifyReply, err: unknown) {
 }
 
 export async function raceRoutes(app: FastifyInstance) {
+  await healthCompetitionRoutes(app);
   // ── Config discovery ────────────────────────────────────────────────────
 
   // The pre-announced prize schedules, readable before entering anything.

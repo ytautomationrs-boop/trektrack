@@ -285,6 +285,14 @@ export async function aggregateForEntries(
     _sum: { value: true },
   });
   for (const row of rows) totals.set(row.raceEntryId, row._sum.value ?? 0);
+  // A HealthKit snapshot already covers the entire race window and merges
+  // phone/watch overlap. Never add older native sample imports on top of it.
+  if (race.metricKey === "steps") {
+    const snapshots = await prisma.healthStepSnapshot.findMany({
+      where: { raceEntryId: { in: raceEntryIds }, windowStart: race.startedAt, windowEnd: { lte: race.endsAt } },
+    });
+    for (const snapshot of snapshots) totals.set(snapshot.raceEntryId, snapshot.steps);
+  }
   return totals;
 }
 

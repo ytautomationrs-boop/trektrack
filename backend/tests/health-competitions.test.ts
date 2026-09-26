@@ -1,0 +1,27 @@
+import Fastify from 'fastify';
+import { beforeAll,afterAll,beforeEach,it,expect,vi } from 'vitest';
+const db=vi.hoisted(()=>({$queryRaw:vi.fn(),raceEntry:{findUnique:vi.fn(),findUniqueOrThrow:vi.fn()},healthStepSnapshot:{findUnique:vi.fn(),upsert:vi.fn()}}));
+vi.mock('../src/lib/prisma.js',()=>({prisma:{$transaction:(fn:any)=>fn(db)}}));
+vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any)=>{req.userId='owner';}}));
+vi.mock('../src/modules/races/scoring.js',()=>({liveStandings:vi.fn()}));
+import {healthCompetitionRoutes,snapshotError} from '../src/modules/health/competitions.js';
+const app=Fastify();
+const start=new Date('2026-09-25T00:00:00.000Z'),end=new Date('2026-09-27T00:00:00.000Z');
+const snapshot={entryId:'e',steps:2000,windowStart:start.toISOString(),windowEnd:'2026-09-25T12:00:00.000Z',observedAt:'2026-09-25T12:00:00.000Z'};
+const entry={id:'e',userId:'owner',raceId:'r',status:'ENTERED',race:{id:'r',status:'RUNNING',metricKey:'steps',startedAt:start,endsAt:end}};
+beforeAll(()=>app.register(healthCompetitionRoutes));afterAll(()=>app.close());
+beforeEach(()=>{vi.clearAllMocks();db.raceEntry.findUnique.mockResolvedValue(entry);db.raceEntry.findUniqueOrThrow.mockResolvedValue(entry);db.healthStepSnapshot.findUnique.mockResolvedValue(null);});
+const send=(body=snapshot)=>app.inject({method:'POST',url:'/health/competitions/steps',payload:body});
+it('does not expose or update another user entry',async()=>{db.raceEntry.findUnique.mockResolvedValue({...entry,userId:'other'});expect((await send()).statusCode).toBe(404);expect(db.healthStepSnapshot.upsert).not.toHaveBeenCalled();});
+it('replaces a snapshot rather than incrementing it',async()=>{expect((await send()).statusCode).toBe(200);const saved=db.healthStepSnapshot.upsert.mock.calls[0][0];expect(saved.update.steps).toBe(2000);expect(saved.create.raceEntryId).toBe('e');expect(db.$queryRaw).toHaveBeenCalledTimes(2);});
+it('ignores identical and out-of-order readings',async()=>{db.healthStepSnapshot.findUnique.mockResolvedValue({observedAt:new Date('2026-09-25T13:00:00Z'),windowEnd:new Date('2026-09-25T13:00:00Z')});expect((await send()).json().stale).toBe(true);expect(db.healthStepSnapshot.upsert).not.toHaveBeenCalled();});
+it('allows newer corrected totals to decrease',async()=>{db.healthStepSnapshot.findUnique.mockResolvedValue({observedAt:new Date('2026-09-25T11:00:00Z'),windowEnd:new Date('2026-09-25T11:00:00Z'),steps:5000});expect((await send()).statusCode).toBe(200);expect(db.healthStepSnapshot.upsert.mock.calls[0][0].update.steps).toBe(2000);});
+it('rechecks lifecycle after locking and cannot change a finished result',async()=>{db.raceEntry.findUniqueOrThrow.mockResolvedValue({...entry,race:{...entry.race,status:'RESOLVED'}});expect((await send()).statusCode).toBe(409);expect(db.healthStepSnapshot.upsert).not.toHaveBeenCalled();});
+it('rejects malformed, outside-window, future and impossible step totals',async()=>{
+ expect((await send({...snapshot,steps:-1})).statusCode).toBe(400);
+ const now=new Date('2026-09-26T00:00:00Z');
+ expect(snapshotError({...snapshot,windowStart:'2026-09-24T00:00:00Z'},start,end,now)).toBeTruthy();
+ expect(snapshotError({...snapshot,windowEnd:'2026-09-27T01:00:00Z'},start,end,now)).toBeTruthy();
+ expect(snapshotError({...snapshot,steps:9999999},start,end,now)).toBeTruthy();
+ expect(snapshotError(snapshot,start,end,now)).toBeNull();
+});

@@ -1,3 +1,4 @@
+import { setHealthSession } from "./src/lib/appleHealth";
 import {syncWatchSession} from './src/lib/watch';
 import {getToken} from './src/lib/tokenStorage';
 import "@expo/metro-runtime";
@@ -79,7 +80,7 @@ function AppRoot() {
     Figtree_700Bold: { uri: Asset.fromModule(Figtree_700Bold).uri, display: FontDisplay.SWAP },
   });
   const app = useAppState();
-  useEffect(()=>{if(app.session)void getToken().then(syncWatchSession);},[app.session?.userId]);
+  useEffect(()=>{if(app.session)void getToken().then(token=>{void syncWatchSession(token);void setHealthSession(token,app.session!.userId);});},[app.session?.userId]);
   const [restoring, setRestoring] = useState(true);
   const [restoreError, setRestoreError] = useState<Error | null>(null);
   const [restoreAttempt, setRestoreAttempt] = useState(0);

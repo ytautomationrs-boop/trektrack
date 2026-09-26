@@ -1,3 +1,4 @@
+import { setHealthSession } from "./appleHealth";
 import {syncWatchSession} from './watch';
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -68,6 +69,7 @@ export async function setToken(token: string): Promise<void> {
 export async function clearToken(): Promise<void> {
   memoryToken = null;
   void syncWatchSession(null);
+  void setHealthSession(null,null);
   if (Platform.OS === "web") {
     try {
       window.localStorage.removeItem(KEY);

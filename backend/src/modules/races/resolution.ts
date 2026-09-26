@@ -1,3 +1,4 @@
+import { stepSyncClosesAt } from "../health/syncWindow.js";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { ensurePlatformAccount } from "../../lib/platformAccount.js";
@@ -66,7 +67,7 @@ export async function resolveRace(raceId: string, now = new Date()) {
   const race = await prisma.race.findUniqueOrThrow({ where: { id: raceId } });
 
   if (race.status !== "RUNNING") return { skipped: true as const, reason: race.status };
-  if (!race.endsAt || now < race.endsAt) return { skipped: true as const, reason: "not_ended_yet" };
+  if (!race.endsAt || now < stepSyncClosesAt(race.metricKey, race.endsAt)) return { skipped: true as const, reason: "not_ended_yet" };
 
   const claimed = await prisma.race.updateMany({
     where: { id: raceId, status: "RUNNING" },

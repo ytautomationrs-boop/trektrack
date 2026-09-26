@@ -1,7 +1,7 @@
 import Capacitor
 
 class ASTABridgeViewController: CAPBridgeViewController {
-    override func capacitorDidLoad() { bridge?.registerPluginInstance(ASTAWatchPlugin()); bridge?.registerPluginInstance(ASTAAuthPlugin()) }
+    override func capacitorDidLoad() { bridge?.registerPluginInstance(ASTAWatchPlugin()); bridge?.registerPluginInstance(ASTAAuthPlugin()); bridge?.registerPluginInstance(ASTAHealthPlugin()) }
 }
 @objc(ASTAWatchPlugin)
 public class ASTAWatchPlugin: CAPPlugin, CAPBridgedPlugin {

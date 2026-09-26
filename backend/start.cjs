@@ -58,6 +58,11 @@ async function start() {
       const { ensureSocialFeatureSchema } = require("./startup-social-schema.cjs");
       await ensureSocialFeatureSchema(schemaClient);
       await require("./startup-settings-schema.cjs").ensureSettingsSchema(schemaClient);
+      const [healthTable] = await schemaClient.$queryRawUnsafe(`SELECT to_regclass('public."HealthStepSnapshot"') IS NOT NULL AS ready`);
+      if (!healthTable?.ready) {
+        const sql = require('node:fs').readFileSync(join(backendDir, 'prisma/migrations/20260927020000_health_step_snapshots/migration.sql'), 'utf8');
+        await schemaClient.$executeRawUnsafe(sql);
+      }
       const missing = await findMissingRuntimeColumns(schemaClient, Prisma.dmmf.datamodel.models);
       repairNeeded = missing.length > 0;
       if (repairNeeded) console.warn(`[startup] Database schema is missing ${missing.length} expected columns; running runtime repair.`);

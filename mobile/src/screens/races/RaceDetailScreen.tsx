@@ -1,3 +1,4 @@
+import { HealthDashboard } from "../../components/HealthDashboard";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -270,6 +271,7 @@ export function RaceDetailScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={() => load()} tintColor={colors.accent} />}
       >
+        {race.metricKey === "steps" && <HealthDashboard raceId={raceId} />}
         <Text style={styles.title}>
           {race.raceType?.metricType.displayName ?? race.metricKey} ·{" "}
           {race.format === "SQUAD" ? "Squad race" : "Solo race"}

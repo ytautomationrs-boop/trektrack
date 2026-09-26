@@ -1,3 +1,4 @@
+import { hasAppleHealth } from "./appleHealth";
 import { Platform } from "react-native";
 import { showAlert } from "./alert";
 
@@ -27,6 +28,7 @@ export const IMPORTABLE_METRICS = ["running", "cycling", "swimming"];
 /** True when nothing available here can score this metric. */
 export function isUnverifiable(metricKey: string, opts: { hasHealthSync?: boolean } = {}): boolean {
   if (IMPORTABLE_METRICS.includes(metricKey)) return false;
+  if (metricKey === "steps" && hasAppleHealth()) return false;
   // Steps and sleep: only the health store reaches them, and only natively.
   return !(opts.hasHealthSync && Platform.OS !== "web");
 }

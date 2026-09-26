@@ -1,3 +1,5 @@
+> The installed Capacitor iPhone app now uses `ios/App/App/ASTAHealthPlugin.swift`. See the repository’s `APPLE-HEALTH.md`. The React Native adapter plan below is for the separate React Native build.
+
 # HealthKit / Health Connect integration layer — plan
 
 ## Platform reality check (2026)

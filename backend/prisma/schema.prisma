@@ -781,6 +781,7 @@ model RaceEntry {
 
   joinedAt DateTime @default(now())
 
+  healthSteps HealthStepSnapshot?
   samples RaceHealthSample[]
   socialPosts SocialPost[]
 
@@ -1658,4 +1659,16 @@ model AuthChallenge {
   consumedAt DateTime?
   refreshTokenEncrypted String?
   @@index([expiresAt])
+}
+
+// Latest full-window HealthKit total. Replaced atomically, never added to
+// previous snapshots: Health may merge devices or delete samples later.
+model HealthStepSnapshot {
+  raceEntryId String @id
+  raceEntry RaceEntry @relation(fields: [raceEntryId], references: [id], onDelete: Cascade)
+  steps Int
+  windowStart DateTime
+  windowEnd DateTime
+  observedAt DateTime
+  updatedAt DateTime @updatedAt
 }
