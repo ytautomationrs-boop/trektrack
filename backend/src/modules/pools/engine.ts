@@ -91,6 +91,15 @@ export function tick(p:Pool,now:Date){
       const passed=passes(p,day,player.reports[String(day)]);player.days[String(day)]=passed;
       if(!passed){player.status='ELIMINATED';player.eliminatedDay=day;}
     }
+    // Judge everyone at the same cutoff before selecting a sole survivor.
+    // Stop catch-up immediately so later missing days cannot eliminate the winner.
+    const survivors=p.players.filter(x=>x.status==='ACTIVE');
+    if(survivors.length===1){
+      survivors[0]!.status='FINISHED';
+      survivors[0]!.payout=p.buyIn*p.players.length;
+      p.status='COMPLETED';
+      return;
+    }
   }
   if(clock>=dayEnd(p,p.durationDays)){
     const winners=p.players.filter(x=>x.status==='ACTIVE');

@@ -20,7 +20,10 @@ including the preceding night for day 1. Main sleep duration and optional
 bedtime/wake deadlines must pass. Durations use elapsed time and deadlines
 local time, with daylight-saving transitions respected.
 
-After the last day, all credits split equally among finishers, with remainder
+After each daily cutoff, if exactly one player remains, the pool completes
+immediately and that player receives all credits, regardless of days remaining.
+All players are evaluated together before choosing the winner. Otherwise,
+after the last day, all credits split equally among finishers, with remainder
 credits one each to earliest joiners. No commission or redemption. No finishers
 means every entry refunded. All pool state/debit/refund/payout writes are in
 one transaction under a pool row lock. Creation has a UUID retry key (always
