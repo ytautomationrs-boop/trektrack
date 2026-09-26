@@ -25,7 +25,7 @@ export async function healthCompetitionRoutes(app: FastifyInstance) {
     const windowsOnly = (req.query as { windowsOnly?: string }).windowsOnly === "true";
     return { competitions: await Promise.all(entries.map(async (entry) => {
       const { race } = entry;
-      if (windowsOnly) return {entryId:entry.id,raceId:race.id,status:race.status,windowStart:race.startedAt,windowEnd:race.endsAt};
+      if (windowsOnly) return {entryId:entry.id,raceId:race.id,status:race.endsAt && new Date() > stepSyncClosesAt(race.metricKey,race.endsAt) ? "SYNC_CLOSED" : race.status,windowStart:race.startedAt,windowEnd:race.endsAt};
       const standing = await liveStandings(race.id);
       const own = standing.individuals.find(r => r.entryId === entry.id);
       const squad = standing.squads.find(s => s.members.some(m => m.entryId === entry.id));

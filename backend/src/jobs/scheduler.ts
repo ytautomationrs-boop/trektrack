@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import {sendStartReminders} from "./startReminders.js";
-import {ensureOpenRaces} from "../modules/races/service.js";
+import {ensureOpenRaces, startLockedRaces} from "../modules/races/service.js";
 import { runRaceLifecycle, runRaceStravaSync } from "./raceLifecycle.js";
 import { runChallengeLifecycle } from "./challengeLifecycle.js";
 import { runChallengeStravaSync } from "../modules/challenges/stravaSync.js";
@@ -12,6 +12,7 @@ import { stravaConfigured } from "../modules/integrations/strava/stravaClient.js
 type JobName =
   | "activity reminders"
   | "empty race cleanup"
+  | "competition starts"
   | "race lifecycle"
   | "race strava sync"
   | "challenge strava sync"
@@ -88,5 +89,8 @@ export function startScheduler() {
 /** Small activity tasks remain available when heavy scoring jobs are disabled. */
 export function startActivityScheduler(){
  scheduleJob("activity reminders","* * * * *",sendStartReminders);
- if(!env.RUN_BACKGROUND_JOBS)scheduleJob("empty race cleanup","*/5 * * * *",ensureOpenRaces);
+ if(!env.RUN_BACKGROUND_JOBS){
+  scheduleJob("competition starts","* * * * *",startLockedRaces);
+  scheduleJob("empty race cleanup","*/5 * * * *",ensureOpenRaces);
+ }
 }
