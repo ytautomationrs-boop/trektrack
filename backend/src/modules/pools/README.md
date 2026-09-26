@@ -58,3 +58,13 @@ Pools engine/store tests run alongside Health competition and account-deletion
 checks. PGlite tests exercise SQL transactions, wallet isolation, refunds,
 settlements, private reports and real ECDSA assertion signatures. Physical Apple
 attestation enrollment is still required before enabling wallet entry.
+
+## Home and Play update (build 10)
+
+Tabs are Home, Play, create, Social, and Profile. Play contains Pools, Competitions, and Events. Home excludes finished/withdrawn races, completed Pools, eliminated members, and TEST records. Only current challenge metrics appear. Display-only Health totals stay on the phone. Walking distance means recorded walking workouts, not estimated distance from steps.
+
+The public Pools API accepts explicit ZAR creation only. It no longer registers simulation endpoints or returns test balances or records. Historical tests remain isolated and are never converted to rands. The paid rollout flag remains unchanged.
+
+Health permissions and device verification are reused. Initial connection starts syncing in the background. Build 10 adds the native dailyActivity method and is required for Home activity readings.
+
+Competition creation now accepts authenticated users, preserving fee validation, league rules, and wallet deductions. The old admin balance auto-top-up is removed.

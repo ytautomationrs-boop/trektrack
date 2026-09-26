@@ -168,7 +168,7 @@ export function MyRacesScreen() {
             <Text style={styles.emptyBody}>
               {createdOnly ? "Use the + button to create a competition. Your past competitions appear below." : "Browse the open races and enter one — every race pays a fixed prize that's published before you join."}
             </Text>
-            <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("Competitions")}>
+            <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("Play", {screen:"RacesList",initial:false})}>
               <Text style={styles.emptyCtaText}>Browse races</Text>
             </Pressable>
           </View>

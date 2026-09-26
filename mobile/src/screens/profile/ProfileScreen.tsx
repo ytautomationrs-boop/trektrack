@@ -759,7 +759,7 @@ function JoinByCodeSection() {
     try {
       const { race } = await lookUpRaceCode(code.trim());
       setCode("");
-      navigation.navigate("Races", { screen: "RaceDetail", params: { raceId: race.id } });
+      navigation.navigate("Play", { screen: "RaceDetail", params: { raceId: race.id } });
     } catch (err: any) {
       showAlert("Couldn't find that race", err.message ?? "Check the code and try again.");
     } finally {

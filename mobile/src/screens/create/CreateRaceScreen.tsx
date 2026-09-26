@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import {poolIcons} from "../pools/PoolVisuals";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useNavigation } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
@@ -158,8 +160,8 @@ function formatCents(cents: number) {
 }
 
 function parseEntryFeeCents(value: string) {
-  const normalized = value.replace(",", ".").replace(/[^\d.]/g, "");
-  if (!normalized) return null;
+  const normalized = value.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
   const amount = Number(normalized);
   if (!Number.isFinite(amount)) return null;
   return Math.round(amount * 100);
@@ -260,7 +262,7 @@ export function CreateRaceScreen() {
   const defaultEntryFeeCents = selected?.schedule.entryFeeCents ?? baseScheduleFor(format, durationDays);
   const customEntryFeeCents = parseEntryFeeCents(entryFeeText);
   const resolvedEntryFeeCents = customEntryFeeCents ?? defaultEntryFeeCents;
-  const entryFeeIsValid = resolvedEntryFeeCents >= 100 && resolvedEntryFeeCents <= 1_000_000;
+  const entryFeeIsValid = (!entryFeeText.trim() || customEntryFeeCents !== null) && resolvedEntryFeeCents >= 100 && resolvedEntryFeeCents <= 1_000_000;
   const displaySchedule = selected
     ? {
         entryFeeCents: resolvedEntryFeeCents,
@@ -268,7 +270,7 @@ export function CreateRaceScreen() {
       }
     : null;
   const trophyMeta = TROPHY_META[metricKey];
-  const canSubmit = selected != null && entryFeeIsValid && !busy;
+  const canSubmit = selected != null && entryFeeIsValid && Number(durationText) === durationDays && !busy;
 
   const submit = useCallback(async () => {
     if (!selected) return;
@@ -302,7 +304,7 @@ export function CreateRaceScreen() {
           },
           {
             text: "View race",
-            onPress: () => navigation.navigate("Races", { screen: "RaceDetail", params: { raceId: result.race.id } }),
+            onPress: () => navigation.navigate("Play", { screen: "RaceDetail", params: { raceId: result.race.id } }),
           },
         ]
       );
@@ -349,7 +351,7 @@ export function CreateRaceScreen() {
             const active = metricKey === m.key;
             return (
               <Pressable key={m.key} style={[styles.gridItem, active && styles.gridItemActive]} onPress={() => setMetricKey(m.key)}>
-                <Ionicons name={iconFor(m.icon)} size={20} color={active ? colors.bg : colors.accent} />
+                <MaterialCommunityIcons name={poolIcons[m.key]} size={23} color={active ? colors.onAccent : colors.text} />
                 <Text style={[styles.gridItemText, active && styles.gridItemTextActive]}>{m.label}</Text>
               </Pressable>
             );
@@ -485,7 +487,7 @@ export function CreateRaceScreen() {
 
             <View style={styles.trophyCard}>
               <View style={styles.trophyHeader}>
-                <Ionicons name={iconFor(trophyMeta.icon)} size={18} color={trophyMeta.color} />
+                <MaterialCommunityIcons name={poolIcons[metricKey]} size={18} color={trophyMeta.color} />
                 <Text style={styles.trophyTitle}>{trophyMeta.label}</Text>
               </View>
               <View style={styles.trophyGrid}>
@@ -561,7 +563,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     color: colors.text,
     fontFamily: fonts.body,
-    fontSize: 15,
+    fontSize: 16,
   },
   entryFeeInput: {
     borderColor: colors.accent2,

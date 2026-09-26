@@ -21,38 +21,37 @@ import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 import { NotificationsScreen } from "../screens/notifications/NotificationsScreen";
 import { getNotifications, openNotification } from "../api/notificationClient";
-import { PoolsScreen } from "../screens/pools/PoolsScreen";
+import { PoolsScreen, PoolDetail } from "../screens/pools/PoolsScreen";
 import { AstaLogo } from "../components/AstaLogo";
 
+import { HomeScreen } from "../screens/home/HomeScreen";
+import { PlayScreen } from "../screens/home/PlayScreen";
+const HomeStack = createNativeStackNavigator();
+const PlayStack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const RaceStack = createNativeStackNavigator();
 const EventsStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
-/**
- * Launch shell.
- *
- * Fixed-prize competitions stay separate from the test-credit Pools prototype,
- * which is accessed through the create menu.
- */
-function RacesStackScreen() {
-  return (
-    <RaceStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
-      <RaceStack.Screen name="RacesList" component={RacesScreen} />
-      <RaceStack.Screen name="Leagues" component={LeaguesScreen} />
-      <RaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
-    </RaceStack.Navigator>
-  );
+function HomeStackScreen() {
+  return <HomeStack.Navigator screenOptions={{headerShown:false,gestureEnabled:true}}>
+    <HomeStack.Screen name="HomeDashboard" component={HomeScreen}/>
+    <HomeStack.Screen name="RaceDetail" component={RaceDetailScreen}/>
+    <HomeStack.Screen name="PoolDetail" component={PoolDetail}/>
+  </HomeStack.Navigator>;
 }
-
-function EventsStackScreen() {
-  return (
-    <EventsStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
-      <EventsStack.Screen name="EventsHome" component={EventsScreen} />
-      <EventsStack.Screen name="CreateEvent" component={CreateEventScreen} />
-      <EventsStack.Screen name="EventDetail" component={EventDetailScreen} />
-    </EventsStack.Navigator>
-  );
+function PlayStackScreen() {
+  return <PlayStack.Navigator screenOptions={{headerShown:false,gestureEnabled:true}}>
+    <PlayStack.Screen name="PlayHome" component={PlayScreen}/>
+    <PlayStack.Screen name="Pools" component={PoolsScreen}/>
+    <PlayStack.Screen name="RacesList" component={RacesScreen}/>
+    <PlayStack.Screen name="Leagues" component={LeaguesScreen}/>
+    <PlayStack.Screen name="RaceDetail" component={RaceDetailScreen}/>
+    <PlayStack.Screen name="EventsHome" component={EventsScreen}/>
+    <PlayStack.Screen name="CreateEvent" component={CreateEventScreen}/>
+    <PlayStack.Screen name="EventDetail" component={EventDetailScreen}/>
+    <PlayStack.Screen name="CreateRace" component={CreateGateScreen}/>
+  </PlayStack.Navigator>;
 }
 
 /**
@@ -84,9 +83,10 @@ const navTheme = {
 };
 
 const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Competitions: "trophy-outline",
+  Home: "home-outline",
+  Play: "game-controller-outline",
   Social: "people-outline",
-  Events: "calendar-outline",
+
   Profile: "person-outline",
 };
 
@@ -98,23 +98,8 @@ const linking = {
   prefixes: [],
   config: {
     screens: {
-      Competitions: {
-        screens: {
-          RacesList: "competitions",
-          Leagues: "leagues",
-        },
-      },
-      Races: {
-        screens: {
-          RaceDetail: "race/:raceId",
-        },
-      },
-      Events: {
-        screens: {
-          EventsHome: "events",
-          EventDetail: "event/:eventId",
-        },
-      },
+      Home: {screens:{HomeDashboard:"home"}},
+      Play: {initialRouteName:"PlayHome",screens:{PlayHome:"play",RacesList:"competitions",Leagues:"leagues",RaceDetail:"race/:raceId",EventsHome:"events",EventDetail:"event/:eventId",Pools:{screens:{PoolsHome:"pools",CreatePool:"pools/create",PoolDetail:"pool/:id"}}}},
     },
   },
 } as any;
@@ -210,8 +195,8 @@ export function RootNavigator() {
     if(typeof window!=='undefined'){window.addEventListener('asta-notifications',refresh);window.addEventListener('asta-open-notification',open);}
     return()=>{clearTimeout(first);clearInterval(timer);if(typeof window!=='undefined'){window.removeEventListener('asta-notifications',refresh);window.removeEventListener('asta-open-notification',open);}};
   },[navigationRef]);
-  const overlayReturn = useRef("Competitions");
-  const previousTab = useRef("Competitions");
+  const overlayReturn = useRef("Home");
+  const previousTab = useRef("Home");
   // Only the active section's stack participates in back navigation.
   const backTarget = useCallback(() => {
     if (!navigationRef.isReady()) return null;
@@ -281,32 +266,16 @@ export function RootNavigator() {
           tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name]} size={size} color={color} />,
         })}
       >
-        {/* The race/league browse screen — what used to be "Discover". */}
-        <Tab.Screen name="Competitions" component={RacesStackScreen} />
-        <Tab.Screen name="Social" component={SocialScreen} />
-        {/* Hidden from the bar: a stable target for navigating into the race
-            stack by name from Profile or Create. */}
-        <Tab.Screen
-          name="Races"
-          component={RacesStackScreen}
-          options={{ tabBarButton: () => null, tabBarItemStyle: { display: "none" } }}
-        />
-        <Tab.Screen
-          name="Create"
-          component={CreateGateScreen}
-          options={({ navigation }) => ({
-            tabBarLabel: () => null,
-            tabBarButton: () => (
-              <CreateTabButton
-                onPool={() => navigation.navigate("Pools")}
-                onCompetition={() => navigation.navigate("Create")}
-                onSocialGame={() => navigation.navigate("Events", { screen: "CreateEvent", initial: false })}
-              />
-            ),
-          })}
-        />
-        <Tab.Screen name="Pools" component={PoolsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>
-        <Tab.Screen name="Events" component={EventsStackScreen} />
+        <Tab.Screen name="Home" component={HomeStackScreen}/>
+        <Tab.Screen name="Play" component={PlayStackScreen}/>
+        <Tab.Screen name="Create" component={CreateGateScreen} options={({navigation})=>({
+          tabBarLabel:()=>null,
+          tabBarButton:()=> <CreateTabButton
+            onPool={()=>navigation.navigate("Play",{screen:"Pools",params:{screen:"CreatePool",initial:false},initial:false})}
+            onCompetition={()=>navigation.navigate("Play",{screen:"CreateRace",initial:false})}
+            onSocialGame={()=>navigation.navigate("Play",{screen:"CreateEvent",initial:false})}/>
+        })}/>
+        <Tab.Screen name="Social" component={SocialScreen}/>
         <Tab.Screen name="Profile" component={ProfileStackScreen} options={{title:"Profile",tabBarLabel:"Profile"}} />
         <Tab.Screen name="Notifications" component={NotificationsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>
       </Tab.Navigator>

@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '../../lib/prisma.js';
 import { advance, createPoolSchema, effectiveNow, currentDay, fail, join, leave, makePool, record, tick, type Pool, type Report } from './engine.js';
 
-// This prototype deliberately has its own credits, never User.walletBalanceCents
-// or the payment ledger. Credits cannot be deposited, withdrawn or transferred.
+// Historical simulation records keep their isolated balances. Public routes only
+// accept ZAR Pools, backed by User.walletBalanceCents and the payment ledger.
 export const poolDDL = [
  `CREATE TABLE IF NOT EXISTS "PoolTestWallet" ("userId" TEXT PRIMARY KEY REFERENCES "User"(id) ON DELETE CASCADE, balance INTEGER NOT NULL DEFAULT 100000 CHECK (balance >= 0))`,
  `CREATE TABLE IF NOT EXISTS "PoolPrototype" (id TEXT PRIMARY KEY, "hostId" TEXT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE, state JSONB NOT NULL, "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT now())`,
@@ -43,7 +43,7 @@ export function view(p:Pool,userId:string,now=new Date()){
   return {...p,players:p.players.map(x=>({...x,isYou:x.id===userId,reports:(isWalletPool(p)?x.id===userId:isMember)?x.reports:{}})),isHost:p.hostId===userId,joined:p.players.some(x=>x.id===userId),day:Math.max(0,Math.min(p.durationDays,currentDay(p,now))),serverTime:effectiveNow(p,now).toISOString(),testOnly:!isWalletPool(p),currency:p.currency??'TEST'};
 }
 export async function createPool(userId:string,name:string,input:unknown){
-  const rules=createPoolSchema.parse(input);if(rules.currency==='ZAR'&&!paidPoolsEnabled())fail('Wallet Pools are not open yet. You can still explore with test credits.');await ensurePools();const p=makePool(rules.requestId??randomUUID(),userId,rules,new Date());
+  const rules=createPoolSchema.parse(input);if(rules.currency==='ZAR'&&!paidPoolsEnabled())fail('Wallet entry is not open yet.');await ensurePools();const p=makePool(rules.requestId??randomUUID(),userId,rules,new Date());
   return prisma.$transaction(async tx=>{
     await wallet(tx,userId);
     const existing=await tx.$queryRawUnsafe<Array<{state:Pool}>>(`SELECT state FROM "PoolPrototype" WHERE id=$1`,p.id);
@@ -63,10 +63,9 @@ export async function advancePool(id:string,userId:string,expectedVersion:number
 export async function getPool(id:string,userId:string){return mutatePool(id,userId,()=>{});}
 export async function listPools(userId:string){
   await ensurePools();
-  const rows=await prisma.$queryRawUnsafe<Array<{state:Pool}>>(`SELECT (state - 'players') || jsonb_build_object('players',COALESCE((SELECT jsonb_agg(player - 'reports' - 'days') FROM jsonb_array_elements(state->'players') player),'[]'::jsonb)) AS state FROM "PoolPrototype" WHERE state->>'status'='WAITING'  OR "hostId"=$1 OR state->'players' @> $2::jsonb ORDER BY "updatedAt" DESC LIMIT 50`,userId,JSON.stringify([{id:userId}]));
-  const balance=await prisma.$transaction(tx=>wallet(tx,userId));
+  const rows=await prisma.$queryRawUnsafe<Array<{state:Pool}>>(`SELECT (state - 'players') || jsonb_build_object('players',COALESCE((SELECT jsonb_agg(player - 'reports' - 'days') FROM jsonb_array_elements(state->'players') player),'[]'::jsonb)) AS state FROM "PoolPrototype" WHERE state->>'currency'='ZAR' AND (state->>'status'='WAITING' OR "hostId"=$1 OR state->'players' @> $2::jsonb) ORDER BY "updatedAt" DESC LIMIT 50`,userId,JSON.stringify([{id:userId}]));
   const user=await prisma.user.findUniqueOrThrow({where:{id:userId},select:{walletBalanceCents:true}});
-  return {pools:rows.map(r=>view(r.state,userId)),testBalance:balance,walletBalanceCents:user.walletBalanceCents,walletEnabled:paidPoolsEnabled()};
+  return {pools:rows.map(r=>view(r.state,userId)),walletBalanceCents:user.walletBalanceCents,walletEnabled:paidPoolsEnabled()};
 }
 export async function tickPools(){await ensurePools();const rows=await prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id FROM "PoolPrototype" WHERE state->>'status' IN ('SCHEDULED','ACTIVE') ORDER BY "updatedAt" LIMIT 100`);for(const {id}of rows)await mutatePool(id,undefined,()=>{});}
 export async function fillTestPlayers(id:string,userId:string){return mutatePool(id,userId,(p,_tx,now)=>{

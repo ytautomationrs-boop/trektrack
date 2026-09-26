@@ -16,6 +16,7 @@ import UIKit
     private var owner: String?
     private var enabled = false
     private var poolsEnabled = false
+    private var activityEnabled = false
     private var attestKey: String?
     private var poolObservers: [HKObserverQuery] = []
     private var epoch = UUID()
@@ -33,6 +34,7 @@ import UIKit
         if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
            let data = result as? Data, let saved = try? JSONSerialization.jsonObject(with:data) as? [String:Any] {
             token = saved["token"] as? String; owner = saved["owner"] as? String
+            activityEnabled = saved["activityEnabled"] as? Bool ?? false
             enabled = saved["enabled"] as? Bool ?? false; poolsEnabled = saved["poolsEnabled"] as? Bool ?? false; attestKey = saved["attestKey"] as? String; lastSynced = saved["lastSynced"] as? String
         }
         if enabled { observe(); observePools() }
@@ -44,7 +46,7 @@ import UIKit
         let query: [String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:service]
         SecItemDelete(query as CFDictionary)
         guard let token = token, let owner = owner else { return }
-        var saved: [String:Any] = ["token":token,"owner":owner,"enabled":enabled,"poolsEnabled":poolsEnabled]
+        var saved: [String:Any] = ["token":token,"owner":owner,"enabled":enabled,"poolsEnabled":poolsEnabled,"activityEnabled":activityEnabled]
         saved["lastSynced"] = lastSynced; saved["attestKey"] = attestKey
         guard let data = try? JSONSerialization.data(withJSONObject:saved) else { return }
         var item = query; item[kSecValueData as String] = data
@@ -54,7 +56,7 @@ import UIKit
     func setSession(_ next: String?, owner nextOwner: String?) {
         if owner != nextOwner {
             epoch = UUID(); running?.cancel(); running = nil
-            enabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); today = nil; lastSynced = nil; message = nil
+            enabled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); today = nil; lastSynced = nil; message = nil
             if let observer = observer { store.stop(observer); self.observer = nil }
             store.disableBackgroundDelivery(for:steps) { _,_ in }
         }
@@ -64,7 +66,8 @@ import UIKit
     }
     func connect() async throws {
         guard HKHealthStore.isHealthDataAvailable(), token != nil else { throw issue("Sign in on an iPhone to connect Apple Health.") }
-        try await store.requestAuthorization(toShare: [], read: [steps])
+        if !activityEnabled { try await store.requestAuthorization(toShare: [], read: poolReadTypes) }
+        activityEnabled = true
         // A completed prompt does not reveal whether read access was granted.
         enabled = true; persist(); observe()
         do { try await store.enableBackgroundDelivery(for: steps, frequency: .hourly) }
@@ -72,13 +75,13 @@ import UIKit
         await sync()
     }
     func disconnect() {
-        epoch = UUID(); enabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); running?.cancel(); running = nil
+        epoch = UUID(); enabled = false; activityEnabled = false; poolsEnabled = false; attestKey = nil; poolObservers.forEach { store.stop($0) }; poolObservers.removeAll(); running?.cancel(); running = nil
         if let observer = observer { store.stop(observer); self.observer = nil }
         store.disableBackgroundDelivery(for: steps) { _,_ in }
         today = nil; lastSynced = nil; message = nil; persist(); publish()
     }
     func state() -> [String:Any] {
-        var value: [String:Any] = ["available":HKHealthStore.isHealthDataAvailable(),"enabled":enabled,"poolsEnabled":poolsEnabled,"syncing":running != nil]
+        var value: [String:Any] = ["available":HKHealthStore.isHealthDataAvailable(),"enabled":enabled,"poolsEnabled":poolsEnabled,"syncing":running != nil,"activityEnabled":activityEnabled]
         value["todaySteps"] = today; value["lastSyncedAt"] = lastSynced; value["message"] = message
         return value
     }
@@ -129,11 +132,12 @@ import UIKit
     private var poolReadTypes: Set<HKObjectType> { [steps, HKObjectType.workoutType(), HKObjectType.categoryType(forIdentifier:.sleepAnalysis)!] }
     func connectPools() async throws {
         guard HKHealthStore.isHealthDataAvailable(), token != nil else { throw issue("Sign in on an iPhone to connect Apple Health.") }
-        try await store.requestAuthorization(toShare:[],read:poolReadTypes)
+        if !activityEnabled { try await store.requestAuthorization(toShare:[],read:poolReadTypes) }
+        activityEnabled = true
         _ = try await verifiedPoolKey(token:token!)
         poolsEnabled = true; enabled = true; persist(); observe(); observePools()
         try? await store.enableBackgroundDelivery(for:steps,frequency:.hourly)
-        await sync()
+        Task { await sync() }
     }
     private func verifiedPoolKey(token:String) async throws -> String {
         if let key = attestKey { return key }
@@ -174,6 +178,45 @@ import UIKit
             }; store.execute(q)
         }
     }
+    func dailyActivity(metrics: [String]) async throws -> [String:Any] {
+        guard enabled else { return ["values":[:]] }
+        let now = Date(), start = Calendar.current.startOfDay(for:Date())
+        let selected = Set(metrics), current = epoch
+        var values:[String:Double] = [:]
+        if selected.contains("steps"), let total = try await count(from:start,to:now) { values["steps"] = Double(total) }
+        if activityEnabled && !selected.isDisjoint(with:["steps","running","cycling","swimming"]) {
+            let workouts = try await poolSamples(type:HKObjectType.workoutType(),from:start,to:now).compactMap { $0 as? HKWorkout }
+            for (metric,kind) in [("walkingDistance",HKWorkoutActivityType.walking),("running",.running),("cycling",.cycling),("swimming",.swimming)] where selected.contains(metric == "walkingDistance" ? "steps" : metric) {
+                var lastEnd = start, distance = 0.0
+                let matches = workouts.filter {$0.workoutActivityType == kind}.sorted {$0.startDate < $1.startDate}
+                for workout in matches {
+                    if workout.startDate < lastEnd { continue }
+                    lastEnd = workout.endDate
+                    distance += workout.totalDistance?.doubleValue(for:.meter()) ?? 0
+                }
+                // HealthKit intentionally cannot distinguish denied read access from no data.
+                if !matches.isEmpty { values[metric] = distance / 1000 }
+            }
+        }
+        if activityEnabled && selected.contains("sleep") {
+            let samples = try await poolSamples(type:HKObjectType.categoryType(forIdentifier:.sleepAnalysis)!,from:start.addingTimeInterval(-86400),to:now).compactMap {$0 as? HKCategorySample}.filter {[1,3,4,5].contains($0.value)}.sorted {$0.startDate < $1.startDate}
+            var intervals:[(Date,Date)] = []
+            for sample in samples {
+                if let last = intervals.last, sample.startDate <= last.1 { intervals[intervals.count-1] = (last.0,max(last.1,sample.endDate)) }
+                else { intervals.append((sample.startDate,sample.endDate)) }
+            }
+            var sessions:[(Date,Date,Double)] = []
+            for interval in intervals {
+                let hours = interval.1.timeIntervalSince(interval.0)/3600
+                if let last = sessions.last, interval.0.timeIntervalSince(last.1) <= 5400 { sessions[sessions.count-1] = (last.0,interval.1,last.2+hours) }
+                else { sessions.append((interval.0,interval.1,hours)) }
+            }
+            if let main = sessions.filter({$0.1 >= start}).max(by:{$0.2 < $1.2}) { values["sleep"] = main.2 }
+        }
+        guard epoch == current else { return ["values":[:]] }
+        return ["values":values]
+    }
+
     private func syncPools(token:String,current:UUID,now:Date) async throws {
         guard poolsEnabled else { return }
         let data = try await api("/pools/health/windows",token:token)
@@ -261,7 +304,7 @@ import UIKit
 public class ASTAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "ASTAHealthPlugin"
     public let jsName = "ASTAHealth"
-    public let pluginMethods: [CAPPluginMethod] = ["setSession","connect","connectPools","disconnect","refresh","status"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
+    public let pluginMethods: [CAPPluginMethod] = ["setSession","connect","connectPools","disconnect","refresh","status","dailyActivity"].map { CAPPluginMethod(name:$0,returnType:CAPPluginReturnPromise) }
     private var observer: NSObjectProtocol?
     public override func load() {
         observer = NotificationCenter.default.addObserver(forName:Notification.Name("ASTAHealthChanged"),object:nil,queue:.main) { [weak self] notification in
@@ -274,5 +317,6 @@ public class ASTAHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func connectPools(_ call:CAPPluginCall) { Task { @MainActor in do { try await ASTAHealthStore.shared.connectPools(); call.resolve(ASTAHealthStore.shared.state()) } catch { call.reject(error.localizedDescription) } } }
     @objc func disconnect(_ call:CAPPluginCall) { Task { @MainActor in ASTAHealthStore.shared.disconnect(); call.resolve(ASTAHealthStore.shared.state()) } }
     @objc func refresh(_ call:CAPPluginCall) { Task { @MainActor in await ASTAHealthStore.shared.sync(); call.resolve(ASTAHealthStore.shared.state()) } }
+    @objc func dailyActivity(_ call:CAPPluginCall) { Task { @MainActor in do { call.resolve(try await ASTAHealthStore.shared.dailyActivity(metrics:call.getArray("metrics",String.self) ?? [])) } catch { call.reject(error.localizedDescription) } } }
     @objc func status(_ call:CAPPluginCall) { Task { @MainActor in call.resolve(ASTAHealthStore.shared.state()) } }
 }

@@ -223,13 +223,6 @@ export async function createPrivateRaceAndEnter(params: {
   });
 
   try {
-    if (user.isAdmin && user.walletBalanceCents < race.entryFeeCents) {
-      await prisma.user.update({
-        where: { id: params.userId },
-        data: { walletBalanceCents: { increment: race.entryFeeCents - user.walletBalanceCents } },
-        select: { id: true },
-      });
-    }
     const entry = await enterRace({
       userId: params.userId,
       raceId: race.id,

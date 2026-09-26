@@ -184,9 +184,7 @@ export async function raceRoutes(app: FastifyInstance) {
    * Private races can accept a host-set entry fee; prizes are calculated
    * server-side from that fee and snapshotted onto the race.
    */
-  // Pilot: only admin-flagged accounts can create races (regular users can
-  // still enter/withdraw/view normally). See middleware/auth.ts requireAdmin.
-  app.post("/races", { preHandler: [requireAuth, requireAdmin] }, async (req, reply) => {
+  app.post("/races", { preHandler: requireAuth }, async (req, reply) => {
     try {
       const body = CreateRaceSchema.parse(req.body);
       const raceType = await ensureRaceTypeForUserCreatedRace(body.metricKey, body.durationDays, body.format);

@@ -16,12 +16,19 @@ vi.mock('../src/lib/prisma.js',()=>{
 vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any)=>{if(!req.headers['x-test-user'])throw Object.assign(Error('Sign in'),{statusCode:401});req.userId=req.headers['x-test-user'];}}));
 import {poolRoutes} from '../src/modules/pools/routes.js';
 import {ensureAttestation} from '../src/modules/pools/attestation.js';
-import {ensurePools} from '../src/modules/pools/store.js';
+import {createPool,fillTestPlayers,advancePool,reportPool,ensurePools} from '../src/modules/pools/store.js';
 const app=Fastify();
 beforeAll(async()=>{ctx.db=new PGlite();await ctx.db.exec('CREATE TABLE "User" (id TEXT PRIMARY KEY,"displayName" TEXT,"walletBalanceCents" INTEGER NOT NULL DEFAULT 12345)');await ctx.db.exec(`CREATE TYPE "LedgerEntryType" AS ENUM ('STAKE_HOLD','STAKE_REFUND','POOL_PAYOUT'); CREATE TYPE "LedgerEntryStatus" AS ENUM ('PENDING','COMPLETED'); CREATE TABLE "LedgerEntry" (id TEXT PRIMARY KEY,"userId" TEXT,type "LedgerEntryType",status "LedgerEntryStatus","amountCents" INTEGER,currency TEXT,description TEXT,"externalRef" TEXT,"externalProvider" TEXT,"createdAt" TIMESTAMPTZ,UNIQUE("externalRef",type));`);await ensurePools();await ensureAttestation();app.setErrorHandler((e,_q,r)=>r.code(e.statusCode??400).send({message:e.message}));await app.register(poolRoutes);},20000);
 afterAll(async()=>{await app.close();await ctx.db.close();});
 beforeEach(async()=>{vi.unstubAllEnvs();await ctx.db.exec(`TRUNCATE "PoolDeviceKey", "PoolDeviceNonce", "LedgerEntry", "PoolPrototype", "PoolTestWallet", "User" CASCADE; INSERT INTO "User" (id,"displayName") VALUES ('a','Alice'),('b','Bob'),('c','Chris');`);});
-const call=(method:any,url:string,payload?:any,user='a')=>app.inject({method,url,payload,headers:{'x-test-user':user}});
+const call=async(method:any,url:string,payload?:any,user='a')=>{
+ const testAction=url.match(/^\/pools\/([^/]+)\/(test-fill|test-advance|test-report)$/);
+ if((method==='POST'&&url==='/pools'&&payload?.currency!=='ZAR')||testAction){
+  try { const pool=testAction ? testAction[2]==='test-fill'?await fillTestPlayers(testAction[1],user):testAction[2]==='test-advance'?await advancePool(testAction[1],user,payload.version,payload.reports):await reportPool(testAction[1],user,payload.participantId,payload.day,payload) : await createPool(user,'Legacy test user',payload);return {statusCode:testAction?200:201,json:()=>({pool})}; }
+  catch(e:any){return {statusCode:400,json:()=>({message:e.message})};}
+ }
+ return app.inject({method,url,payload,headers:{'x-test-user':user}});
+};
 async function signed(body:any,user='a'){
  const {privateKey,publicKey}=generateKeyPairSync('ec',{namedCurve:'prime256v1'});const keyId='test-'+Math.random();
  await ctx.db.query('INSERT INTO "PoolDeviceKey" (id,"userId","publicKey") VALUES ($1,$2,$3)',[keyId,user,publicKey.export({type:'spki',format:'pem'})]);
@@ -32,7 +39,7 @@ async function signed(body:any,user='a'){
 }
 const input={title:'Pilot pool',durationDays:7,capacity:3,buyIn:100,timezone:'Africa/Johannesburg',goals:[{metric:'steps',target:10000}]};
 async function create(){const r=await call('POST','/pools',input);expect(r.statusCode).toBe(201);return r.json().pool;}
-async function balance(user='a'){return (await call('GET','/pools',undefined,user)).json().testBalance;}
+async function balance(user='a'){await ctx.db.query('INSERT INTO "PoolTestWallet" ("userId") VALUES ($1) ON CONFLICT DO NOTHING',[user]);return (await ctx.db.query('SELECT balance FROM "PoolTestWallet" WHERE "userId"=$1',[user])).rows[0].balance;}
 it('requires authentication',async()=>{expect((await app.inject({method:'GET',url:'/pools'})).statusCode).toBe(401);});
 it('creates and joins using separate credits, leaving real wallets untouched',async()=>{const p=await create();expect(p.players).toHaveLength(1);expect(await balance()).toBe(99900);expect((await ctx.db.query('SELECT "walletBalanceCents" FROM "User"')).rows.every((r:any)=>r.walletBalanceCents===12345)).toBe(true);});
 it('duplicate concurrent joins debit once and never overfill',async()=>{const p=await create();const responses=await Promise.all([call('POST',`/pools/${p.id}/join`,{},'b'),call('POST',`/pools/${p.id}/join`,{},'b'),call('POST',`/pools/${p.id}/join`,{},'c')]);expect(responses.every(r=>r.statusCode===200)).toBe(true);expect(await balance('b')).toBe(99900);const current=(await call('GET',`/pools/${p.id}`)).json().pool;expect(current.players).toHaveLength(3);expect(current.status).toBe('SCHEDULED');});
@@ -104,3 +111,10 @@ it('accepts only a member’s own Health totals and keeps them private',async()=
 it('rejects unsigned activity rather than trusting the old device passed flag',async()=>{expect((await call('POST','/pools/health/snapshot',{poolId:'anything',day:1,values:{steps:10000}})).statusCode).toBe(403);});
 
 it('rejects replayed and cross-account activity assertions',async()=>{const envelope=await signed({poolId:'12345678-1234-4123-8123-123456789abc',day:1,values:{steps:0},windowStart:new Date().toISOString(),windowEnd:new Date().toISOString(),observedAt:new Date().toISOString()});expect((await call('POST','/pools/health/snapshot',envelope,'b')).statusCode).toBe(403);expect((await call('POST','/pools/health/snapshot',envelope)).statusCode).toBe(400);expect((await call('POST','/pools/health/snapshot',envelope)).statusCode).toBe(403);});
+
+it('public Pools expose only wallet pools and reject all test creation and simulation',async()=>{
+ const legacy=await create();
+ expect((await app.inject({method:'POST',url:'/pools',payload:input,headers:{'x-test-user':'a'}})).statusCode).toBe(400);
+ for(const action of ['test-fill','test-report','test-advance'])expect((await app.inject({method:'POST',url:`/pools/${legacy.id}/${action}`,payload:{},headers:{'x-test-user':'a'}})).statusCode).toBe(404);
+ const list=(await call('GET','/pools')).json();expect(list.pools).toEqual([]);expect(list.testBalance).toBeUndefined();expect(list.walletBalanceCents).toBe(12345);
+});

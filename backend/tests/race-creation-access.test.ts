@@ -1,0 +1,13 @@
+import Fastify from 'fastify';
+import {it,expect,vi,afterAll} from 'vitest';
+vi.mock('../src/lib/env.js',()=>({env:{}}));
+vi.mock('../src/lib/prisma.js',()=>({prisma:{}}));
+vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any,reply:any)=>{if(!req.headers.authorization)return reply.code(401).send({error:'unauthorized'});req.userId='ordinary-user';},requireAdmin:async(_req:any,reply:any)=>reply.code(403).send({error:'admin_only'})}));
+vi.mock('../src/lib/competitionCatalog.js',()=>({ensureCompetitionCatalog:vi.fn(),getCompetitionRaceTypesPayload:vi.fn(),ensureRaceTypeForUserCreatedRace:vi.fn(async()=>({key:'steps_7d_individual'}))}));
+vi.mock('../src/modules/races/service.js',async importOriginal=>({...await importOriginal<any>(),createPrivateRaceAndEnter:vi.fn(async(input:any)=>({race:{id:'created',entryFeeCents:input.entryFeeCents},entry:{id:'entry'}}))}));
+import {raceRoutes} from '../src/modules/races/routes.js';
+import {createPrivateRaceAndEnter} from '../src/modules/races/service.js';
+const app=Fastify();await app.register(raceRoutes);afterAll(()=>app.close());
+const payload={name:'Morning steps',metricKey:'steps',durationDays:7,format:'INDIVIDUAL',entryFeeCents:1250};
+it('allows an ordinary signed-in host and preserves the chosen entrance fee',async()=>{const r=await app.inject({method:'POST',url:'/races',payload,headers:{authorization:'fixture'}});expect(r.statusCode).toBe(201);expect(createPrivateRaceAndEnter).toHaveBeenCalledWith(expect.objectContaining({userId:'ordinary-user',entryFeeCents:1250}));});
+it('still rejects anonymous creation and invalid entry fees',async()=>{expect((await app.inject({method:'POST',url:'/races',payload})).statusCode).toBe(401);expect((await app.inject({method:'POST',url:'/races',payload:{...payload,entryFeeCents:-1},headers:{authorization:'fixture'}})).statusCode).toBe(400);});
