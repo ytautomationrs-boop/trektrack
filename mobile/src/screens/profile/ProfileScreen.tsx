@@ -1,7 +1,7 @@
 import { HealthDashboard } from "../../components/HealthDashboard";
 import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -57,11 +57,11 @@ export function ProfileScreen() {
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [points, setPoints] = useState<RacePointEntry[]>([]);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const load = useCallback(() => {
     getProfileStats({ onCached: setStats }).then(setStats).catch(() => {});
-    getLeagueStandings({ onCached: setStandings }).then(setStandings).catch(() => {});
-    getLeagueHistory().then((r) => setPoints(r.entries)).catch(() => {});
+
   }, []);
 
   useFocusEffect(
@@ -70,22 +70,36 @@ export function ProfileScreen() {
     }, [load])
   );
 
+  useEffect(() => {
+    if (!detailsOpen) return;
+    let active = true;
+    getLeagueStandings().then(value => { if (active) setStandings(value); }).catch(() => {});
+    getLeagueHistory().then(value => { if (active) setPoints(value.entries); }).catch(() => {});
+    return () => { active = false; };
+  }, [detailsOpen]);
+
   return (
     <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={()=>navigation.navigate('Settings')} style={{alignSelf:'flex-end',padding:10,flexDirection:'row',gap:8,alignItems:'center'}}><Ionicons name="settings-outline" size={23} color={colors.text}/><Text style={{fontFamily:fonts.bodySemiBold,color:colors.text,fontSize:16}}>Settings</Text></Pressable>
+        <View style={styles.profileHeader}>
+          <Text style={styles.profileUsername} numberOfLines={1}>{galleryUser?.displayName ?? "Your profile"}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={()=>navigation.navigate('Settings')} style={styles.settingsButton}><Ionicons name="menu-outline" size={27} color={colors.text}/></Pressable>
+        </View>
+        <IdentityCard stats={stats} />
         <HealthDashboard />
-        <IdentityCard />
         <ProfileShortcuts />
+        <Pressable accessibilityRole="button" accessibilityState={{expanded:detailsOpen}} onPress={()=>setDetailsOpen(v=>!v)} style={styles.detailsButton}>
+          <Ionicons name="podium-outline" size={18} color={colors.sub}/>
+          <Text style={styles.detailsLabel}>Leagues, results & race codes</Text>
+          <Ionicons name={detailsOpen?"chevron-up":"chevron-down"} size={17} color={colors.sub}/>
+        </Pressable>
+        {detailsOpen && <View style={styles.detailsPanel}>
+          <LeagueBadges standings={standings} />
+          <StatGrid stats={stats} />
+          <PointsHistory entries={points} />
+          <JoinByCodeSection />
+        </View>}
         {galleryUser && <ProfileGallery playerId={galleryUser.userId} />}
-
-
-        {/* ── Race / league ───────────────────────────────────────────── */}
-        <ModelHeading title="Competitions" subtitle="Fixed-prize races, ranked into leagues per metric." />
-        <LeagueBadges standings={standings} />
-        <StatGrid stats={stats} />
-        <PointsHistory entries={points} />
-        <JoinByCodeSection />
 
       </ScrollView>
     </SafeAreaView></PageMotion>
@@ -94,25 +108,15 @@ export function ProfileScreen() {
 
 function ProfileShortcuts() {
   const navigation = useNavigation<any>();
-  return (
-    <View style={styles.shortcutGrid}>
-      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces", {createdOnly:false})}>
-        <Ionicons name="flag-outline" size={24} color={colors.onAccent} />
-        <Text style={styles.shortcutTitle}>Your races</Text>
-        <Text style={styles.shortcutSub}>Active and past competitions</Text>
-      </Pressable>
-      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces", {createdOnly:true})}>
-        <Ionicons name="create-outline" size={24} color={colors.onAccent} />
-        <Text style={styles.shortcutTitle}>Created by you</Text>
-        <Text style={styles.shortcutSub}>Your hosted competitions</Text>
-      </Pressable>
-      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("Wallet")}>
-        <Ionicons name="wallet-outline" size={24} color={colors.onAccent} />
-        <Text style={styles.shortcutTitle}>Wallet</Text>
-        <Text style={styles.shortcutSub}>Balance and withdrawals</Text>
-      </Pressable>
-    </View>
-  );
+  const shortcuts = [
+    {label:"Your races", icon:"flag-outline", route:"MyRaces", params:{createdOnly:false}},
+    {label:"Created by you", icon:"add-circle-outline", route:"MyRaces", params:{createdOnly:true}},
+    {label:"Wallet", icon:"wallet-outline", route:"Wallet", params:undefined},
+  ] as const;
+  return <View style={styles.shortcutGrid}>{shortcuts.map(item=><Pressable key={item.label} accessibilityRole="button" accessibilityLabel={item.label} style={({pressed})=>[styles.shortcutCard,pressed&&{opacity:0.7}]} onPress={()=>navigation.navigate(item.route,item.params)}>
+    <Ionicons name={item.icon} size={23} color={colors.text}/>
+    <Text style={styles.shortcutTitle}>{item.label}</Text>
+  </Pressable>)}</View>;
 }
 
 /** Divider between the two models' sections — the separation IS the design here, so it's explicit rather than implied by spacing. */
@@ -125,7 +129,7 @@ function ModelHeading({ title, subtitle }: { title: string; subtitle: string }) 
   );
 }
 
-function IdentityCard() {
+function IdentityCard({stats}: {stats: ProfileStats | null}) {
   const app = useAppState();
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(app.session?.displayName ?? "");
@@ -169,7 +173,8 @@ function IdentityCard() {
 
   return (
     <View style={styles.identityCard}>
-      {(editing ? coverUrl : app.session?.coverUrl) ? <Image source={{uri: (editing ? coverUrl : app.session?.coverUrl)!}} style={{width:"100%",height:130,borderRadius:14,marginBottom:16}} resizeMode="cover"/> : null}
+      {(editing ? coverUrl : app.session?.coverUrl) ? <Image source={{uri: (editing ? coverUrl : app.session?.coverUrl)!}} style={{width:"100%",height:80,borderRadius:12,marginBottom:12}} resizeMode="cover"/> : null}
+      <View style={styles.identityRow}>
       <View style={styles.avatar}>
         {app.session?.avatarUrl ? (
           <Image source={{ uri: app.session.avatarUrl }} style={styles.avatarImage} />
@@ -177,12 +182,17 @@ function IdentityCard() {
           <Text style={styles.avatarInitial}>{app.session?.displayName?.[0]?.toUpperCase() ?? "?"}</Text>
         )}
       </View>
-      <Text style={styles.name}>{app.session?.displayName ?? "Guest"}</Text>
+      <View style={styles.profileStats}>{[
+        {label:"Races",value:stats?.racesEntered},
+        {label:"Wins",value:stats?.wins},
+        {label:"Podiums",value:stats?.podiums},
+      ].map(item=><View key={item.label} style={styles.profileStat} accessible accessibilityLabel={`${item.label}: ${item.value ?? "Loading"}`}><Text style={styles.profileStatValue}>{item.value ?? "—"}</Text><Text style={styles.profileStatLabel}>{item.label}</Text></View>)}</View>
+      </View>
 
       {!!app.session?.bio && <Text style={styles.bioText}>{app.session.bio}</Text>}
-      <Pressable style={styles.editProfileButton} onPress={() => setEditing((value) => !value)}>
+      <Pressable accessibilityRole="button" accessibilityState={{expanded:editing}} style={styles.editProfileButton} onPress={() => setEditing((value) => !value)}>
         <Ionicons name="create-outline" size={14} color={colors.bg} />
-        <Text style={styles.editProfileText}>{editing ? "Close" : "Customize profile"}</Text>
+        <Text style={styles.editProfileText}>{editing ? "Close editor" : "Edit profile"}</Text>
       </Pressable>
       {editing && (
         <View style={styles.editProfilePanel}>
@@ -551,7 +561,7 @@ function PlayerProfileCard({
 
   return (
     <View style={styles.profileCard}>
-          {profile.player.coverUrl ? <Image source={{uri:profile.player.coverUrl}} style={{width:"100%",height:130,borderRadius:14,marginBottom:16}} resizeMode="cover"/> : null}
+          {profile.player.coverUrl ? <Image source={{uri:profile.player.coverUrl}} style={{width:"100%",height:80,borderRadius:12,marginBottom:12}} resizeMode="cover"/> : null}
       <View style={styles.profileCardHeader}>
         <View style={styles.playerAvatarLarge}>
           {profile.player.avatarUrl ? (
@@ -918,10 +928,21 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
 
-  identityCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center", marginBottom: spacing.lg },
+  profileHeader: {flexDirection:"row",alignItems:"center",gap:12,marginBottom:14},
+  profileUsername: {flex:1,fontFamily:fonts.display,fontSize:21,color:colors.text},
+  settingsButton: {minWidth:44,minHeight:44,alignItems:"center",justifyContent:"center"},
+  identityCard: {marginBottom:16},
+  identityRow: {flexDirection:"row",alignItems:"center",gap:16},
+  profileStats: {flex:1,flexDirection:"row",alignItems:"center"},
+  profileStat: {flex:1,alignItems:"center",gap:4},
+  profileStatValue: {fontFamily:fonts.bodyBold,fontSize:21,color:colors.text},
+  profileStatLabel: {fontFamily:fonts.body,fontSize:12,color:colors.sub},
+  detailsButton: {minHeight:44,flexDirection:"row",alignItems:"center",gap:8,paddingHorizontal:4},
+  detailsLabel: {flex:1,fontFamily:fonts.bodyMedium,fontSize:13,color:colors.sub},
+  detailsPanel: {paddingTop:12},
   avatar: {
-    width: 72,
-    height: 72,
+    width: 80,
+    height: 80,
     borderRadius: radii.pill,
     backgroundColor: colors.surfaceRaised,
     alignItems: "center",
@@ -931,25 +952,27 @@ const styles = StyleSheet.create({
   avatarImage: { width: "100%", height: "100%", borderRadius: radii.pill },
   name: { fontFamily: fonts.bodySemiBold, fontSize: 18, color: colors.text, marginTop: spacing.md },
   email: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, marginTop: 2 },
-  bioText: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", lineHeight: 18, marginTop: spacing.sm },
+  bioText: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, lineHeight: 19, marginTop: spacing.md },
   editProfileButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     backgroundColor: colors.accent2,
-    borderRadius: radii.pill,
+    borderRadius: 10,
+    minHeight:44,
+    justifyContent:"center",
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
   editProfileText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
   photoPickerButton: { minHeight: 48, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.md },
   photoPickerText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   editProfilePanel: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
   bioInput: { minHeight: 78, textAlignVertical: "top" },
-  shortcutGrid: { gap: spacing.sm, marginBottom: spacing.lg },
-  shortcutCard: { backgroundColor: colors.accent, borderRadius: radii.md, padding: spacing.lg, gap: 6, borderWidth:1, borderColor:colors.line },
-  shortcutTitle: { fontFamily: fonts.display, fontSize: 18, color: colors.text },
+  shortcutGrid: {flexDirection:"row", gap: spacing.sm, marginBottom: 4},
+  shortcutCard: {flex:1,alignItems:"center",justifyContent:"center",minHeight:76,backgroundColor:colors.surface,borderRadius:12,paddingVertical:12,paddingHorizontal:4,gap:8,borderWidth:1,borderColor:colors.line},
+  shortcutTitle: {fontFamily:fonts.bodySemiBold,fontSize:12,color:colors.text,textAlign:"center"},
   shortcutSub: { fontFamily: fonts.body, fontSize: 14, color: colors.onAccent, lineHeight: 16 },
 
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },

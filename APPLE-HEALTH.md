@@ -19,3 +19,5 @@ The installed Capacitor iPhone app uses `ASTAHealthPlugin.swift`, not the legacy
 Backend route tests cover ownership, replacement/idempotency, stale writes, downward corrections, closed races, and invalid windows/counts. Scoring tests cover snapshot precedence. A sync-window test covers the two-hour step-only grace. The iOS release build and provisioning profile include HealthKit and background delivery entitlements.
 
 Physical-device checks still required: allow Steps, compare dashboard with Apple Health (manual/third-party steps are intentionally excluded), take a short walk, background and reopen ASTA, check a running race and its provisional ranking, and test denial/disconnect. Background delivery cannot be validated with the browser fixture or simulator. Never create fake competition evidence in production for testing.
+
+- Build 6 compacts Profile into an identity/stat row, activity summary, three quick shortcuts, and a Posts/Games grid. League detail loads only when expanded. Health syncing is unchanged.
