@@ -4,14 +4,14 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn() },
   friendship: { findFirst: vi.fn() },
   raceEntry: { findMany: vi.fn() },
-  socialPost: { findMany: vi.fn() },
+  socialPost: { findMany: vi.fn(), findUniqueOrThrow:vi.fn() },
 }));
 vi.mock("../../lib/prisma.js", () => ({ prisma: db }));
 vi.mock("../races/leagues.js", () => ({
   getLeagueStandings: vi.fn(async () => ({ standings: [], primaryMetricKey: "steps" })),
 }));
 vi.mock("../notifications/inbox.js", () => ({notifyActivity:vi.fn()}));
-import { getPlayerProfile } from "./service.js";
+import { getPlayerProfile, socialInteractionPatch } from "./service.js";
 
 // Emulate Prisma's selection against a record containing large media. The
 // budget covers data read from the database as well as the HTTP response.
@@ -66,4 +66,15 @@ describe("player profile payload", () => {
     expect(relationBytes).toBeLessThan(4_000);
     expect(JSON.stringify(profile).length).toBeLessThan(4_000);
   });
+});
+
+it("social interaction responses do not query unchanged photos, game actions or race relations",async()=>{
+ const record={id:'post',imageUrl:'x'.repeat(500000),event:{game:{actions:Array(1000).fill({})}},raceEntry:{},_count:{likes:2,comments:1,shares:0},likes:[{id:'like'}],comments:[{id:'c',body:'Nice!',createdAt:new Date(),user:{id:'u',displayName:'Runner',avatarUrl:'x'.repeat(500000)}}]};
+ let selected:any;
+ db.socialPost.findUniqueOrThrow.mockImplementation(async({select})=>{selected=project(record,select);return selected;});
+ const patch=await socialInteractionPatch('post','viewer');
+ expect(patch).toMatchObject({id:'post',likeCount:2,hasLiked:true});
+ expect(patch.comments[0]?.body).toBe('Nice!');
+ expect(JSON.stringify(selected).length).toBeLessThan(1000);
+ expect(JSON.stringify(patch).length).toBeLessThan(1000);
 });

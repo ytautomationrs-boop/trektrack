@@ -25,11 +25,12 @@ type SessionUser = {
   isAdmin: boolean;
 };
 
-export async function login(email: string, password: string) {
+export async function login(email: string, password: string, code?: string) {
   const data = await request<{ token: string; user: SessionUser }>("/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, code }),
   });
+  if ((data as any).mfaRequired) throw Object.assign(new Error("Enter the verification code sent to your phone."),{mfaRequired:true});
   clearApiCache();
   await setToken(data.token);
   setStoredSession(toStoredSession(data.user));
@@ -41,11 +42,12 @@ export async function login(email: string, password: string) {
  * without a valid, unused one (see backend/src/modules/auth/schemas.ts).
  * There is no public signup route while the pilot is invite-only.
  */
-export async function signUp(input: { email: string; password: string; displayName: string; timezone: string; inviteCode: string }) {
+export async function signUp(input: { email: string; password: string; displayName: string; timezone: string; inviteCode: string; phoneNumber?: string; code?: string }) {
   const data = await request<{ token: string; user: SessionUser }>("/auth/signup", {
     method: "POST",
     body: JSON.stringify(input),
   });
+  if ((data as any).mfaRequired) throw Object.assign(new Error("Enter the verification code sent to your phone."),{mfaRequired:true});
   clearApiCache();
   await setToken(data.token);
   setStoredSession(toStoredSession(data.user));

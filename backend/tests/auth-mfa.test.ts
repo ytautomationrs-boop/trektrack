@@ -1,0 +1,16 @@
+import Fastify from 'fastify';
+import jwt from '@fastify/jwt';
+import {beforeAll,afterAll,beforeEach,it,expect,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({find:vi.fn(),send:vi.fn(),check:vi.fn()}));
+vi.mock('../src/lib/prisma.js',()=>({prisma:{user:{findUnique:mocks.find}}}));
+vi.mock('../src/lib/adminAccess.js',()=>({ensureEffectiveAdmin:async()=>false,isBootstrapAdminEmail:()=>false}));
+vi.mock('../src/modules/auth/sms.js',()=>({smsAvailable:()=>true,sendCode:mocks.send,checkCode:mocks.check}));
+import {authRoutes} from '../src/modules/auth/routes.js';
+import {hashPassword} from '../src/modules/auth/password.js';
+const app=Fastify();let user:any;
+beforeAll(async()=>{user={id:'viewer',email:'test@example.test',displayName:'Tester',passwordHash:await hashPassword('correct-password'),twoFactorEnabled:true,phoneNumber:'+27820000000',authVersion:4};await app.register(jwt,{secret:'fixture-secret-never-used-outside-tests'});await app.register(authRoutes);});afterAll(()=>app.close());beforeEach(()=>{vi.clearAllMocks();mocks.find.mockResolvedValue(user);mocks.check.mockResolvedValue(undefined);});
+const login=(code?:string,password='correct-password')=>app.inject({method:'POST',url:'/auth/login',payload:{email:user.email,password,code}});
+it('does not issue a session before the SMS factor is verified',async()=>{const r=await login();expect(r.json()).toEqual({mfaRequired:true});expect(mocks.send).toHaveBeenCalledWith(user.phoneNumber);});
+it('does not send SMS when the password is wrong',async()=>{expect((await login(undefined,'wrong')).statusCode).toBe(401);expect(mocks.send).not.toHaveBeenCalled();});
+it('refuses an invalid SMS code without issuing a session',async()=>{mocks.check.mockRejectedValue(Object.assign(new Error('Invalid code'),{statusCode:400}));const r=await login('123456');expect(r.statusCode).toBe(400);expect(r.json().token).toBeUndefined();});
+it('issues a versioned session only after checking the account phone',async()=>{const r=await login('123456');expect(r.statusCode).toBe(200);expect(mocks.check).toHaveBeenCalledWith(user.phoneNumber,'123456');expect(app.jwt.verify<any>(r.json().token)).toMatchObject({sub:'viewer',v:4});expect(r.json().user.passwordHash).toBeUndefined();});

@@ -47,6 +47,10 @@ model User {
   id           String  @id @default(cuid())
   email        String  @unique
   passwordHash String
+  authVersion Int @default(0)
+  phoneNumber String?
+  twoFactorEnabled Boolean @default(false)
+  notificationPreferences Json @default("{}")
   displayName  String
   avatarUrl    String?
   bio          String?
@@ -1626,4 +1630,9 @@ model MediaAsset {
   bytes Bytes
   createdAt DateTime @default(now())
   @@index([ownerId, createdAt])
+}
+
+model SmsThrottle {
+  phone String @id
+  sentAt DateTime
 }

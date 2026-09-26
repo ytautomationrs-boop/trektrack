@@ -114,22 +114,22 @@ export function createSocialPost(input: { body: string; raceEntryId?: string | n
 }
 
 export function likeSocialPost(postId: string) {
-  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/like`, { method: "POST", body: JSON.stringify({}) });
+  return request<{ post: Partial<SocialPost> }>(`/social/posts/${encodeURIComponent(postId)}/like?compact=1`, { method: "POST", body: JSON.stringify({}) });
 }
 
 export function unlikeSocialPost(postId: string) {
-  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/like`, { method: "DELETE" });
+  return request<{ post: Partial<SocialPost> }>(`/social/posts/${encodeURIComponent(postId)}/like?compact=1`, { method: "DELETE" });
 }
 
 export function commentOnSocialPost(postId: string, body: string) {
-  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/comments`, {
+  return request<{ post: Partial<SocialPost> }>(`/social/posts/${encodeURIComponent(postId)}/comments?compact=1`, {
     method: "POST",
     body: JSON.stringify({ body }),
   });
 }
 
 export function shareSocialPost(postId: string, recipientId?: string | null) {
-  return request<{ post: SocialPost }>(`/social/posts/${encodeURIComponent(postId)}/share`, {
+  return request<{ post: Partial<SocialPost> }>(`/social/posts/${encodeURIComponent(postId)}/share?compact=1`, {
     method: "POST",
     body: JSON.stringify(recipientId ? { recipientId } : {}),
   });

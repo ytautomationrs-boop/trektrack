@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ZodError } from "zod";
 import { env } from "./lib/env.js";
 import { authRoutes } from "./modules/auth/routes.js";
+import {settingsRoutes} from "./modules/settings/routes.js";
 import { accountRoutes } from "./modules/account/routes.js";
 import { anomalyRoutes } from "./modules/anomaly/routes.js";
 import { metricTypeRoutes } from "./modules/metricTypes/routes.js";
@@ -202,6 +203,7 @@ export async function buildServer() {
   }));
 
   await app.register(authRoutes);
+  await app.register(settingsRoutes);
   await app.register(accountRoutes);
   await app.register(anomalyRoutes);
   await app.register(metricTypeRoutes);

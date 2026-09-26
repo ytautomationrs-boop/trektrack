@@ -8,6 +8,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
 import { WalletScreen } from "../screens/wallet/WalletScreen";
+import { SettingsScreen } from "../screens/profile/SettingsScreen";
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { SocialScreen } from "../screens/social/SocialScreen";
 import { RacesScreen } from "../screens/races/RacesScreen";
@@ -68,6 +69,7 @@ function ProfileStackScreen() {
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
+      <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen name="MyRaces" component={MyRacesScreen} />
       <ProfileStack.Screen name="Wallet" component={WalletScreen} />
       <ProfileStack.Screen name="RaceDetail" component={RaceDetailScreen} />

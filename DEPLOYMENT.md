@@ -163,3 +163,17 @@ because each instance would run the same cron jobs.
 
 Payments are still test/sandbox-only. The backend validates Paystack test key
 prefixes at startup.
+
+### SMS two-factor authentication (Twilio Verify)
+The phone setup, signup verification and two-step login are implemented but stay unavailable until these **server-only** environment variables are set:
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_VERIFY_SERVICE_SID` (a Twilio Verify Service SID beginning `VA`)
+
+Create a Verify service with SMS enabled in your Twilio account, configure its permitted destination countries and Fraud Guard, and set the three values in Hostinger environment settings. Never put them in `EXPO_PUBLIC_*`, mobile assets, Git or chat. Redeploy. `/auth/config` then reports `smsAvailable: true`, enabling optional verified phone enrollment at signup and under Profile → Settings. Existing accounts keep their usual sign-in until they explicitly enable 2FA. Codes are checked by Twilio; pending/expired/consumed codes never authenticate. Sends have a persistent per-phone 60-second cooldown plus route rate limits. Verify trial accounts can only send to verified recipients: https://www.twilio.com/docs/verify/api/verification.
+
+Before enabling SMS for all users, use a test account to verify enrollment, SMS login, invalid/expired code rejection, password change, and disabling 2FA. Retain access to the registered number; this release does not provide SMS-independent self-service recovery. Enabling/disabling 2FA or changing password/email increments `authVersion`, revoking all existing sessions (including Watch's phone session). Email changes require the current password and SMS code when 2FA is enabled; this release does not verify email-address ownership by email delivery.
+
+Notification settings control push delivery only; activity remains in the in-app inbox. Existing users default to enabled. The additive `20260926160000_settings_security` migration also runs through the guarded startup schema check so legacy migration-history issues do not omit security columns.
+
+Bootstrap administrator email addresses are reserved: self-service email changes cannot move an account to or from one, because those addresses confer admin privileges in the existing access policy. Change that server policy explicitly before moving an administrator address.

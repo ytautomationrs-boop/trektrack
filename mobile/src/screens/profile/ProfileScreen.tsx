@@ -51,6 +51,7 @@ function ordinal(n: number) {
 }
 
 export function ProfileScreen() {
+  const navigation = useNavigation<any>();
   const galleryUser = useAppState().session;
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
@@ -71,6 +72,7 @@ export function ProfileScreen() {
   return (
     <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView contentContainerStyle={styles.content}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={()=>navigation.navigate('Settings')} style={{alignSelf:'flex-end',padding:10,flexDirection:'row',gap:8,alignItems:'center'}}><Ionicons name="settings-outline" size={23} color={colors.text}/><Text style={{fontFamily:fonts.bodySemiBold,color:colors.text,fontSize:16}}>Settings</Text></Pressable>
         <IdentityCard />
         <ProfileShortcuts />
         {galleryUser && <ProfileGallery playerId={galleryUser.userId} />}
@@ -82,12 +84,6 @@ export function ProfileScreen() {
         <PointsHistory entries={points} />
         <JoinByCodeSection />
 
-        {/* ── Account ─────────────────────────────────────────────────── */}
-        <ModelHeading title="Account" subtitle="" />
-        <AdminRow />
-        <StatusSection />
-        <SupportAndLegalRows />
-        <LogoutRow />
       </ScrollView>
     </SafeAreaView></PageMotion>
   );
@@ -810,7 +806,7 @@ function PointsHistory({ entries }: { entries: RacePointEntry[] }) {
  * only registered for one (see navigation/RootNavigator.tsx), so this is a
  * signpost rather than the lock.
  */
-function AdminRow() {
+export function AdminRow() {
   const navigation = useNavigation<any>();
   const app = useAppState();
   if (!app.session?.isAdmin) return null;
@@ -827,7 +823,7 @@ function AdminRow() {
   );
 }
 
-function StatusSection() {
+export function StatusSection() {
   return (
     <View style={styles.statusRow}>
       <View style={styles.statusDot} />
@@ -844,7 +840,7 @@ function StatusSection() {
  * "Terms of Service" link is worse than no link on a product handling real
  * money: it implies terms exist and can be read, when they don't.
  */
-function SupportAndLegalRows() {
+export function SupportAndLegalRows() {
   const [config, setConfig] = useState<{ supportEmail: string | null; termsUrl: string | null; privacyUrl: string | null } | null>(null);
 
   useFocusEffect(

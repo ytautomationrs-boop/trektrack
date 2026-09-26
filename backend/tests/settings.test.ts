@@ -1,0 +1,23 @@
+import Fastify from 'fastify';
+import {beforeAll,afterAll,beforeEach,it,expect,vi} from 'vitest';
+const mocks=vi.hoisted(()=>({find:vi.fn(),unique:vi.fn(),first:vi.fn(),update:vi.fn(),updateMany:vi.fn(),check:vi.fn(),send:vi.fn()}));
+vi.mock('../src/lib/prisma.js',()=>({prisma:{user:{findUniqueOrThrow:mocks.find,findUnique:mocks.unique,findFirst:mocks.first,update:mocks.update,updateMany:mocks.updateMany}}}));
+vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any)=>{req.userId='viewer';}}));
+vi.mock('../src/modules/auth/sms.js',()=>({smsAvailable:()=>false,sendCode:mocks.send,checkCode:mocks.check}));
+vi.mock('../src/lib/adminAccess.js',()=>({isBootstrapAdminEmail:(email:string)=>email==='admin@example.test'}));
+import {settingsRoutes} from '../src/modules/settings/routes.js';
+import {hashPassword,verifyPassword} from '../src/modules/auth/password.js';
+const app=Fastify();let owner:any;
+beforeAll(async()=>{owner={id:'viewer',email:'old@example.test',passwordHash:await hashPassword('correct-password'),authVersion:3,twoFactorEnabled:false,phoneNumber:null,notificationPreferences:{}};await app.register(settingsRoutes);});
+afterAll(()=>app.close());beforeEach(()=>{vi.clearAllMocks();mocks.find.mockResolvedValue({...owner});mocks.first.mockResolvedValue(null);mocks.updateMany.mockResolvedValue({count:1});});
+const change=(payload:any)=>app.inject({method:'POST',url:'/me/settings/security',payload});
+it('refuses a wrong current password without modifying security',async()=>{const r=await change({action:'email',password:'wrong',email:'new@example.test'});expect(r.statusCode).toBe(400);expect(mocks.updateMany).not.toHaveBeenCalled();});
+it('changes password with a salted hash and atomically revokes old sessions',async()=>{const r=await change({action:'password',password:'correct-password',newPassword:'new-safe-password'});expect(r.statusCode).toBe(200);const query=mocks.updateMany.mock.calls[0]![0];expect(query.where).toEqual({id:'viewer',authVersion:3});expect(query.data.authVersion).toEqual({increment:1});expect(await verifyPassword('new-safe-password',query.data.passwordHash)).toBe(true);});
+it('requires second factor for email changes when enabled',async()=>{mocks.find.mockResolvedValue({...owner,twoFactorEnabled:true,phoneNumber:'+27820000000'});const r=await change({action:'email',password:'correct-password',email:'new@example.test'});expect(r.statusCode).toBe(400);expect(mocks.updateMany).not.toHaveBeenCalled();});
+it('does not enable 2FA with an unverified number',async()=>{mocks.check.mockRejectedValue(Object.assign(new Error('Invalid code'),{statusCode:400}));const r=await change({action:'enable2fa',password:'correct-password',phoneNumber:'+27820000000',code:'123456'});expect(r.statusCode).toBe(400);expect(mocks.updateMany).not.toHaveBeenCalled();});
+it('binds enrollment to the verified phone number',async()=>{mocks.check.mockResolvedValue(undefined);const r=await change({action:'enable2fa',password:'correct-password',phoneNumber:'+27820000000',code:'123456'});expect(r.statusCode).toBe(200);expect(mocks.check).toHaveBeenCalledWith('+27820000000','123456');expect(mocks.updateMany.mock.calls[0]![0].data).toMatchObject({phoneNumber:'+27820000000',twoFactorEnabled:true});});
+it('sends security-change codes to the existing phone, never a substituted number',async()=>{mocks.find.mockResolvedValue({...owner,twoFactorEnabled:true,phoneNumber:'+27820000000'});await app.inject({method:'POST',url:'/me/settings/send-code',payload:{password:'correct-password',phoneNumber:'+27821111111'}});expect(mocks.send).toHaveBeenCalledWith('+27820000000');});
+it('rejects stale concurrent security changes',async()=>{mocks.updateMany.mockResolvedValue({count:0});const r=await change({action:'email',password:'correct-password',email:'new@example.test'});expect(r.statusCode).toBe(409);});
+it('stores notification preferences only for the authenticated user',async()=>{const prefs={push:false,messages:true,invites:false,likes:false,comments:true,competitions:true};const r=await app.inject({method:'PATCH',url:'/me/settings/notifications',payload:prefs});expect(r.statusCode).toBe(200);expect(mocks.update).toHaveBeenCalledWith({where:{id:'viewer'},data:{notificationPreferences:prefs}});});
+
+it('cannot gain admin privileges by changing to a bootstrap administrator email',async()=>{const r=await change({action:'email',password:'correct-password',email:'admin@example.test'});expect(r.statusCode).toBe(400);expect(mocks.updateMany).not.toHaveBeenCalled();});

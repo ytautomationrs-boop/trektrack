@@ -1,19 +1,22 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
-import { scrypt, randomBytes, timingSafeEqual } from "node:crypto";
-import { promisify } from "node:util";
+import { randomBytes } from "node:crypto";
+import {hashPassword, verifyPassword} from "./password.js";
+import {sendCode, checkCode, smsAvailable} from "./sms.js";
+
 import { z } from "zod";
 import { ensureEffectiveAdmin, isBootstrapAdminEmail } from "../../lib/adminAccess.js";
 import { prisma } from "../../lib/prisma.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
 import { GenerateInviteCodesSchema, LoginSchema, SignUpSchema } from "./schemas.js";
 
-const scryptAsync = promisify(scrypt);
+
 
 const authUserSelect = {
   id: true,
   email: true,
   passwordHash: true,
+  authVersion: true, phoneNumber: true, twoFactorEnabled: true,
   displayName: true,
   avatarUrl: true,
   bio: true,
@@ -42,19 +45,6 @@ function appLogAdminWarning(label: string, err: unknown) {
   console.warn(`[admin] ${label} failed`, err);
 }
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${salt}:${derived.toString("hex")}`;
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
-  const hashBuf = Buffer.from(hash, "hex");
-  return derived.length === hashBuf.length && timingSafeEqual(derived, hashBuf);
-}
 
 class AuthError extends Error {
   constructor(public code: string, message: string) {
@@ -92,6 +82,7 @@ const AUTH_RATE_LIMIT = {
 };
 
 export async function authRoutes(app: FastifyInstance) {
+  app.get("/auth/config", async()=>({smsAvailable:smsAvailable()}));
   app.post("/auth/signup", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
     const body = SignUpSchema.parse(req.body);
 
@@ -107,6 +98,12 @@ export async function authRoutes(app: FastifyInstance) {
     // depend on a third-party payment processor being reachable/configured.
     // This means signup/login/browsing/joining all work with no Paystack
     // keys at all — only depositing money does (see modules/wallet).
+    if (body.phoneNumber) {
+      const invite=await prisma.inviteCode.findUnique({where:{code:body.inviteCode.trim()}});
+      if(!invite || invite.revokedAt || invite.useCount>=invite.maxUses)return reply.code(403).send({message:"That invite code is not available."});
+      if(!body.code){await sendCode(body.phoneNumber);return {mfaRequired:true};}
+      await checkCode(body.phoneNumber,body.code);
+    }
     const passwordHash = await hashPassword(body.password);
 
     try {
@@ -122,6 +119,7 @@ export async function authRoutes(app: FastifyInstance) {
           data: {
             email: body.email,
             passwordHash,
+            phoneNumber: body.phoneNumber, twoFactorEnabled: !!body.phoneNumber,
             displayName: body.displayName,
             timezone: body.timezone,
             isAdmin: isBootstrapAdminEmail(body.email),
@@ -143,7 +141,7 @@ export async function authRoutes(app: FastifyInstance) {
         return created;
       });
 
-      const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+      const token = app.jwt.sign({ sub: user.id, v:user.authVersion }, { expiresIn: "30d" });
       const isAdmin = await ensureEffectiveAdmin(user);
       return reply.code(201).send({
         token,
@@ -177,7 +175,12 @@ export async function authRoutes(app: FastifyInstance) {
         message: user.suspendedReason ? `This account is suspended: ${user.suspendedReason}` : "This account is suspended.",
       });
     }
-    const token = app.jwt.sign({ sub: user.id }, { expiresIn: "30d" });
+    if(user.twoFactorEnabled) {
+      if(!user.phoneNumber)throw new Error("Two-factor phone missing");
+      if(!body.code){await sendCode(user.phoneNumber);return {mfaRequired:true};}
+      await checkCode(user.phoneNumber,body.code);
+    }
+    const token = app.jwt.sign({ sub: user.id, v:user.authVersion }, { expiresIn: "30d" });
     const isAdmin = await ensureEffectiveAdmin(user);
     return reply.send({
       token,

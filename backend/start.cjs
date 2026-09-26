@@ -57,6 +57,7 @@ async function start() {
     try {
       const { ensureSocialFeatureSchema } = require("./startup-social-schema.cjs");
       await ensureSocialFeatureSchema(schemaClient);
+      await require("./startup-settings-schema.cjs").ensureSettingsSchema(schemaClient);
       const missing = await findMissingRuntimeColumns(schemaClient, Prisma.dmmf.datamodel.models);
       repairNeeded = missing.length > 0;
       if (repairNeeded) console.warn(`[startup] Database schema is missing ${missing.length} expected columns; running runtime repair.`);

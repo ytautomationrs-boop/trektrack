@@ -54,6 +54,10 @@ type Payload = {
  */
 export async function notifyUser(userId: string, kind: NotificationKind, payload: Payload): Promise<void> {
   try {
+    const owner=await prisma.user.findUnique({where:{id:userId},select:{notificationPreferences:true}});
+    const prefs=(owner?.notificationPreferences ?? {}) as Record<string,boolean>;
+    const category=String(kind).includes('message')?'messages':/friend|invite|follow/.test(kind)?'invites':String(kind).includes('like')?'likes':/comment|share/.test(kind)?'comments':'competitions';
+    if(prefs.push===false || prefs[category]===false)return;
     const tokens = await prisma.pushToken.findMany({ where: { userId }, select: { token: true } });
     if (tokens.length === 0) return;
 

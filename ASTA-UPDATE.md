@@ -36,3 +36,11 @@ The `ASTAWatch` watchOS 10+ companion is embedded in the iPhone target. Start a 
 Apple rejected the former generic `com.asta.app` identifier as unavailable. The registered identifier is now `com.reecewheeler.asta`, with watch companion `com.reecewheeler.asta.watchkitapp`, team `K2B23SBUZ8`. The new build installs alongside an old differently identified app and requires signing in again. Do not delete the old app automatically.
 
 Validation: backend and mobile TypeScript checks; 40 unit/integration tests, including real PostgreSQL conversation parameters, scoring permissions/concurrency/idempotency, queued/offline score retries; signed iPhone/Watch build; isolated browser check of three rapid taps under 1.5-second network delay, Past events and 390px profile grid. The user confirmed receipt of a real test push on iPhone after server configuration and device registration. Physical Watch scoring still requires device validation; no watch was connected during this update.
+
+## Profile settings, social responsiveness and branding — 26 September
+- Profile → Settings includes push categories, password/email changes, optional verified-phone 2FA, support/legal links and the relocated competition guide.
+- Security changes require the current password (and SMS when enabled), atomically increment session version, and sign out existing phone/Watch sessions.
+- Twilio Verify integration is prepared; SMS is intentionally unavailable until server credentials are configured. Setup and limitations are in DEPLOYMENT.md.
+- Social/messages header remains fixed while the feed scrolls. Likes, comments and shares give immediate feedback, show pending status and restore the prior display on failure. Mutation responses omit unchanged photos and game/race details. Short transform-only press animations respect Reduce Motion.
+- The supplied white symbol appears at launch/sign-in; the supplied italic ASTA wordmark appears in the header. Competition cards prominently show the fixed prize pool and retain the fee and prize breakdown.
+- Validation: backend/mobile typechecks, 60 automated tests including MFA/session revocation and repeatable schema migration; iPhone-width browser checks with a deliberately delayed 3-second social API showed immediate likes/comments and a fixed Messages button.

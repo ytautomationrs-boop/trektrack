@@ -72,7 +72,7 @@ export function RacesScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<Error | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
 
   const load = useCallback(
     async (opts: { silent?: boolean } = {}) => {
@@ -182,16 +182,6 @@ export function RacesScreen() {
           </Pressable>
         </View>
 
-        <Pressable style={styles.howToggle} onPress={() => setShowHowItWorks((value) => !value)}>
-          <View style={styles.howIcon}>
-            <Ionicons name="help" size={15} color={colors.bg} />
-          </View>
-          <Text style={styles.howToggleText}>How competitions work</Text>
-          <Ionicons name={showHowItWorks ? "chevron-up" : "chevron-down"} size={16} color={colors.sub} />
-        </Pressable>
-
-        {showHowItWorks && <HowItWorksCard />}
-
         {/* Metric filter. Selecting one narrows to that metric's races at
             THAT metric's league level — never a combined or unrelated one. */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricRow}>
@@ -247,28 +237,6 @@ export function RacesScreen() {
         ))}
       </ScrollView>
     </SafeAreaView></PageMotion>
-  );
-}
-
-function HowItWorksCard() {
-  const steps = [
-    "Pick one sport metric and enter or create a 10-person solo race. Squad races are two squads of four.",
-    "Your entry fee is held from your wallet while the race is filling. You can pull out for a full refund before it fills.",
-    "When the exact headcount is reached, the race locks and starts at the next local midnight. After that, entries are final.",
-    "Sync your activity data during the race. Final positions decide fixed prizes and sport-specific trophies.",
-  ];
-
-  return (
-    <View style={styles.howCard}>
-      {steps.map((step, index) => (
-        <View key={step} style={styles.howStep}>
-          <View style={styles.howNumber}>
-            <Text style={styles.howNumberText}>{index + 1}</Text>
-          </View>
-          <Text style={styles.howStepText}>{step}</Text>
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -402,6 +370,9 @@ function RaceCard({
 
       {/* The fixed schedule. Same numbers for every race of this type in this
           league, whoever enters. */}
+      <View style={{backgroundColor:colors.accent,borderRadius:16,padding:18,marginTop:16,flexDirection:'row',alignItems:'center',gap:14}}>
+        <Ionicons name="trophy" size={34} color={colors.onAccent}/><View style={{flex:1}}><Text style={{fontFamily:fonts.bodySemiBold,fontSize:13,color:colors.onAccent}}>Fixed prize pool</Text><Text style={{fontFamily:fonts.display,fontSize:32,color:colors.onAccent}}>{formatCents(race.totalPrizeCents)}</Text><Text style={{fontFamily:fonts.body,fontSize:13,color:colors.onAccent}}>{race.format==='SQUAD'?'Winning squad shares the prize':'Compete for a podium finish'}</Text></View>
+      </View>
       <View style={styles.prizeRow}>
         {race.prizes.slice(0, 5).map((p) => (
           <View key={p.position} style={styles.prizeChip}>

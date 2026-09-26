@@ -97,7 +97,7 @@ export async function socialRoutes(app: FastifyInstance) {
   app.post("/social/posts/:id/like", { preHandler: requireAuth }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
-      return reply.send({ post: await withRuntimeSchemaRepair("like social post", () => setSocialPostLike(req.userId, id, true)) });
+      return reply.send({ post: await withRuntimeSchemaRepair("like social post", () => setSocialPostLike(req.userId, id, true, (req.query as any).compact==='1')) });
     } catch (err) {
       return sendSocialError(reply, err);
     }
@@ -106,7 +106,7 @@ export async function socialRoutes(app: FastifyInstance) {
   app.delete("/social/posts/:id/like", { preHandler: requireAuth }, async (req, reply) => {
     try {
       const { id } = req.params as { id: string };
-      return reply.send({ post: await withRuntimeSchemaRepair("unlike social post", () => setSocialPostLike(req.userId, id, false)) });
+      return reply.send({ post: await withRuntimeSchemaRepair("unlike social post", () => setSocialPostLike(req.userId, id, false, (req.query as any).compact==='1')) });
     } catch (err) {
       return sendSocialError(reply, err);
     }
@@ -116,7 +116,7 @@ export async function socialRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = CommentBody.parse(req.body ?? {});
-      return reply.code(201).send({ post: await withRuntimeSchemaRepair("comment on social post", () => createSocialPostComment(req.userId, id, body.body)) });
+      return reply.code(201).send({ post: await withRuntimeSchemaRepair("comment on social post", () => createSocialPostComment(req.userId, id, body.body, (req.query as any).compact==='1')) });
     } catch (err) {
       return sendSocialError(reply, err);
     }
@@ -126,7 +126,7 @@ export async function socialRoutes(app: FastifyInstance) {
     try {
       const { id } = req.params as { id: string };
       const body = SharePostBody.parse(req.body ?? {});
-      return reply.code(201).send({ post: await withRuntimeSchemaRepair("share social post", () => shareSocialPost(req.userId, id, body.recipientId)) });
+      return reply.code(201).send({ post: await withRuntimeSchemaRepair("share social post", () => shareSocialPost(req.userId, id, body.recipientId, (req.query as any).compact==='1')) });
     } catch (err) {
       return sendSocialError(reply, err);
     }

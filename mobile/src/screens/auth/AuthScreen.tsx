@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ImageBackground } from "react-native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
+import {request} from "../../api/http";
 import { login, signUp } from "../../api/client";
 import { useAppState } from "../../state/useAppState";
 import { heroImages } from "../../theme/sportImages";
@@ -19,6 +20,8 @@ function resolveTimezone(): string {
 
 export function AuthScreen() {
   const app = useAppState();
+  const [phone,setPhone]=useState(""),[code,setCode]=useState(""),[mfa,setMfa]=useState(false),[sms,setSms]=useState(false);
+  useEffect(()=>{request<{smsAvailable:boolean}>("/auth/config").then(r=>setSms(r.smsAvailable)).catch(()=>{});},[]);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,8 +38,8 @@ export function AuthScreen() {
       const normalizedEmail = email.trim().toLowerCase();
       const user =
         mode === "signup"
-          ? await signUp({ email: normalizedEmail, password, displayName: displayName.trim(), timezone: resolveTimezone(), inviteCode: inviteCode.trim() })
-          : await login(normalizedEmail, password);
+          ? await signUp({ email: normalizedEmail, password, displayName: displayName.trim(), timezone: resolveTimezone(), inviteCode: inviteCode.trim(), phoneNumber: phone.trim() || undefined, code:code || undefined })
+          : await login(normalizedEmail, password,code || undefined);
       app.setSession({
         userId: user.id,
         displayName: user.displayName,
@@ -47,6 +50,7 @@ export function AuthScreen() {
       });
       if (mode === "login") app.advanceOnboarding("done");
     } catch (err: any) {
+      if(err.mfaRequired)setMfa(true);
       setError(err.message ?? "Something went wrong");
     } finally {
       setSubmitting(false);
@@ -58,7 +62,7 @@ export function AuthScreen() {
       <View style={styles.overlay} />
       <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.brandBlock}>
-          <AstaLogo size={88} />
+          <AstaLogo symbol size={104} />
           <Text style={styles.tagline}>Race. Win. Climb.</Text>
         </View>
 
@@ -87,11 +91,13 @@ export function AuthScreen() {
               onChangeText={setInviteCode}
             />
           )}
+          {mode==='signup' && sms && <><Text style={styles.switchModeText}>Protect your account with SMS two-factor authentication (optional).</Text><TextInput accessibilityLabel="Phone number" keyboardAppearance="dark" style={styles.input} placeholder="Phone with country code, e.g. +27821234567" placeholderTextColor={colors.sub} value={phone} onChangeText={setPhone} keyboardType="phone-pad" /></>}
+          {mfa && <><TextInput accessibilityLabel="SMS verification code" keyboardAppearance="dark" style={styles.input} placeholder="SMS verification code" placeholderTextColor={colors.sub} value={code} onChangeText={setCode} keyboardType="number-pad" textContentType="oneTimeCode" maxLength={10}/><Pressable disabled={submitting} onPress={()=>{setCode('');setMfa(false);}}><Text style={styles.switchModeText}>Request a new code (wait one minute)</Text></Pressable></>}
           {error && <Text style={styles.error}>{error}</Text>}
           <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
-            <Text style={styles.primaryButtonText}>{submitting ? "..." : mode === "signup" ? "Create account" : "Log in"}</Text>
+            <Text style={styles.primaryButtonText}>{submitting ? "..." : mfa ? "Verify and continue" : mode === "signup" ? "Create account" : "Log in"}</Text>
           </Pressable>
-          <Pressable onPress={() => setMode(mode === "signup" ? "login" : "signup")}>
+          <Pressable onPress={() => {setMode(mode === "signup" ? "login" : "signup");setCode("");setMfa(false);setError(null);setPhone("");}}>
             <Text style={styles.switchModeText}>{mode === "signup" ? "Already have an account? Log in" : "New here? Create an account"}</Text>
           </Pressable>
         </View>

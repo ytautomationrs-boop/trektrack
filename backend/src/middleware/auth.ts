@@ -9,9 +9,9 @@ declare module "fastify" {
 }
 
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
-  let payload: { sub: string; purpose?: string };
+  let payload: { sub: string; v?: number; purpose?: string };
   try {
-    payload = await req.jwtVerify<{ sub: string; purpose?: string }>();
+    payload = await req.jwtVerify<{ sub: string; v?: number; purpose?: string }>();
   } catch {
     return reply.code(401).send({ error: "unauthorized" });
   }
@@ -31,10 +31,10 @@ export async function requireAuth(req: FastifyRequest, reply: FastifyReply) {
   // forever, instead of simply being signed out.
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
-    select: { id: true, suspendedAt: true, suspendedReason: true, bannedAt: true },
+    select: { id: true, authVersion: true, suspendedAt: true, suspendedReason: true, bannedAt: true },
   });
-  if (!user) {
-    return reply.code(401).send({ error: "unauthorized", message: "That account no longer exists. Please sign in again." });
+  if (!user || (payload.v ?? 0) !== user.authVersion) {
+    return reply.code(401).send({ error: "unauthorized", message: "Your session has ended. Please sign in again." });
   }
   if (user.bannedAt) {
     return reply.code(403).send({ error: "account_banned", message: "This account has been banned." });

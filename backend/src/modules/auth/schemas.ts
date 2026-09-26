@@ -2,12 +2,14 @@ import { z } from "zod";
 
 export const SignUpSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(8),
+  password: z.string().min(8).max(1024),
   displayName: z.string().min(2).max(40),
   timezone: z.string().min(1), // IANA tz string from the device, e.g. Intl.DateTimeFormat().resolvedOptions().timeZone
   // Pilot invite gate — see InviteCode in schema.prisma. There is no public
   // signup route while this is required.
   inviteCode: z.string().min(1),
+  phoneNumber: z.string().regex(/^\+[1-9]\d{7,14}$/, "Use a phone number with country code, for example +27821234567").optional(),
+  code: z.string().regex(/^\d{4,10}$/).optional(),
 });
 
 export const GenerateInviteCodesSchema = z.object({
@@ -25,7 +27,8 @@ export const GenerateInviteCodesSchema = z.object({
 
 export const LoginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
-  password: z.string().min(1),
+  password: z.string().min(1).max(1024),
+  code: z.string().regex(/^\d{4,10}$/).optional(),
 });
 
 export type SignUpInput = z.infer<typeof SignUpSchema>;

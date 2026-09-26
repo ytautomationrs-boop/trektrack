@@ -1,3 +1,4 @@
+import {TapMotion} from "../../components/TapMotion";
 import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -176,13 +177,9 @@ function SocialFeedScreen() {
 
   return (
     <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
-      <ScrollView
-        contentContainerStyle={styles.feedContent}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
-      >
         <View style={styles.instaHeader}>
           <Text style={styles.feedTitle}>Social</Text>
-          <Pressable style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Messages" style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text} />
             {unreadCount > 0 && (
               <View style={styles.badgeDot}>
@@ -191,6 +188,11 @@ function SocialFeedScreen() {
             )}
           </Pressable>
         </View>
+      <ScrollView
+        contentContainerStyle={styles.feedContent}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
+      >
+
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storyRow}>
           <Pressable style={styles.story} onPress={() => navigation.navigate("Profile", { screen: "ProfileHome" })}>
@@ -557,50 +559,60 @@ function PostCard({
   onChange: (post: SocialPost) => void;
   onOpenProfile: () => void;
 }) {
+  const session=useAppState().session;
+  const saving=useRef(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
 
   const toggleLike = async () => {
-    if (busy) return;
+    if (saving.current) return;
+    saving.current=true;
     setBusy("like");
+    onChange({...post,hasLiked:!post.hasLiked,likeCount:Math.max(0,post.likeCount+(post.hasLiked?-1:1))});
     try {
       const result = post.hasLiked ? await unlikeSocialPost(post.id) : await likeSocialPost(post.id);
-      onChange(result.post);
+      onChange({...post,...result.post});
     } catch (err: any) {
+      onChange(post);
       showAlert("Like failed", err.message ?? "Try again.");
     } finally {
-      setBusy(null);
+      saving.current=false;setBusy(null);
     }
   };
 
   const submitComment = async () => {
     const body = commentText.trim();
-    if (!body || busy) return;
+    if (!body || saving.current || !session) return;
+    saving.current=true;
     setBusy("comment");
+    setCommentText('');setCommentOpen(false);
+    onChange({...post,commentCount:post.commentCount+1,comments:[...post.comments,{id:'pending-'+Date.now(),body,createdAt:new Date().toISOString(),author:{id:session.userId,displayName:session.displayName,avatarUrl:session.avatarUrl??null,bio:null,joinedAt:''}}]});
     try {
       const result = await commentOnSocialPost(post.id, body);
-      onChange(result.post);
-      setCommentText("");
-      setCommentOpen(false);
+      onChange({...post,...result.post});
     } catch (err: any) {
-      showAlert("Comment failed", err.message ?? "Try again.");
+      onChange(post);setCommentText(body);setCommentOpen(true);
+      showAlert("Could not confirm comment", err.message ?? "Try again.");
     } finally {
-      setBusy(null);
+      saving.current=false;setBusy(null);
     }
   };
 
   const shareTo = async (recipientId?: string | null) => {
-    if (busy) return;
+    if (saving.current) return;
+    saving.current=true;
     setBusy("share");
+    onChange({...post,shareCount:post.shareCount+1});
     try {
       const result = await shareSocialPost(post.id, recipientId);
-      onChange(result.post);
+      onChange({...post,...result.post});
       showAlert(recipientId ? "Shared" : "Share saved", recipientId ? "The post was sent as a message." : "The post was shared on your profile.");
     } catch (err: any) {
-      showAlert("Share failed", err.message ?? "Try again.");
+      onChange(post);
+      showAlert("Could not confirm share", err.message ?? "Try again.");
     } finally {
-      setBusy(null);
+      saving.current=false;setBusy(null);
     }
   };
 
@@ -632,19 +644,20 @@ function PostCard({
       {post.imageUrl ? <Image source={{ uri: post.imageUrl }} style={styles.postPhoto} resizeMode="cover" /> : null}
       <Text style={styles.postBody}>{post.body}</Text>
       <View style={styles.postActions}>
-        <Pressable style={styles.postActionButton} onPress={toggleLike} disabled={busy === "like"}>
+        <TapMotion accessibilityRole="button" accessibilityLabel={post.hasLiked ? "Unlike post" : "Like post"} style={styles.postActionButton} onPress={toggleLike} disabled={!!busy}>
           <Ionicons name={post.hasLiked ? "heart" : "heart-outline"} size={22} color={post.hasLiked ? colors.accent : colors.text} />
           <Text style={styles.postActionText}>{post.likeCount}</Text>
-        </Pressable>
-        <Pressable style={styles.postActionButton} onPress={() => setCommentOpen((value) => !value)}>
+        </TapMotion>
+        <TapMotion accessibilityRole="button" accessibilityLabel="Comment on post" style={styles.postActionButton} onPress={() => setCommentOpen((value) => !value)}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.text} />
           <Text style={styles.postActionText}>{post.commentCount}</Text>
-        </Pressable>
-        <Pressable style={styles.postActionButton} onPress={openShare} disabled={busy === "share"}>
+        </TapMotion>
+        <TapMotion accessibilityRole="button" accessibilityLabel="Share post" style={styles.postActionButton} onPress={openShare} disabled={!!busy}>
           <Ionicons name="paper-plane-outline" size={20} color={colors.text} />
           <Text style={styles.postActionText}>{post.shareCount}</Text>
-        </Pressable>
+        </TapMotion>
       </View>
+      {busy && <Text accessibilityLiveRegion="polite" style={styles.postMeta}>{busy==='comment'?'Saving comment…':busy==='share'?'Sharing…':'Saving like…'}</Text>}
       {post.comments.length > 0 && (
         <View style={styles.commentList}>
           {post.comments.map((comment) => (
@@ -665,7 +678,7 @@ function PostCard({
             placeholderTextColor={colors.sub}
             maxLength={240}
           />
-          <Pressable style={[styles.commentSend, (!commentText.trim() || busy === "comment") && styles.disabled]} disabled={!commentText.trim() || busy === "comment"} onPress={submitComment}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Post comment" style={[styles.commentSend, (!commentText.trim() || !!busy) && styles.disabled]} disabled={!commentText.trim() || !!busy} onPress={submitComment}>
             {busy === "comment" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={14} color={colors.bg} />}
           </Pressable>
         </View>
@@ -758,7 +771,7 @@ function StatMini({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   feedContent: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  instaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  instaHeader: { paddingHorizontal:16,paddingTop:10,paddingBottom:8,backgroundColor:colors.bg, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   feedTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },

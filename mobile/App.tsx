@@ -149,7 +149,7 @@ function AppRoot() {
 function Splash({ message }: { message: string }) {
   return (
     <View style={styles.splash}>
-      <AstaLogo width={104} height={28} backgroundColor={colors.accent} />
+      <AstaLogo symbol width={104} backgroundColor={colors.accent} />
       <ActivityIndicator color={colors.onAccent} style={styles.splashSpinner} />
       <Text style={styles.splashMessage}>{message}</Text>
     </View>

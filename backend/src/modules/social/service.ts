@@ -194,7 +194,13 @@ export async function createSocialPost(viewerId: string, input: { body: string; 
   return serializePost(post);
 }
 
-export async function setSocialPostLike(viewerId: string, postId: string, liked: boolean) {
+// Mutation responses exclude unchanged photos, game histories and race relations.
+export async function socialInteractionPatch(postId:string,viewerId:string){
+ const post=await prisma.socialPost.findUniqueOrThrow({where:{id:postId},select:{id:true,_count:{select:{likes:true,comments:true,shares:true}},likes:{where:{userId:viewerId},select:{id:true},take:1},comments:{orderBy:{createdAt:'desc'},take:3,select:{id:true,body:true,createdAt:true,user:{select:{id:true,displayName:true}}}}}});
+ return {id:post.id,likeCount:post._count.likes,commentCount:post._count.comments,shareCount:post._count.shares,hasLiked:!!post.likes.length,comments:post.comments.reverse().map(c=>({id:c.id,body:c.body,createdAt:c.createdAt,author:{...c.user,avatarUrl:null,bio:null,joinedAt:''}}))};
+}
+
+export async function setSocialPostLike(viewerId: string, postId: string, liked: boolean, compact=false) {
   const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true, authorId:true } });
   if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
 
@@ -209,10 +215,10 @@ export async function setSocialPostLike(viewerId: string, postId: string, liked:
   }
 
   if(liked && post.authorId!==viewerId) void notifyActivity(post.authorId,'like',`like:${postId}:${viewerId}`,'New like','Someone liked your post.',{postId});
-  return findSerializablePost(postId, viewerId);
+  return compact ? socialInteractionPatch(postId,viewerId) : findSerializablePost(postId, viewerId);
 }
 
-export async function createSocialPostComment(viewerId: string, postId: string, body: string) {
+export async function createSocialPostComment(viewerId: string, postId: string, body: string, compact=false) {
   const text = body.trim();
   if (!text) throw Object.assign(new Error("Write a comment first."), { statusCode: 400, code: "empty_comment" });
   const post = await prisma.socialPost.findUnique({ where: { id: postId }, select: { id: true, authorId:true } });
@@ -220,7 +226,7 @@ export async function createSocialPostComment(viewerId: string, postId: string, 
 
   const comment=await prisma.socialPostComment.create({ data: { postId, userId: viewerId, body: text } });
   if(post.authorId!==viewerId) void notifyActivity(post.authorId,"comment",`comment:${comment.id}`,"New comment","Someone commented on your post.",{postId});
-  return findSerializablePost(postId, viewerId);
+  return compact ? socialInteractionPatch(postId,viewerId) : findSerializablePost(postId, viewerId);
 }
 
 export async function searchPlayers(viewerId: string, query: string, limit = 20) {
@@ -405,10 +411,10 @@ export async function sendMessage(viewerId: string, playerId: string, body: stri
   return { message: serializeMessage(message, viewerId) };
 }
 
-export async function shareSocialPost(viewerId: string, postId: string, recipientId?: string | null) {
+export async function shareSocialPost(viewerId: string, postId: string, recipientId?: string | null, compact=false) {
   const post = await prisma.socialPost.findUnique({
     where: { id: postId },
-    include: { author: { select: playerSelect } },
+    select: {body:true,author:{select:{displayName:true}}},
   });
   if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
 
@@ -424,7 +430,7 @@ export async function shareSocialPost(viewerId: string, postId: string, recipien
   }
 
   await prisma.socialPostShare.create({ data: { postId, userId: viewerId, recipientId: recipientId || null } });
-  return findSerializablePost(postId, viewerId);
+  return compact ? socialInteractionPatch(postId,viewerId) : findSerializablePost(postId, viewerId);
 }
 
 export async function getPlayerProfile(viewerId: string, playerId: string) {
