@@ -18,6 +18,7 @@ import { deviceRoutes } from "./modules/devices/routes.js";
 import { stravaRoutes } from "./modules/integrations/strava/routes.js";
 import { walletRoutes } from "./modules/wallet/routes.js";
 import { raceRoutes } from "./modules/races/routes.js";
+import { poolRoutes } from "./modules/pools/routes.js";
 import { challengeRoutes } from "./modules/challenges/routes.js";
 import { mediaRoutes } from "./modules/media/service.js";
 import { notificationRoutes } from "./modules/notifications/routes.js";
@@ -213,6 +214,7 @@ export async function buildServer() {
   await app.register(walletRoutes);
   await app.register(raceRoutes);
   await app.register(challengeRoutes);
+  await app.register(poolRoutes);
   await app.register(mediaRoutes);
   await app.register(notificationRoutes);
   await app.register(socialRoutes);

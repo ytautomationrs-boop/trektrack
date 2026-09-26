@@ -21,6 +21,7 @@ import { AdminScreen } from "../screens/admin/AdminScreen";
 import { useAppState } from "../state/useAppState";
 import { NotificationsScreen } from "../screens/notifications/NotificationsScreen";
 import { getNotifications, openNotification } from "../api/notificationClient";
+import { PoolsScreen } from "../screens/pools/PoolsScreen";
 import { AstaLogo } from "../components/AstaLogo";
 
 const Tab = createBottomTabNavigator();
@@ -31,9 +32,8 @@ const ProfileStack = createNativeStackNavigator();
 /**
  * Launch shell.
  *
- * The public launch product is fixed-prize competitions only. The pooled
- * challenge code remains in the repository for now, but it is not exposed in
- * navigation because that model may carry gambling/compliance risk.
+ * Fixed-prize competitions stay separate from the test-credit Pools prototype,
+ * which is accessed through the create menu.
  */
 function RacesStackScreen() {
   return (
@@ -121,7 +121,7 @@ const linking = {
 
 // The centre action opens a small chooser; selecting an option keeps the
 // existing competition and social-game creation flows.
-function CreateTabButton({ onCompetition, onSocialGame }: { onCompetition: () => void; onSocialGame: () => void }) {
+function CreateTabButton({ onCompetition, onSocialGame, onPool }: { onCompetition: () => void; onSocialGame: () => void; onPool: () => void }) {
   const [chooserVisible, setChooserVisible] = useState(false);
   const choose = (action: () => void) => {
     setChooserVisible(false);
@@ -164,6 +164,10 @@ function CreateTabButton({ onCompetition, onSocialGame }: { onCompetition: () =>
                 <Text style={styles.chooserOptionDetail}>Play together</Text>
               </Pressable>
             </View>
+            <Pressable style={[styles.chooserOption,{marginTop:12,flex:0,flexDirection:"row",justifyContent:"center",gap:12}]} onPress={()=>choose(onPool)} accessibilityRole="button" accessibilityLabel="Open Pools test feature">
+              <Ionicons name="layers-outline" size={27} color={colors.onAccent}/>
+              <Text style={styles.chooserOptionTitle}>Pools</Text><Text style={styles.chooserOptionDetail}>Daily goals · Test credits</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -224,15 +228,15 @@ export function RootNavigator() {
     const state = navigationRef.getRootState();
     const name = state.routes[state.index].name;
     if(name !== previousTab.current) {
-      if((name === "Notifications" || name === "Create") && previousTab.current !== "Notifications" && previousTab.current !== "Create") overlayReturn.current = previousTab.current;
+      if((name === "Notifications" || name === "Create" || name === "Pools") && previousTab.current !== "Notifications" && previousTab.current !== "Create" && previousTab.current !== "Pools") overlayReturn.current = previousTab.current;
       previousTab.current = name;
     }
-    setCanGoBack(!!backTarget() || name === "Notifications" || name === "Create");
+    setCanGoBack(!!backTarget() || name === "Notifications" || name === "Create" || name === "Pools");
   }, [navigationRef, backTarget]);
   const goBack = useCallback(() => {
     const target = backTarget();
     if(target) navigationRef.dispatch({...StackActions.pop(1), target});
-    else if(previousTab.current === "Notifications" || previousTab.current === "Create") (navigationRef as any).navigate(overlayReturn.current);
+    else if(previousTab.current === "Notifications" || previousTab.current === "Create" || previousTab.current === "Pools") (navigationRef as any).navigate(overlayReturn.current);
   }, [navigationRef, backTarget]);
   useEffect(() => {
     if(Platform.OS !== "web" || typeof document === "undefined") return;
@@ -294,12 +298,14 @@ export function RootNavigator() {
             tabBarLabel: () => null,
             tabBarButton: () => (
               <CreateTabButton
+                onPool={() => navigation.navigate("Pools")}
                 onCompetition={() => navigation.navigate("Create")}
                 onSocialGame={() => navigation.navigate("Events", { screen: "CreateEvent", initial: false })}
               />
             ),
           })}
         />
+        <Tab.Screen name="Pools" component={PoolsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>
         <Tab.Screen name="Events" component={EventsStackScreen} />
         <Tab.Screen name="Profile" component={ProfileStackScreen} options={{title:"Profile",tabBarLabel:"Profile"}} />
         <Tab.Screen name="Notifications" component={NotificationsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>

@@ -1,0 +1,29 @@
+import {describe,it,expect} from 'vitest';
+import {advance,createPoolSchema,dayEnd,join,leave,makePool,passes,record,tick,type Rules,type Pool} from '../src/modules/pools/engine.js';
+const now=new Date('2026-09-26T10:00:00Z');
+const rules:Rules={title:'Test pool',durationDays:7,capacity:3,buyIn:100,timezone:'Africa/Johannesburg',goals:[{metric:'steps',target:10000}]};
+function full(overrides:Partial<Rules>={}){const p=makePool('p','a',{...rules,...overrides},now);for(let i=0;i<p.capacity;i++)join(p,String(i),'Player '+i,now);return p;}
+function start(p:Pool){tick(p,new Date(p.startAt!));return new Date(p.startAt!);}
+describe('Pool rules and clock',()=>{
+ it('requires seven days, a real timezone, unique goals and whole steps',()=>{expect(createPoolSchema.safeParse({...rules,durationDays:6}).success).toBe(false);expect(createPoolSchema.safeParse(rules).success).toBe(true);expect(createPoolSchema.safeParse({...rules,timezone:'fake'}).success).toBe(false);expect(createPoolSchema.safeParse({...rules,goals:[rules.goals[0],rules.goals[0]]}).success).toBe(false);expect(createPoolSchema.safeParse({...rules,goals:[{metric:'steps',target:2.5}]}).success).toBe(false);});
+ it('waits for exact capacity and schedules next local midnight',()=>{const p=makePool('p','a',rules,now);join(p,'a','A',now);tick(p,new Date('2027-01-01'));expect(p.status).toBe('WAITING');join(p,'b','B',now);join(p,'c','C',now);expect(p.startAt).toBe('2026-09-26T22:00:00.000Z');expect(p.status).toBe('SCHEDULED');expect(()=>join(p,'d','D',now)).toThrow();expect(join(p,'a','A',now)).toBe(false);});
+ it('reopens if someone leaves before start; cannot leave after start',()=>{const p=full();expect(leave(p,'1')).toBe(true);expect(p.startAt).toBeNull();join(p,'1','P',now);start(p);expect(()=>leave(p,'1')).toThrow();});
+ it('does not eliminate early or double-count repeated snapshots',()=>{const p=full();const n=start(p);record(p,'0',1,{values:{steps:2000}},n);record(p,'0',1,{values:{steps:6000}},n);tick(p,new Date(n.getTime()+1000));expect(p.players[0]!.status).toBe('ACTIVE');tick(p,dayEnd(p,1));expect(p.players[0]!.status).toBe('ELIMINATED');expect(p.players[0]!.eliminatedDay).toBe(1);});
+ it('missing reports fail and rejected late edits cannot revive players',()=>{const p=full();start(p);tick(p,dayEnd(p,1));expect(p.players.every(x=>x.status==='ELIMINATED')).toBe(true);expect(()=>record(p,'0',1,{values:{steps:20000}},dayEnd(p,1))).toThrow();});
+ it('rejects future days and unrelated metrics',()=>{const p=full();const n=start(p);expect(()=>record(p,'0',2,{values:{steps:1}},n)).toThrow();expect(()=>record(p,'0',1,{values:{cycling:50}},n)).toThrow();});
+ it('requires every combo target; excess running cannot compensate for cycling',()=>{const p=full({goals:[{metric:'running',target:5},{metric:'cycling',target:20}]});expect(passes(p,1,{values:{running:100,cycling:19}})).toBe(false);expect(passes(p,1,{values:{running:5,cycling:20}})).toBe(true);});
+ it('uses calendar days across daylight saving changes',()=>{const p=full({timezone:'Europe/London'});p.startAt='2026-10-24T23:00:00Z';expect(dayEnd(p,1).getTime()-Date.parse(p.startAt)).toBe(25*3600000);});
+});
+describe('Overnight sleep',()=>{
+ const p=full({goals:[{metric:'sleep',target:8,bedtime:23*60,wakeTime:7*60}]});
+ it('counts sleep on wake date and accepts exact boundaries',()=>{expect(passes(p,1,{values:{},sleepStart:'2026-09-26T23:00:00+02:00',sleepEnd:'2026-09-27T07:00:00+02:00'})).toBe(true);});
+ it('rejects late bedtime, late wake-up, short sleep and the wrong night',()=>{for(const [start,end]of [['2026-09-26T23:01:00+02:00','2026-09-27T07:00:00+02:00'],['2026-09-26T22:00:00+02:00','2026-09-27T07:01:00+02:00'],['2026-09-26T23:00:00+02:00','2026-09-27T06:00:00+02:00'],['2026-09-25T22:00:00+02:00','2026-09-26T06:00:00+02:00']])expect(passes(p,1,{values:{sleep:12},sleepStart:start,sleepEnd:end})).toBe(false);});
+});
+describe('Settlement and simulation',()=>{
+ it('splits the complete pool including forfeitures and conserves every credit',()=>{const p=full({buyIn:101});start(p);for(let day=1;day<=7;day++){for(const player of p.players.slice(0,2))player.reports[String(day)]={values:{steps:10000}};}tick(p,dayEnd(p,7));expect(p.players.map(x=>x.payout??0)).toEqual([152,151,0]);expect(p.status).toBe('COMPLETED');const before=JSON.stringify(p);tick(p,dayEnd(p,7));expect(JSON.stringify(p)).toBe(before);});
+ it('refunds everyone if nobody finishes',()=>{const p=full();start(p);tick(p,dayEnd(p,7));expect(p.players.map(x=>x.payout)).toEqual([100,100,100]);});
+ it('cannot win by remaining active without seven passed days',()=>{const p=full();start(p);p.players[0]!.reports['1']={values:{steps:10000}};tick(p,dayEnd(p,7));expect(p.players[0]!.status).toBe('ELIMINATED');expect(p.players[0]!.eliminatedDay).toBe(2);});
+ it('fast-forwards to late day 1, closes each day once and finishes after day 7',()=>{const p=full();advance(p,now);expect(p.status).toBe('ACTIVE');for(let day=1;day<=7;day++){record(p,'0',day,{values:{steps:10000}},new Date(now));advance(p,now);}expect(p.status).toBe('COMPLETED');expect(p.players[0]!.payout).toBe(300);expect(Object.keys(p.players[0]!.days)).toHaveLength(7);});
+});
+it('supports sleep deadlines after midnight without changing the wake-day assignment',()=>{const p=full({goals:[{metric:'sleep',target:7,bedtime:120,wakeTime:600}]});expect(passes(p,1,{values:{},sleepStart:'2026-09-27T02:00:00+02:00',sleepEnd:'2026-09-27T09:00:00+02:00'})).toBe(true);});
+it('freezes the simulated day so typing test totals never races the real clock',()=>{const p=full();advance(p,now);const later=new Date(now.getTime()+3600000);tick(p,later);expect(p.players.every(x=>x.status==='ACTIVE')).toBe(true);record(p,'0',1,{values:{steps:10000}},later);expect(p.players[0]!.reports['1']!.values.steps).toBe(10000);});
