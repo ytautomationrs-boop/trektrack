@@ -430,7 +430,7 @@ export async function raceRoutes(app: FastifyInstance) {
   });
 
   app.get("/me/races", { preHandler: requireAuth }, async (req, reply) => {
-    return reply.send({ entries: await listUserRaceEntries(req.userId) });
+    return reply.send({ entries: await listUserRaceEntries(req.userId, 30, (req.query as {createdOnly?:string}).createdOnly === "true") });
   });
 
   // ── Admin ───────────────────────────────────────────────────────────────

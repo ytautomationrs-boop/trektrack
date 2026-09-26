@@ -1,27 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet, AppState } from 'react-native';
+import { View, Text, Pressable, StyleSheet, AppState } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { AppleHealth, hasAppleHealth, type HealthStatus } from '../lib/appleHealth';
 import { request } from '../api/http';
-import { useAppState } from '../state/useAppState';
 import { colors, fonts, radii, spacing } from '../theme/tokens';
 
 type Competition = { entryId:string; raceId:string; name:string; status:string; steps:number; position:number|null; participants:number; squad:boolean; windowEnded:boolean; syncClosesAt:string|null; lastSyncedAt:string|null };
 export function HealthDashboard({ raceId }: {raceId?:string}) {
  const available = hasAppleHealth();
  const navigation = useNavigation<any>();
- const app = useAppState();
  const [health,setHealth] = useState<HealthStatus>({available,enabled:false,syncing:false});
  const [races,setRaces] = useState<Competition[]>([]);
  const [error,setError] = useState<string|null>(null);
  const [busy,setBusy] = useState(false);
- const [goal,setGoal] = useState(10000);
- const [editing,setEditing] = useState(false);
- const [draft,setDraft] = useState('10000');
  const mounted = useRef(true);
- const key = `asta_step_goal_${app.session?.userId ?? ''}`;
- useEffect(() => { mounted.current=true; try { const saved=Number(window.localStorage.getItem(key)); if(saved>=1000&&saved<=100000){setGoal(saved);setDraft(String(saved));} } catch {} return()=>{mounted.current=false}; },[key]);
+ useEffect(() => { mounted.current=true; return()=>{mounted.current=false}; },[]);
  const load = useCallback(async () => {
    if (!available) return;
    try { const data=await request<{competitions:Competition[]}>('/health/competitions',{cacheMode:'reload'}); if(mounted.current){setRaces(data.competitions);setError(null);} }
@@ -45,7 +39,6 @@ export function HealthDashboard({ raceId }: {raceId?:string}) {
    try{setHealth(await AppleHealth[kind]());await load();}catch(e:any){setError(e.message??'Apple Health could not connect.');}finally{setBusy(false);}
  };
  if(!available)return null;
- const progress=health.todaySteps==null?0:Math.min(1,health.todaySteps/goal);
  return <View style={s.card}>
    <View style={s.row}><Ionicons name="heart" size={23} color={colors.fail}/><Text style={s.title}>Your activity</Text><Text style={s.badge}>Apple Health</Text></View>
    {!health.enabled ? <>
@@ -54,9 +47,6 @@ export function HealthDashboard({ raceId }: {raceId?:string}) {
      <Pressable disabled={busy} style={s.button} onPress={()=>void action('connect')}><Text style={s.buttonText}>{busy?'Connecting…':'Connect Apple Health'}</Text></Pressable>
    </> : <>
      <View style={s.row}><View style={{flex:1}}><Text style={s.number}>{health.todaySteps==null?'—':health.todaySteps.toLocaleString()}</Text><Text style={s.body}>Steps today</Text></View><Ionicons name="footsteps" size={42} color={colors.text}/></View>
-     <View style={s.track} accessibilityRole="progressbar" accessibilityValue={{min:0,max:goal,now:health.todaySteps??0}}><View style={[s.fill,{width:`${progress*100}%`}]}/></View>
-     <Text style={s.body}>{health.todaySteps==null?'Waiting for readable steps':health.todaySteps>=goal?'Daily goal reached':`${Math.max(0,goal-health.todaySteps).toLocaleString()} steps to your daily goal`} · {goal.toLocaleString()}</Text>
-     {editing?<View style={s.row}><TextInput accessibilityLabel="Daily step goal" style={s.input} keyboardType="number-pad" value={draft} onChangeText={setDraft}/><Pressable style={s.button} onPress={()=>{const n=Number(draft);if(!Number.isInteger(n)||n<1000||n>100000){setError('Choose a goal between 1,000 and 100,000 steps.');return;}setGoal(n);setEditing(false);setError(null);try{window.localStorage.setItem(key,String(n))}catch{}}}><Text style={s.buttonText}>Save goal</Text></Pressable></View>:<Pressable onPress={()=>setEditing(true)}><Text style={s.link}>Change daily goal</Text></Pressable>}
      {races.filter(r=>!raceId||r.raceId===raceId).map(r=><Pressable key={r.entryId} style={s.race} onPress={()=>{if(!raceId)navigation.navigate('RaceDetail',{raceId:r.raceId});}}>
        <View style={s.row}><Ionicons name="trophy-outline" size={22} color={colors.risk}/><Text style={[s.title,{fontSize:15}]}>{r.name}</Text></View>
        <View style={s.row}><Text style={s.body}>{r.steps.toLocaleString()} race steps</Text><Text style={s.rank}>{r.position?`${r.squad?'Team ':''}#${r.position} / ${r.participants}`:r.status==='FILLING'?'Waiting for racers':'Starts soon'}</Text></View>

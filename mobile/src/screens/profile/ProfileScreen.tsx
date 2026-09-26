@@ -1,3 +1,4 @@
+import { HealthDashboard } from "../../components/HealthDashboard";
 import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useState } from "react";
@@ -50,9 +51,8 @@ function ordinal(n: number) {
   return `${n}${suffix}`;
 }
 
-export function ProfileScreen() {
+export function ActivityScreen() {
   const navigation = useNavigation<any>();
-  const galleryUser = useAppState().session;
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
   const [points, setPoints] = useState<RacePointEntry[]>([]);
@@ -73,9 +73,10 @@ export function ProfileScreen() {
     <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
       <ScrollView contentContainerStyle={styles.content}>
         <Pressable accessibilityRole="button" accessibilityLabel="Settings" onPress={()=>navigation.navigate('Settings')} style={{alignSelf:'flex-end',padding:10,flexDirection:'row',gap:8,alignItems:'center'}}><Ionicons name="settings-outline" size={23} color={colors.text}/><Text style={{fontFamily:fonts.bodySemiBold,color:colors.text,fontSize:16}}>Settings</Text></Pressable>
-        <IdentityCard />
+        <Text style={{fontFamily:fonts.display,fontSize:28,color:colors.text,marginBottom:16}}>Activity</Text>
+        <HealthDashboard />
         <ProfileShortcuts />
-        {galleryUser && <ProfileGallery playerId={galleryUser.userId} />}
+
 
         {/* ── Race / league ───────────────────────────────────────────── */}
         <ModelHeading title="Competitions" subtitle="Fixed-prize races, ranked into leagues per metric." />
@@ -89,14 +90,31 @@ export function ProfileScreen() {
   );
 }
 
+// The social profile lives inside Social's stack, so back returns to the feed.
+export function ProfileScreen() {
+  const session = useAppState().session;
+  return <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
+    <ScrollView contentContainerStyle={styles.content}>
+      <Text style={{fontFamily:fonts.display,fontSize:26,color:colors.text,marginBottom:16}}>Your profile</Text>
+      <IdentityCard />
+      {session && <ProfileGallery playerId={session.userId} />}
+    </ScrollView>
+  </SafeAreaView></PageMotion>;
+}
+
 function ProfileShortcuts() {
   const navigation = useNavigation<any>();
   return (
     <View style={styles.shortcutGrid}>
-      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces")}>
+      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces", {createdOnly:false})}>
         <Ionicons name="flag-outline" size={18} color={colors.accent} />
         <Text style={styles.shortcutTitle}>Your races</Text>
         <Text style={styles.shortcutSub}>Active and past competitions</Text>
+      </Pressable>
+      <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("MyRaces", {createdOnly:true})}>
+        <Ionicons name="create-outline" size={18} color={colors.accent} />
+        <Text style={styles.shortcutTitle}>Created by you</Text>
+        <Text style={styles.shortcutSub}>Your hosted competitions</Text>
       </Pressable>
       <Pressable style={styles.shortcutCard} onPress={() => navigation.navigate("Wallet")}>
         <Ionicons name="wallet-outline" size={18} color={colors.accent} />
@@ -939,8 +957,8 @@ const styles = StyleSheet.create({
   photoPickerText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   editProfilePanel: { alignSelf: "stretch", gap: spacing.sm, marginTop: spacing.lg },
   bioInput: { minHeight: 78, textAlignVertical: "top" },
-  shortcutGrid: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
-  shortcutCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: 4 },
+  shortcutGrid: { flexDirection: "row", flexWrap:"wrap", gap: spacing.sm, marginBottom: spacing.lg },
+  shortcutCard: { flex: 1, minWidth:145, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: 4 },
   shortcutTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   shortcutSub: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, lineHeight: 16 },
 

@@ -1,4 +1,3 @@
-import { HealthDashboard } from "../../components/HealthDashboard";
 import { PageMotion } from "../../components/PageMotion";
 import React, { useCallback, useRef, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, RefreshControl, ImageBackground } from "react-native";
@@ -183,7 +182,6 @@ export function RacesScreen() {
           </Pressable>
         </View>
 
-        <HealthDashboard />
 
         {/* Metric filter. Selecting one narrows to that metric's races at
             THAT metric's league level — never a combined or unrelated one. */}

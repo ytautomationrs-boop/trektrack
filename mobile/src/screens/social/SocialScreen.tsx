@@ -1,3 +1,4 @@
+import { ProfileScreen } from "../profile/ProfileScreen";
 import {TapMotion} from "../../components/TapMotion";
 import { ProfileGallery } from "../../components/ProfileGallery";
 import { PageMotion } from "../../components/PageMotion";
@@ -67,8 +68,9 @@ function friendAction(state: FriendState | undefined) {
 
 export function SocialScreen() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, gestureEnabled:true }}>
       <Stack.Screen name="SocialFeed" component={SocialFeedScreen} />
+      <Stack.Screen name="YourProfile" component={ProfileScreen} />
       <Stack.Screen name="SocialMessages" component={MessagesScreen} />
       <Stack.Screen name="SocialThread" component={ThreadScreen} />
       <Stack.Screen name="SocialPost" component={SinglePostScreen} />
@@ -179,6 +181,10 @@ function SocialFeedScreen() {
     <PageMotion><SafeAreaView style={styles.screen} edges={[]}>
         <View style={styles.instaHeader}>
           <Text style={styles.feedTitle}>Social</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Your profile" onPress={()=>navigation.navigate("YourProfile")} style={{flexDirection:"row",alignItems:"center",gap:6,paddingHorizontal:12,paddingVertical:10,borderRadius:18,backgroundColor:colors.accent}}>
+            <Ionicons name="person-circle-outline" size={20} color={colors.text}/>
+            <Text style={{fontFamily:fonts.bodySemiBold,color:colors.text,fontSize:13}}>Your profile</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Messages" style={styles.iconButton} onPress={() => navigation.navigate("SocialMessages")}>
             <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.text} />
             {unreadCount > 0 && (

@@ -1,8 +1,9 @@
+import { useAppState } from "../../state/useAppState";
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute } from "@react-navigation/native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { LoadError } from "../../components/LoadError";
 import { iconFor } from "../../theme/metricIcons";
@@ -63,6 +64,8 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 };
 
 export function MyRacesScreen() {
+  const createdOnly = !!useRoute<any>().params?.createdOnly;
+  const userId = useAppState().session?.userId;
   const navigation = useNavigation<any>();
   const [entries, setEntries] = useState<RaceHistoryEntry[]>([]);
   const [standings, setStandings] = useState<LeagueStandings | null>(null);
@@ -81,7 +84,7 @@ export function MyRacesScreen() {
       });
 
     try {
-      const mine = await getMyRaces();
+      const mine = await getMyRaces(createdOnly);
       setEntries(mine.entries);
       setLoadError(null);
     } catch (err) {
@@ -91,7 +94,7 @@ export function MyRacesScreen() {
     }
 
     await standingsPromise;
-  }, [entries.length]);
+  }, [entries.length, createdOnly]);
 
   // Refresh on focus: entering a race from the Competitions list should show
   // up here immediately, not after a manual pull.
@@ -101,7 +104,7 @@ export function MyRacesScreen() {
     }, [load])
   );
 
-  const uniqueEntries = entries.filter((entry, index, all) => all.findIndex((item) => item.raceId === entry.raceId) === index);
+  const uniqueEntries = entries.filter((entry, index, all) => all.findIndex((item) => item.raceId === entry.raceId) === index && (!createdOnly || entry.race.createdByUserId === userId));
   const isActiveRaceStatus = (status: string) => status === "FILLING" || status === "LOCKED" || status === "RUNNING";
   const active = uniqueEntries.filter((e) => e.status === "ENTERED" && isActiveRaceStatus(e.race.status));
   const past = uniqueEntries.filter((e) => e.status !== "ENTERED" || !isActiveRaceStatus(e.race.status));
@@ -151,7 +154,7 @@ export function MyRacesScreen() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.accent} />}
       >
-        <Text style={styles.header}>Your races</Text>
+        <Text style={styles.header}>{createdOnly ? "Created by you" : "Your races"}</Text>
 
         {!(loadError && !standings) && <LeagueHeader standings={standings} onSelectMetric={() => navigation.navigate("Profile")} />}
 
@@ -161,9 +164,9 @@ export function MyRacesScreen() {
 
         {!loading && !loadError && active.length === 0 && (
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>No races yet</Text>
+            <Text style={styles.emptyTitle}>{createdOnly ? "No active competitions created by you" : "No active races"}</Text>
             <Text style={styles.emptyBody}>
-              Browse the open races and enter one — every race pays a fixed prize that's published before you join.
+              {createdOnly ? "Use the + button to create a competition. Your past competitions appear below." : "Browse the open races and enter one — every race pays a fixed prize that's published before you join."}
             </Text>
             <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("Competitions")}>
               <Text style={styles.emptyCtaText}>Browse races</Text>

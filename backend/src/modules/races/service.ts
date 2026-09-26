@@ -1027,9 +1027,9 @@ export async function resolveSquadByCode(code: string, userId: string) {
 }
 
 /** A user's own race history, for the profile. */
-export async function listUserRaceEntries(userId: string, limit = 30) {
+export async function listUserRaceEntries(userId: string, limit = 30, createdOnly = false) {
   const entries = await prisma.raceEntry.findMany({
-    where: { userId },
+    where: { userId, ...(createdOnly ? { race: { createdByUserId: userId } } : {}) },
     include: {
       race: { include: raceListInclude },
       squad: { select: { id: true, name: true, finishPosition: true } },

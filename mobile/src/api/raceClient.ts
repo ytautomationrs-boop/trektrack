@@ -135,8 +135,8 @@ export function getLeagueHistory(metricKey?: string) {
   return request<{ entries: RacePointEntry[] }>(`/me/league/history${q}`);
 }
 
-export function getMyRaces() {
-  return request<{ entries: RaceHistoryEntry[] }>("/me/races");
+export function getMyRaces(createdOnly = false) {
+  return request<{ entries: RaceHistoryEntry[] }>(createdOnly ? "/me/races?createdOnly=true" : "/me/races");
 }
 
 /**
