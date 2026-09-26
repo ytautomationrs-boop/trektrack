@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "build:web": "expo export --platform web --output-dir dist",
     "cap:sync:ios": "cap sync ios",
-    "cap:open:ios": "cap open ios"
+    "cap:open:ios": "cap open ios",
+    "postinstall": "node scripts/patch-native-warnings.cjs"
   },
   "dependencies": {
     "@capacitor/camera": "^8.2.4",
