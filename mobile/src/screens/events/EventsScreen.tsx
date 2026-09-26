@@ -363,7 +363,7 @@ function CreateEventPanel({ sports, onCreated }: { sports: SocialSport[]; onCrea
         <TextInput keyboardAppearance="dark" style={[styles.input, styles.description]} value={description} onChangeText={setDescription} placeholder="Rules, team size, skill level, or notes" placeholderTextColor={colors.sub} multiline />
       </LabeledField>
       <Pressable style={[styles.primaryButton, busy && styles.disabled]} disabled={busy} onPress={submit}>
-        {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.primaryButtonText}>Create event</Text>}
+        {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.primaryButtonText}>Create event</Text>}
       </Pressable>
     </View>
   );
@@ -508,7 +508,7 @@ const styles = StyleSheet.create({
   viewTab: { flex: 1, minHeight: 42, borderRadius: radii.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 7 },
   viewTabActive: { backgroundColor: colors.accent },
   viewTabText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
-  viewTabTextActive: { color: colors.bg },
+  viewTabTextActive: { color: colors.onAccent },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
   header: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   headerSub: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
   sportChip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   sportChipActive: { backgroundColor: colors.accent },
   sportChipText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
-  sportChipTextActive: { color: colors.bg },
+  sportChipTextActive: { color: colors.onAccent },
   input: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 16 },
   description: { minHeight: 70, textAlignVertical: "top" },
   twoCol: { flexDirection: "row", gap: spacing.sm },
@@ -557,9 +557,9 @@ const styles = StyleSheet.create({
   segmentButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.sm },
   segmentActive: { backgroundColor: colors.accent },
   segmentText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub },
-  segmentTextActive: { color: colors.bg },
+  segmentTextActive: { color: colors.onAccent },
   primaryButton: { backgroundColor: colors.accent, borderRadius: radii.md, minHeight: 44, alignItems: "center", justifyContent: "center" },
-  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.bg },
+  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.onAccent },
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   eventIcon: { width: 38, height: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, alignItems: "center", justifyContent: "center" },
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   visibilityPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.sm, paddingVertical: 4 },
   visibilityText: { fontFamily: fonts.bodySemiBold, fontSize: 10, color: colors.text },
   joinedPill: { backgroundColor: colors.accent },
-  joinedPillText: { color: colors.bg },
+  joinedPillText: { color: colors.onAccent },
   fillRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md },
   fillText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub },
   participantRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },

@@ -216,7 +216,7 @@ export function RacesScreen() {
             <Text style={styles.emptyText}>
               {metricFilter
                 ? `ASTA isn't running public ${metricFilterName} races at this level yet — there need to be enough racers to fill one. You can start a ${metricFilterName} race and choose public or invite-only.`
-                : "A new one opens as soon as the current one fills."}
+                : "Check back soon for the next competition."}
             </Text>
             {metricFilter && (
               <Pressable style={styles.emptyCta} onPress={() => navigation.navigate("Create")}>
@@ -371,11 +371,12 @@ function RaceCard({
       {/* The fixed schedule. Same numbers for every race of this type in this
           league, whoever enters. */}
       <View style={{backgroundColor:colors.accent,borderRadius:16,padding:18,marginTop:16,flexDirection:'row',alignItems:'center',gap:14}}>
-        <Ionicons name="trophy" size={34} color={colors.onAccent}/><View style={{flex:1}}><Text style={{fontFamily:fonts.bodySemiBold,fontSize:13,color:colors.onAccent}}>Fixed prize pool</Text><Text style={{fontFamily:fonts.display,fontSize:32,color:colors.onAccent}}>{formatCents(race.totalPrizeCents)}</Text><Text style={{fontFamily:fonts.body,fontSize:13,color:colors.onAccent}}>{race.format==='SQUAD'?'Winning squad shares the prize':'Compete for a podium finish'}</Text></View>
+        <Ionicons name="trophy" size={34} color="#FFD166"/><View style={{flex:1}}><Text style={{fontFamily:fonts.bodySemiBold,fontSize:13,color:colors.onAccent}}>First prize</Text><Text style={{fontFamily:fonts.display,fontSize:32,color:colors.onAccent}}>{formatCents(race.prizes.find(p=>p.position===1)?.amountCents ?? 0)}</Text><Text style={{fontFamily:fonts.body,fontSize:13,color:colors.onAccent}}>{race.format==='SQUAD'?'Shared by the winning squad':'Take first place'}</Text></View>
       </View>
       <View style={styles.prizeRow}>
-        {race.prizes.slice(0, 5).map((p) => (
+        {race.prizes.filter(p=>p.position>=2 && p.position<=5).map((p) => (
           <View key={p.position} style={styles.prizeChip}>
+            {p.position<=3 && <Ionicons name="trophy" size={18} color={p.position===2?"#C8D0DA":"#CD8B55"}/>}
             <Text style={styles.prizePos}>{p.position === 1 ? "1st" : p.position === 2 ? "2nd" : p.position === 3 ? "3rd" : `${p.position}th`}</Text>
             <Text style={styles.prizeAmount}>{formatCents(p.amountCents)}</Text>
           </View>
@@ -402,14 +403,14 @@ function RaceCard({
       ) : (
         <Pressable style={[styles.cta, race.isLowerLeagueOption && styles.ctaLowerLeague]} onPress={onEnter} disabled={busy}>
           {busy ? (
-            <ActivityIndicator color={colors.bg} />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
             <Text style={styles.ctaText}>
               {race.format === "SQUAD"
                 ? "Pick a squad"
                 : race.isLowerLeagueOption
                 ? `Enter anyway · ${formatCents(race.entryFeeCents)}`
-                : `Enter · ${formatCents(race.entryFeeCents)}`}
+                : `Enter race · ${formatCents(race.entryFeeCents)}`}
             </Text>
           )}
         </Pressable>
@@ -484,7 +485,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: colors.accent },
   chipText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
-  chipTextActive: { color: colors.bg },
+  chipTextActive: { color: colors.onAccent },
   emptyCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.xl, alignItems: "center", marginTop: spacing.md },
   emptyTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text, marginBottom: spacing.sm },
   emptyText: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, textAlign: "center", lineHeight: 19 },
@@ -495,7 +496,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginTop: spacing.lg,
   },
-  emptyCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  emptyCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
 
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, marginBottom: spacing.md, overflow: "hidden", borderWidth: 1, borderColor: colors.line },
   cardImage: { padding: spacing.lg, minHeight: 230 },
@@ -570,7 +571,7 @@ const styles = StyleSheet.create({
   prizeAmount: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.won },
   prizeNote: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: spacing.sm },
 
-  cta: {
+  cta: { minHeight:56,
     backgroundColor: colors.accent,
     borderRadius: radii.md,
     paddingVertical: spacing.md,
@@ -578,10 +579,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   ctaLowerLeague: { backgroundColor: colors.sub },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 17, color: colors.onAccent },
   ctaGhost: { backgroundColor: colors.surfaceRaised },
   ctaGhostText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
-  shareLinkButton: {
+  shareLinkButton: { minHeight:46, backgroundColor:colors.surfaceRaised,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -592,7 +593,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginTop: spacing.sm,
   },
-  shareLinkText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
+  shareLinkText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   lockedNote: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.lg },
   lockedText: { fontFamily: fonts.body, fontSize: 12, color: colors.sub },
 });

@@ -149,7 +149,7 @@ export function WalletScreen() {
                 it anyway, so it could only ever produce an error. */}
             {config.depositsEnabled && (
               <Pressable style={[styles.actionButton, styles.actionButtonPrimary]} onPress={() => setPanel(panel === "deposit" ? "none" : "deposit")}>
-                <Ionicons name="add" size={16} color={colors.bg} />
+                <Ionicons name="add" size={16} color={colors.onAccent} />
                 <Text style={styles.actionButtonPrimaryText}>Deposit</Text>
               </Pressable>
             )}
@@ -279,7 +279,7 @@ function DepositPanel({ onDone, onCancel }: { onDone: (w: Wallet) => void; onCan
           <Text style={styles.panelCancelText}>Cancel</Text>
         </Pressable>
         <Pressable style={styles.panelConfirmButton} onPress={handleDeposit} disabled={busy}>
-          {busy ? <ActivityIndicator color={colors.bg} size="small" /> : <Text style={styles.panelConfirmText}>Deposit {resolvedAmount ? formatCents(resolvedAmount) : ""}</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} size="small" /> : <Text style={styles.panelConfirmText}>Deposit {resolvedAmount ? formatCents(resolvedAmount) : ""}</Text>}
         </Pressable>
       </View>
     </View>
@@ -590,7 +590,7 @@ function WithdrawPanel({ balanceCents, onDone, onCancel }: { balanceCents: numbe
           <Text style={styles.panelCancelText}>Cancel</Text>
         </Pressable>
         <Pressable style={[styles.panelConfirmButton, !canSubmit && styles.panelConfirmButtonDisabled]} onPress={handleWithdraw} disabled={busy || !canSubmit}>
-          {busy ? <ActivityIndicator color={colors.bg} size="small" /> : <Text style={styles.panelConfirmText}>Withdraw</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} size="small" /> : <Text style={styles.panelConfirmText}>Withdraw</Text>}
         </Pressable>
       </View>
     </View>
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   actionButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: radii.md, borderWidth: 1, borderColor: colors.surfaceRaised, paddingVertical: spacing.md },
   actionButtonPrimary: { backgroundColor: colors.accent, borderColor: colors.accent },
   actionButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
-  actionButtonPrimaryText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
+  actionButtonPrimaryText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.onAccent },
   panel: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, gap: spacing.md },
   panelTitle: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
   panelHint: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: -spacing.sm },
@@ -616,19 +616,19 @@ const styles = StyleSheet.create({
   presetChip: { borderRadius: radii.pill, borderWidth: 1, borderColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: 8 },
   presetChipActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   presetChipText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
-  presetChipTextActive: { color: colors.bg },
+  presetChipTextActive: { color: colors.onAccent },
   customInput: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md, fontFamily: fonts.body, fontSize: 14, color: colors.text },
   panelActions: { flexDirection: "row", gap: spacing.sm },
   panelCancelButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.surfaceRaised, paddingVertical: spacing.md },
   panelCancelText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   panelConfirmButton: { flex: 2, alignItems: "center", justifyContent: "center", borderRadius: radii.md, backgroundColor: colors.accent, paddingVertical: spacing.md },
   panelConfirmButtonDisabled: { opacity: 0.5 },
-  panelConfirmText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.bg },
+  panelConfirmText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.onAccent },
   methodRow: { flexDirection: "row", gap: spacing.sm },
   methodButton: { flex: 1, alignItems: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.surfaceRaised, paddingVertical: spacing.sm },
   methodButtonActive: { backgroundColor: colors.accent, borderColor: colors.accent },
   methodButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.sub },
-  methodButtonTextActive: { color: colors.bg },
+  methodButtonTextActive: { color: colors.onAccent },
   bankPickerPlaceholder: { fontFamily: fonts.body, fontSize: 14, color: colors.sub },
   bankPickerValue: { fontFamily: fonts.body, fontSize: 14, color: colors.text },
   bankList: { backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.sm, gap: spacing.xs },

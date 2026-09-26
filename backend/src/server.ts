@@ -23,7 +23,7 @@ import { mediaRoutes } from "./modules/media/service.js";
 import { notificationRoutes } from "./modules/notifications/routes.js";
 import { socialRoutes } from "./modules/social/routes.js";
 import { socialEventRoutes } from "./modules/events/routes.js";
-import { startScheduler } from "./jobs/scheduler.js";
+import { startScheduler, startActivityScheduler } from "./jobs/scheduler.js";
 
 /**
  * The rate-limit bucket for one request: the authenticated user when the
@@ -153,6 +153,7 @@ export async function buildServer() {
   });
 
   app.setErrorHandler((err, _req, reply) => {
+    if((err as any).code === 'P2002' && (/^\/auth\//.test(_req.url) || _req.url === '/me/profile')) return reply.code(409).send({error:'already_in_use',message:'That username or email is already in use. Please choose another.'});
     if (err instanceof ZodError) {
       // Every mobile-facing error surfaces via `body.message` (see
       // api/client.ts request()) — without one here, every validation
@@ -268,6 +269,7 @@ async function registerWebApp(app: FastifyInstance) {
 // same way regardless of platform.
 export async function startProductionServer() {
   const app = await buildServer();
+  startActivityScheduler();
   if (env.RUN_BACKGROUND_JOBS) {
     startScheduler();
   } else {

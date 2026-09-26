@@ -19,7 +19,7 @@ type SessionUser = {
   id: string;
   email: string;
   displayName: string;
-  avatarUrl?: string | null;
+  avatarUrl?: string | null; coverUrl?: string | null;
   bio?: string | null;
   walletBalanceCents: number;
   isAdmin: boolean;
@@ -59,7 +59,7 @@ function toStoredSession(user: SessionUser) {
     userId: user.id,
     displayName: user.displayName,
     email: user.email,
-    avatarUrl: user.avatarUrl ?? null,
+    avatarUrl: user.avatarUrl ?? null, coverUrl: user.coverUrl ?? null,
     bio: user.bio ?? null,
     isAdmin: user.isAdmin,
   };
@@ -84,7 +84,7 @@ export async function restoreSession() {
       id: stored.userId,
       displayName: stored.displayName,
       email: stored.email,
-      avatarUrl: stored.avatarUrl,
+      avatarUrl: stored.avatarUrl, coverUrl: stored.coverUrl,
       bio: stored.bio,
       walletBalanceCents: 0,
       isAdmin: stored.isAdmin,
@@ -118,7 +118,7 @@ export function getAppConfig() {
   return request<{ supportEmail: string | null; termsUrl: string | null; privacyUrl: string | null }>("/config");
 }
 
-export function updateProfile(input: { displayName?: string; avatarUrl?: string | null; bio?: string | null }) {
+export function updateProfile(input: { displayName?: string; avatarUrl?: string | null; coverUrl?: string | null; bio?: string | null }) {
   return request<{ user: SessionUser }>("/me/profile", { method: "PATCH", body: JSON.stringify(input) });
 }
 

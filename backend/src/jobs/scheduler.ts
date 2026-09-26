@@ -1,4 +1,6 @@
 import cron from "node-cron";
+import {sendStartReminders} from "./startReminders.js";
+import {ensureOpenRaces} from "../modules/races/service.js";
 import { runRaceLifecycle, runRaceStravaSync } from "./raceLifecycle.js";
 import { runChallengeLifecycle } from "./challengeLifecycle.js";
 import { runChallengeStravaSync } from "../modules/challenges/stravaSync.js";
@@ -8,6 +10,8 @@ import { env } from "../lib/env.js";
 import { stravaConfigured } from "../modules/integrations/strava/stravaClient.js";
 
 type JobName =
+  | "activity reminders"
+  | "empty race cleanup"
   | "race lifecycle"
   | "race strava sync"
   | "challenge strava sync"
@@ -41,10 +45,7 @@ function scheduleJob(name: JobName, expression: string, run: () => Promise<unkno
 // block the API process and multiple web instances don't all run the same
 // cron ticks.
 export function startScheduler() {
-  // Race lifecycle: cancel + refund races that closed short of their exact
-  // headcount, resolve finished ones, release prizes cleared by review, and
-  // open replacements. Races START inline in enterRace() the instant they
-  // fill, so this tick is about the other end of the lifecycle.
+  // Start locked races, resolve results and release reviewed prizes.
   scheduleJob("race lifecycle", "*/5 * * * *", runRaceLifecycle);
 
   // Server-side Strava pull for running races. Hourly — it makes real
@@ -82,4 +83,10 @@ export function startScheduler() {
   if (env.DEPOSITS_ENABLED) {
     scheduleJob("deposit reconciliation", "1-59/2 * * * *", reconcilePendingDeposits);
   }
+}
+
+/** Small activity tasks remain available when heavy scoring jobs are disabled. */
+export function startActivityScheduler(){
+ scheduleJob("activity reminders","* * * * *",sendStartReminders);
+ if(!env.RUN_BACKGROUND_JOBS)scheduleJob("empty race cleanup","*/5 * * * *",ensureOpenRaces);
 }

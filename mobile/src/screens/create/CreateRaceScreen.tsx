@@ -532,7 +532,7 @@ export function CreateRaceScreen() {
 
         <Pressable style={[styles.cta, !canSubmit && styles.ctaDisabled]} disabled={!canSubmit} onPress={submit}>
           {busy ? (
-            <ActivityIndicator color={colors.bg} />
+            <ActivityIndicator color={colors.onAccent} />
           ) : (
             <Text style={styles.ctaText}>
               Create &amp; enter{selected ? ` · ${formatCents(resolvedEntryFeeCents)}` : ""}
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
   },
   gridItemActive: { backgroundColor: colors.accent },
   gridItemText: { fontFamily: fonts.bodyMedium, fontSize: 14, color: colors.text },
-  gridItemTextActive: { color: colors.bg },
+  gridItemTextActive: { color: colors.onAccent },
 
   row: { flexDirection: "row", gap: spacing.sm },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
@@ -599,9 +599,9 @@ const styles = StyleSheet.create({
   rowItem: { flex: 1, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
   rowItemActive: { backgroundColor: colors.accent },
   rowItemText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.text },
-  rowItemTextActive: { color: colors.bg },
+  rowItemTextActive: { color: colors.onAccent },
   rowItemHint: { fontFamily: fonts.body, fontSize: 11, color: colors.sub, marginTop: 2 },
-  rowItemHintActive: { color: colors.bg, opacity: 0.75 },
+  rowItemHintActive: { color: colors.onAccent, opacity: 0.75 },
 
   visibilityCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg },
   visibilityRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -665,5 +665,5 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   ctaDisabled: { opacity: 0.45 },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.onAccent },
 });

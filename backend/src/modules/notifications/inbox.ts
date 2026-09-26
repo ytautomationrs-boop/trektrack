@@ -9,3 +9,11 @@ export async function notifyActivity(userId: string, kind: string, dedupeKey: st
   if (error?.code !== 'P2002') console.error('[notifications] could not persist activity',error?.message);
  }
 }
+
+/** Actor lookup runs off the interaction's response path. */
+export async function notifyActorActivity(userId:string, actorId:string, kind:string, key:string, title:string, action:string, data:Record<string,string>) {
+ try {
+  const actor=await prisma.user.findUnique({where:{id:actorId},select:{displayName:true}});
+  if(actor) await notifyActivity(userId,kind,key,title,`${actor.displayName} ${action}`,{...data,actorId});
+ } catch(error) { console.error('[notifications] actor notification failed',error); }
+}

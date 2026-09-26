@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { View, Text, Modal, Pressable, StyleSheet, Platform } from "react-native";
-import { NavigationContainer, getPathFromState, DefaultTheme, useNavigationContainerRef } from "@react-navigation/native";
+import { NavigationContainer, StackActions, getPathFromState, DefaultTheme, useNavigationContainerRef } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -37,7 +37,7 @@ const ProfileStack = createNativeStackNavigator();
  */
 function RacesStackScreen() {
   return (
-    <RaceStack.Navigator screenOptions={{ headerShown: false }}>
+    <RaceStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
       <RaceStack.Screen name="RacesList" component={RacesScreen} />
       <RaceStack.Screen name="Leagues" component={LeaguesScreen} />
       <RaceStack.Screen name="RaceDetail" component={RaceDetailScreen} />
@@ -47,7 +47,7 @@ function RacesStackScreen() {
 
 function EventsStackScreen() {
   return (
-    <EventsStack.Navigator screenOptions={{ headerShown: false }}>
+    <EventsStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
       <EventsStack.Screen name="EventsHome" component={EventsScreen} />
       <EventsStack.Screen name="CreateEvent" component={CreateEventScreen} />
       <EventsStack.Screen name="EventDetail" component={EventDetailScreen} />
@@ -67,7 +67,7 @@ function EventsStackScreen() {
 function ProfileStackScreen() {
   const app = useAppState();
   return (
-    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+    <ProfileStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen name="MyRaces" component={MyRacesScreen} />
@@ -185,7 +185,7 @@ function AppHeader({ canGoBack, onBack, onNotifications, unread }: { canGoBack: 
             </Pressable>
           ) : null}
         </View>
-        <AstaLogo width={86} height={44} backgroundColor={colors.bg} />
+        <AstaLogo compact width={132} height={44} backgroundColor={colors.bg} />
         <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Notifications, ${unread} unread` : 'Notifications'} style={styles.backButton} onPress={onNotifications}>
           <Ionicons name="notifications-outline" size={23} color={colors.text}/>
           {unread>0?<View style={{position:'absolute',right:5,top:4,width:8,height:8,borderRadius:4,backgroundColor:colors.accent}}/>:null}
@@ -206,19 +206,59 @@ export function RootNavigator() {
     if(typeof window!=='undefined'){window.addEventListener('asta-notifications',refresh);window.addEventListener('asta-open-notification',open);}
     return()=>{clearTimeout(first);clearInterval(timer);if(typeof window!=='undefined'){window.removeEventListener('asta-notifications',refresh);window.removeEventListener('asta-open-notification',open);}};
   },[navigationRef]);
+  const overlayReturn = useRef("Competitions");
+  const previousTab = useRef("Competitions");
+  // Only the active section's stack participates in back navigation.
+  const backTarget = useCallback(() => {
+    if (!navigationRef.isReady()) return null;
+    let state: any = navigationRef.getRootState();
+    let target: string | null = null;
+    while(state) {
+      if(state.type === "stack" && state.index > 0) target = state.key;
+      state = state.routes?.[state.index ?? 0]?.state;
+    }
+    return target;
+  }, [navigationRef]);
   const updateBackState = useCallback(() => {
-    setCanGoBack(navigationRef.isReady() && navigationRef.canGoBack());
-  }, [navigationRef]);
+    if(!navigationRef.isReady()) return;
+    const state = navigationRef.getRootState();
+    const name = state.routes[state.index].name;
+    if(name !== previousTab.current) {
+      if((name === "Notifications" || name === "Create") && previousTab.current !== "Notifications" && previousTab.current !== "Create") overlayReturn.current = previousTab.current;
+      previousTab.current = name;
+    }
+    setCanGoBack(!!backTarget() || name === "Notifications" || name === "Create");
+  }, [navigationRef, backTarget]);
   const goBack = useCallback(() => {
-    if (navigationRef.isReady() && navigationRef.canGoBack()) navigationRef.goBack();
-  }, [navigationRef]);
+    const target = backTarget();
+    if(target) navigationRef.dispatch({...StackActions.pop(1), target});
+    else if(previousTab.current === "Notifications" || previousTab.current === "Create") (navigationRef as any).navigate(overlayReturn.current);
+  }, [navigationRef, backTarget]);
+  useEffect(() => {
+    if(Platform.OS !== "web" || typeof document === "undefined") return;
+    let start: {x:number;y:number;t:number} | null = null;
+    const begin = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      start = event.touches.length === 1 && touch.clientX <= 24 && canGoBack ? {x:touch.clientX,y:touch.clientY,t:Date.now()} : null;
+    };
+    const end = (event: TouchEvent) => {
+      const touch=event.changedTouches[0];
+      if(start && touch && touch.clientX-start.x > 80 && Math.abs(touch.clientY-start.y)<45 && Date.now()-start.t<700) goBack();
+      start=null;
+    };
+    const cancel=()=>{start=null;};
+    document.addEventListener('touchstart',begin,{passive:true});
+    document.addEventListener('touchend',end,{passive:true});
+    document.addEventListener('touchcancel',cancel,{passive:true});
+    return()=>{document.removeEventListener('touchstart',begin);document.removeEventListener('touchend',end);document.removeEventListener('touchcancel',cancel);};
+  },[canGoBack,goBack]);
   const insets = useSafeAreaInsets();
   const capacitorBottom = Platform.OS === "web" && typeof window !== "undefined" && window.location.protocol === "capacitor:" ? 34 : 0;
   const bottomInset = Math.max(insets.bottom, capacitorBottom);
   return (
     <NavigationContainer ref={navigationRef} theme={navTheme} linking={linking} onReady={updateBackState} onStateChange={updateBackState}>
       <Tab.Navigator
-        backBehavior="history"
+        backBehavior="none"
         screenOptions={({ route }) => ({
           tabBarHideOnKeyboard: true,
           headerShown: true,

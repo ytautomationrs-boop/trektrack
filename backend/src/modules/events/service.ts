@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { notifyActivity } from "../notifications/inbox.js";
+import { notifyActivity, notifyActorActivity } from "../notifications/inbox.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const SOCIAL_SPORTS = [
@@ -152,7 +152,7 @@ export async function createSocialEvent(input: {
 }
 
 export async function joinSocialEvent(eventId: string, userId: string, inviteCode?: string | null) {
-  await prisma.$transaction(async (tx) => {
+  const hostId = await prisma.$transaction(async (tx) => {
     const [event] = await tx.$queryRaw<Array<{hostUserId:string;status:string;visibility:string;inviteCode:string|null;maxPlayers:number}>>`SELECT "hostUserId", "status", "visibility", "inviteCode", "maxPlayers" FROM "SocialEvent" WHERE "id"=${eventId} FOR UPDATE`;
     if (!event) throw new SocialEventError("not_found", "Event not found.");
     const entries = await tx.socialEventParticipant.findMany({where:{eventId,status:"JOINED"},select:{userId:true}});
@@ -161,8 +161,11 @@ export async function joinSocialEvent(eventId: string, userId: string, inviteCod
     if (event.visibility === "PRIVATE" && event.inviteCode !== inviteCode?.trim().toLowerCase()) throw new SocialEventError("invalid_invite", "Use a valid invite to join this event.");
     if (entries.length >= event.maxPlayers) throw new SocialEventError("event_full", "This event is full.");
     await tx.socialEventParticipant.upsert({where:{eventId_userId:{eventId,userId}},create:{eventId,userId,status:"JOINED"},update:{status:"JOINED",leftAt:null,joinedAt:new Date()}});
+    return event.hostUserId;
   }, {timeout:10000});
-  return getSocialEvent(eventId,userId,inviteCode);
+  const result=await getSocialEvent(eventId,userId,inviteCode);
+  if(hostId && hostId!==userId) void notifyActorActivity(hostId,userId,"event_join",`${eventId}:join:${userId}`,"New player",`joined ${result.name}.`,{eventId});
+  return result;
 }
 
 export async function leaveSocialEvent(eventId: string, userId: string) {
@@ -185,7 +188,7 @@ export async function inviteToEvent(eventId:string,viewerId:string,playerId:stri
   if(event.status!=="UPCOMING") throw new SocialEventError("event_closed","This game has already started.");
   const friend=await prisma.friendship.findFirst({where:{status:"ACCEPTED",OR:[{requesterId:viewerId,addresseeId:playerId},{requesterId:playerId,addresseeId:viewerId}]},select:{id:true}});
   if(!friend) throw new SocialEventError("not_connected","You can invite players you follow.");
-  await notifyActivity(playerId,'event_invite',`${eventId}:invite:${viewerId}`,'Game invitation',`You are invited to ${event.name}.`,{eventId,...(event.inviteCode?{code:event.inviteCode}:{})});
+  void notifyActorActivity(playerId,viewerId,'event_invite',`${eventId}:invite:${viewerId}`,'Game invitation',`invited you to ${event.name}.`,{eventId,...(event.inviteCode?{code:event.inviteCode}:{})});
   return {invited:true};
 }
 

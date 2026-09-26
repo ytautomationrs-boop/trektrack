@@ -12,6 +12,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
     private var epoch: String = ""
     private var events: [[String:Any]] = []
     private var refreshing = false
+    private var lastError: String?
     override private init() {
         super.init()
         let query:[String:Any] = [kSecClass as String:kSecClassGenericPassword,kSecAttrService as String:"com.asta.watch-session",kSecReturnData as String:true]
@@ -39,8 +40,13 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         let version=(event["game"] as? [String:Any])?["version"] as? Int ?? 0
         if version>=oldVersion{self.events.removeAll{$0["id"] as? String == id};self.events.insert(event,at:0);self.publish()}
     }}
-    private func context()->[String:Any]{["epoch":epoch,"signedIn":token != nil,"events":events]}
-    private func publish(){guard WCSession.isSupported(),WCSession.default.activationState == .activated else{return};try? WCSession.default.updateApplicationContext(context())}
+    private func context()->[String:Any]{
+        var value:[String:Any] = ["epoch":epoch,"signedIn":token != nil,"events":events]
+        if let lastError=lastError{value["connectionError"]=lastError}
+        guard let data=try? JSONSerialization.data(withJSONObject:value) else{return ["error":"Could not prepare game data."]}
+        return ["payload":data]
+    }
+    private func publish(){guard WCSession.isSupported(),WCSession.default.activationState == .activated else{return};do{try WCSession.default.updateApplicationContext(context())}catch{NSLog("ASTA Watch transfer: %@",error.localizedDescription)}}
     private func api(_ path:String,body:[String:Any]?=nil,completion:@escaping(Result<[String:Any],Error>)->Void){
         guard let token=token,let url=URL(string:base+path) else {completion(.failure(NSError(domain:"ASTA",code:401,userInfo:[NSLocalizedDescriptionKey:"Open ASTA and sign in on your iPhone."])));return}
         var request=URLRequest(url:url,timeoutInterval:12);request.setValue("Bearer \(token)",forHTTPHeaderField:"Authorization")
@@ -66,7 +72,7 @@ final class WatchBridge: NSObject, WCSessionDelegate {
         guard token != nil,!refreshing else {publish();return};refreshing=true;let owner=epoch
         api("/social-events/watch"){result in
             self.refreshing=false;guard owner==self.epoch else{return}
-            if case .success(let data)=result{self.merge(data["events"] as? [[String:Any]] ?? []);self.publish()}
+            switch result{case .success(let data):self.lastError=nil;self.merge(data["events"] as? [[String:Any]] ?? []);case .failure(let error):self.lastError=error.localizedDescription};self.publish()
         }
     }
     func session(_ session:WCSession,activationDidCompleteWith activationState:WCSessionActivationState,error:Error?){refresh()}

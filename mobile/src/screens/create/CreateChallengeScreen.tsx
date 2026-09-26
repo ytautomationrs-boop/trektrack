@@ -279,7 +279,7 @@ export function CreateChallengeScreen() {
         </View>
 
         <Pressable style={[styles.cta, !canSubmit && styles.ctaDisabled]} disabled={!canSubmit} onPress={submit}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Create Pool</Text>}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.ctaText}>Create Pool</Text>}
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   metricChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface, borderRadius: radii.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   metricChipActive: { backgroundColor: colors.accent },
   metricChipText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
-  metricChipTextActive: { color: colors.bg },
+  metricChipTextActive: { color: colors.onAccent },
 
   targetRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.md },
   targetLabel: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.text, width: 90 },
@@ -310,9 +310,9 @@ const styles = StyleSheet.create({
   option: { backgroundColor: colors.surface, borderRadius: radii.pill, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   optionActive: { backgroundColor: colors.accent },
   optionText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.sub },
-  optionTextActive: { color: colors.bg },
+  optionTextActive: { color: colors.onAccent },
 
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.xxl },
   ctaDisabled: { opacity: 0.45 },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 15, color: colors.onAccent },
 });

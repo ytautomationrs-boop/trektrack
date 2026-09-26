@@ -1,5 +1,4 @@
 import { env } from "./env.js";
-import { prisma } from "./prisma.js";
 
 const BUILT_IN_ADMIN_EMAILS = ["reecewheeler13@gmail.com"];
 
@@ -22,13 +21,9 @@ export function isBootstrapAdminEmail(email: string) {
 }
 
 export function effectiveIsAdmin(user: { email: string; isAdmin: boolean }) {
-  return user.isAdmin || isBootstrapAdminEmail(user.email);
+  return user.isAdmin;
 }
 
 export async function ensureEffectiveAdmin(user: { id: string; email: string; isAdmin: boolean }) {
-  const isAdmin = effectiveIsAdmin(user);
-  if (isAdmin && !user.isAdmin) {
-    await prisma.user.update({ where: { id: user.id }, data: { isAdmin: true }, select: { id: true } });
-  }
-  return isAdmin;
+  return effectiveIsAdmin(user);
 }

@@ -58,7 +58,7 @@ function sendEventError(reply: FastifyReply, err: unknown) {
 
 export async function socialEventRoutes(app: FastifyInstance) {
   app.get('/social-events/watch',{preHandler:requireAuth},async(req)=>{
-    const events=await prisma.socialEvent.findMany({where:{hostUserId:req.userId,status:'LIVE'},select:{id:true,name:true,sportKey:true,game:true},orderBy:{startsAt:'desc'},take:20});
+    const events=await prisma.socialEvent.findMany({where:{hostUserId:req.userId,status:'LIVE'},select:{id:true,name:true,status:true,sportKey:true,game:true},orderBy:{startsAt:'desc'},take:20});
     return {events:events.filter(e=>e.game).map(e=>{const {actions,operationIds,...game}=e.game as Game;return {...e,game,score:scoreGame(e.sportKey,e.game as Game),choices:scoreChoices(e.sportKey)};})};
   });
   app.post("/social-events/:id/game", {preHandler:requireAuth}, async(req,reply)=>{

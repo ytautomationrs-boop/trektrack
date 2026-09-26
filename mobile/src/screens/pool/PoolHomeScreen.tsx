@@ -184,5 +184,5 @@ const styles = StyleSheet.create({
   streakText: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.accent },
 
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.lg },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
 });

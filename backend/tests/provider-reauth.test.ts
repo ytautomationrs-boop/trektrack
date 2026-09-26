@@ -1,0 +1,15 @@
+import Fastify from 'fastify';
+import jwt from '@fastify/jwt';
+import {it,expect,vi,beforeAll,afterAll,beforeEach} from 'vitest';
+const db=vi.hoisted(()=>({user:{findUniqueOrThrow:vi.fn(),updateMany:vi.fn()},authChallenge:{updateMany:vi.fn()}}));
+vi.mock('../src/lib/prisma.js',()=>({prisma:db}));
+vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any)=>{req.userId='owner';}}));
+vi.mock('../src/modules/auth/sms.js',()=>({smsAvailable:()=>false,sendCode:vi.fn(),checkCode:vi.fn()}));
+import {settingsRoutes} from '../src/modules/settings/routes.js';
+const app=Fastify();
+beforeAll(async()=>{await app.register(jwt,{secret:'local-test-only-secret-with-32-characters'});await app.register(settingsRoutes);});afterAll(()=>app.close());
+beforeEach(()=>{vi.clearAllMocks();db.user.findUniqueOrThrow.mockResolvedValue({id:'owner',authVersion:4,twoFactorEnabled:false});db.user.updateMany.mockResolvedValue({count:1});db.authChallenge.updateMany.mockResolvedValue({count:1});});
+const change=(token:string)=>app.inject({method:'POST',url:'/me/settings/security',payload:{action:'password',newPassword:'new-test-password',reauthToken:token}});
+it('accepts a fresh one-use proof bound to the owner and auth version',async()=>{const token=app.jwt.sign({purpose:'reauth',sub:'owner',v:4,jti:'proof'},{expiresIn:'5m'});expect((await change(token)).statusCode).toBe(200);expect(db.authChallenge.updateMany.mock.calls[0]?.[0].where).toMatchObject({id:'proof',nonce:'owner',provider:'reauth',consumedAt:null});});
+it('rejects another user, a stale version and an ordinary session token',async()=>{for(const claims of [{purpose:'reauth',sub:'other',v:4},{purpose:'reauth',sub:'owner',v:3},{sub:'owner',v:4}])expect((await change(app.jwt.sign(claims))).statusCode).toBe(401);expect(db.user.updateMany).not.toHaveBeenCalled();});
+it('rejects an already used proof without changing security',async()=>{db.authChallenge.updateMany.mockResolvedValue({count:0});expect((await change(app.jwt.sign({purpose:'reauth',sub:'owner',v:4,jti:'proof'}))).statusCode).toBe(401);expect(db.user.updateMany).not.toHaveBeenCalled();});

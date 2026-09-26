@@ -19,9 +19,7 @@ import { STRAVA_SUPPORTED_METRICS } from "../lib/constants.js";
  *     that race's anchor timezone.
  *  2. Resolve races whose window has elapsed.
  *  3. Release prizes that were held for review and have since cleared.
- *  4. Open replacement races for anything now without one — after (1), so a
- *     race that just started RUNNING doesn't block a fresh FILLING race of
- *     the same type/league from opening behind it.
+ *  4. Remove empty open races after the short creation grace period.
  */
 export async function runRaceLifecycle(now = new Date()) {
   const started = await startLockedRaces(now);

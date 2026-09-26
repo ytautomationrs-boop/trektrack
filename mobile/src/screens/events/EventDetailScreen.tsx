@@ -157,7 +157,7 @@ export function EventDetailScreen() {
 
         <View style={styles.actionRow}>
           <Pressable style={styles.shareButton} onPress={shareEvent}>
-            <Ionicons name="share-outline" size={16} color={colors.bg} />
+            <Ionicons name="share-outline" size={16} color={colors.onAccent} />
             <Text style={styles.shareButtonText}>Share event</Text>
           </Pressable>
           {event.isHost && event.status==="UPCOMING" ? (
@@ -170,7 +170,7 @@ export function EventDetailScreen() {
             </Pressable>
           ) : !event.hasJoined && event.status==="UPCOMING" ? (
             <Pressable style={[styles.shareButton, (busy || isFull) && styles.disabled]} disabled={busy || isFull} onPress={join}>
-              {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.shareButtonText}>{isFull ? "Full" : "Join"}</Text>}
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.shareButtonText}>{isFull ? "Full" : "Join"}</Text>}
             </Pressable>
           ) : null}
         </View>
@@ -213,7 +213,7 @@ const styles = StyleSheet.create({
   description: { fontFamily: fonts.body, fontSize: 13, color: colors.text, textAlign: "center", lineHeight: 19, marginTop: spacing.md },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   shareButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: radii.md, backgroundColor: colors.accent, minHeight: 44 },
-  shareButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.bg },
+  shareButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.onAccent },
   leaveButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.sub, minHeight: 44 },
   leaveButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   deleteButton: { flex: 1, alignItems: "center", justifyContent: "center", borderRadius: radii.md, borderWidth: 1, borderColor: colors.accent, minHeight: 44 },

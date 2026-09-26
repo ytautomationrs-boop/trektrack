@@ -103,7 +103,7 @@ function AppRoot() {
             userId: user.id,
             displayName: user.displayName,
             email: user.email,
-            avatarUrl: user.avatarUrl ?? null,
+            avatarUrl: user.avatarUrl ?? null, coverUrl: user.coverUrl ?? null,
             bio: user.bio ?? null,
             isAdmin: user.isAdmin,
           });

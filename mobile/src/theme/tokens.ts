@@ -5,17 +5,17 @@ export const colors = {
   bg: "#071a27",
   surface: "#0d2635",
   surfaceRaised: "#143348",
-  text: "#e6dcd0",
-  sub: "#bcaea0",
+  text: "#ffffff",
+  sub: "#b9c5ce",
   accent: "#972541",
   onAccent: "#ffffff",
-  accent2: "#e6dcd0",
+  accent2: "#ffffff",
   glass: "rgba(7, 26, 39, 0.78)",
-  line: "rgba(230, 220, 208, 0.16)",
+  line: "rgba(255, 255, 255, 0.16)",
   sage: "#64d48a",
   risk: "#f5c15b",
   fail: "#ff6b6b",
-  won: "#e6dcd0",
+  won: "#ffffff",
 } as const;
 
 // Fixed status token set — applied identically across dashboard cards, the

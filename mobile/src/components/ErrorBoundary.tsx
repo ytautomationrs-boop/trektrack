@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display, fontSize: 28, color: colors.text, textAlign: "center" },
   body: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, textAlign: "center", lineHeight: 20, marginBottom: spacing.sm },
   primaryButton: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
-  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },
+  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.onAccent },
   secondaryButton: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   secondaryButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
   debugBox: { backgroundColor: colors.surface, borderRadius: radii.sm, padding: spacing.md, marginTop: spacing.lg, gap: spacing.sm },

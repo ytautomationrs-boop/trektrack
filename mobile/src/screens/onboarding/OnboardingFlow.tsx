@@ -1,5 +1,6 @@
-import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import {PermissionChoices} from "../../components/PermissionChoices";
+import React,{useState} from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
 import { AstaLogo } from "../../components/AstaLogo";
@@ -28,6 +29,8 @@ const HOW_IT_WORKS = [
 ];
 
 export function OnboardingFlow({ onComplete }: { onComplete: (starterMetricKeys: string[]) => void }) {
+  const [permissions,setPermissions]=useState(false);
+  if(permissions)return <ScrollView style={{backgroundColor:colors.bg}} contentContainerStyle={styles.screen}><PermissionChoices/><Pressable style={styles.primaryButton} onPress={()=>onComplete([])}><Text style={styles.primaryButtonText}>Continue to ASTA</Text></Pressable></ScrollView>;
   return (
     <View style={styles.screen}>
       <View style={styles.hero}>
@@ -50,7 +53,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: (starterMetricKeys:
         ))}
       </View>
 
-      <Pressable style={styles.primaryButton} onPress={() => onComplete([])}>
+      <Pressable style={styles.primaryButton} onPress={() => setPermissions(true)}>
         <Text style={styles.primaryButtonText}>Start using ASTA</Text>
       </Pressable>
     </View>
@@ -103,5 +106,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     alignItems: "center",
   },
-  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.bg },
+  primaryButtonText: { fontFamily: fonts.bodyBold, fontSize: 16, color: colors.onAccent },
 });

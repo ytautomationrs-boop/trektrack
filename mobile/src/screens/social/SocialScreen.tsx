@@ -220,7 +220,7 @@ function SocialFeedScreen() {
             autoCorrect={false}
           />
           <Pressable style={[styles.searchGo, (query.trim().length < 2 || busy === "search") && styles.disabled]} disabled={query.trim().length < 2 || busy === "search"} onPress={runSearch}>
-            {busy === "search" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="arrow-forward" size={16} color={colors.bg} />}
+            {busy === "search" ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="arrow-forward" size={16} color={colors.onAccent} />}
           </Pressable>
         </View>
 
@@ -282,7 +282,7 @@ function SocialFeedScreen() {
               <Text style={styles.photoButtonText}>Photo</Text>
             </Pressable>
           <Pressable style={[styles.postButton, ((!postText.trim() && !postImage) || busy === "post") && styles.disabled]} disabled={(!postText.trim() && !postImage) || busy === "post"} onPress={publish}>
-            {busy === "post" ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.postButtonText}>Post</Text>}
+            {busy === "post" ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.postButtonText}>Post</Text>}
           </Pressable>
           </View>
         </View>
@@ -449,7 +449,7 @@ function ThreadScreen() {
       <View style={styles.threadComposer}>
         <TextInput keyboardAppearance="dark" style={styles.threadInput} value={text} onChangeText={setText} placeholder="Message" placeholderTextColor={colors.sub} multiline maxLength={500} />
         <Pressable style={[styles.threadSend, (!text.trim() || busy) && styles.disabled]} disabled={!text.trim() || busy} onPress={send}>
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={16} color={colors.bg} />}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="send" size={16} color={colors.onAccent} />}
         </Pressable>
       </View>
     </SafeAreaView></PageMotion>
@@ -534,7 +534,7 @@ function SocialProfileScreen() {
         {profile.player.bio ? <Text style={styles.profileBio}>{profile.player.bio}</Text> : null}
         <View style={styles.profileActions}>
           <Pressable style={[styles.followButton, (!action.action || busy) && styles.disabled]} disabled={!action.action || busy} onPress={act}>
-            {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.followText}>{action.label}</Text>}
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.followText}>{action.label}</Text>}
           </Pressable>
           {profile.friendState === "friends" && (
             <Pressable style={styles.messageButton} onPress={() => navigation.navigate("SocialThread", { playerId: profile.player.id, playerName: profile.player.displayName })}>
@@ -560,6 +560,7 @@ function PostCard({
   onOpenProfile: () => void;
 }) {
   const session=useAppState().session;
+  const commentInput=useRef<TextInput>(null);
   const saving=useRef(false);
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -648,7 +649,7 @@ function PostCard({
           <Ionicons name={post.hasLiked ? "heart" : "heart-outline"} size={22} color={post.hasLiked ? colors.accent : colors.text} />
           <Text style={styles.postActionText}>{post.likeCount}</Text>
         </TapMotion>
-        <TapMotion accessibilityRole="button" accessibilityLabel="Comment on post" style={styles.postActionButton} onPress={() => setCommentOpen((value) => !value)}>
+        <TapMotion accessibilityRole="button" accessibilityLabel="Comment on post" style={styles.postActionButton} onPress={() => {setCommentOpen(true);commentInput.current?.focus();}}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.text} />
           <Text style={styles.postActionText}>{post.commentCount}</Text>
         </TapMotion>
@@ -657,7 +658,6 @@ function PostCard({
           <Text style={styles.postActionText}>{post.shareCount}</Text>
         </TapMotion>
       </View>
-      {busy && <Text accessibilityLiveRegion="polite" style={styles.postMeta}>{busy==='comment'?'Saving comment…':busy==='share'?'Sharing…':'Saving like…'}</Text>}
       {post.comments.length > 0 && (
         <View style={styles.commentList}>
           {post.comments.map((comment) => (
@@ -668,9 +668,10 @@ function PostCard({
           ))}
         </View>
       )}
-      {commentOpen && (
-        <View style={styles.commentComposer}>
+      {(
+        <View accessibilityElementsHidden={!commentOpen} importantForAccessibility={commentOpen?"auto":"no-hide-descendants"} style={[styles.commentComposer,!commentOpen && {height:0,overflow:"hidden",opacity:0,marginTop:0}]}>
           <TextInput keyboardAppearance="dark"
+            ref={commentInput}
             style={styles.commentInput}
             value={commentText}
             onChangeText={setCommentText}
@@ -679,7 +680,7 @@ function PostCard({
             maxLength={240}
           />
           <Pressable accessibilityRole="button" accessibilityLabel="Post comment" style={[styles.commentSend, (!commentText.trim() || !!busy) && styles.disabled]} disabled={!commentText.trim() || !!busy} onPress={submitComment}>
-            {busy === "comment" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="send" size={14} color={colors.bg} />}
+            {busy === "comment" ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="send" size={14} color={colors.onAccent} />}
           </Pressable>
         </View>
       )}
@@ -740,7 +741,7 @@ function PlayerListRow({
         <Text style={styles.messagePreview}>{player.bio ?? "View profile"}</Text>
       </View>
       <Pressable style={[styles.inlineFollow, (!action.action || busy) && styles.disabled]} disabled={!action.action || busy} onPress={toggleFollow}>
-        {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.inlineFollowText}>{action.label}</Text>}
+        {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.inlineFollowText}>{action.label}</Text>}
       </Pressable>
     </Pressable>
   );
@@ -775,7 +776,7 @@ const styles = StyleSheet.create({
   feedTitle: { fontFamily: fonts.display, fontSize: 24, color: colors.text },
   iconButton: { width: 42, height: 42, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
   badgeDot: { position: "absolute", right: 5, top: 4, minWidth: 17, height: 17, borderRadius: 9, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },
-  badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.bg },
+  badgeText: { fontFamily: fonts.bodyBold, fontSize: 9, color: colors.onAccent },
   storyRow: { gap: spacing.md, paddingVertical: spacing.sm },
   story: { width: 68, alignItems: "center", gap: 5 },
   storyText: { maxWidth: 68, fontFamily: fonts.bodyMedium, fontSize: 11, color: colors.sub },
@@ -797,9 +798,9 @@ const styles = StyleSheet.create({
   resultChip: { flexDirection: "row", alignItems: "center", gap: 5, maxWidth: 190, borderRadius: radii.pill, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   resultChipActive: { backgroundColor: colors.accent },
   resultChipText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
-  resultChipTextActive: { color: colors.bg },
+  resultChipTextActive: { color: colors.onAccent },
   postButton: { alignSelf: "flex-end", minWidth: 90, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
-  postButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.bg },
+  postButtonText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.onAccent },
   postCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
   postAuthor: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
   postName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
@@ -814,7 +815,7 @@ const styles = StyleSheet.create({
   commentAuthor: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.text },
   commentBody: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17, marginTop: 2 },
   commentComposer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.md },
-  commentInput: { flex: 1, minHeight: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 13 },
+  commentInput: { flex: 1, minHeight: 38, borderRadius: radii.md, backgroundColor: colors.surfaceRaised, paddingHorizontal: spacing.md, color: colors.text, fontFamily: fonts.body, fontSize: 16 },
   commentSend: { width: 38, height: 38, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent },
   resultPanel: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceRaised, borderRadius: radii.md, padding: spacing.md },
   resultTitle: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
@@ -831,7 +832,7 @@ const styles = StyleSheet.create({
   messageName: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.text },
   messagePreview: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 2 },
   inlineFollow: { minWidth: 94, minHeight: 32, borderRadius: radii.pill, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.sm },
-  inlineFollowText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.bg },
+  inlineFollowText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.onAccent },
   warningCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.md, marginTop: spacing.md },
   warningText: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.sub, lineHeight: 17 },
   unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.accent },
@@ -840,7 +841,7 @@ const styles = StyleSheet.create({
   threadMine: { alignSelf: "flex-end", backgroundColor: colors.accent },
   threadTheirs: { alignSelf: "flex-start", backgroundColor: colors.surface },
   threadText: { fontFamily: fonts.body, fontSize: 14, color: colors.text, lineHeight: 19 },
-  threadMineText: { color: colors.bg },
+  threadMineText: { color: colors.onAccent },
   threadComposer: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.surfaceRaised, backgroundColor: colors.bg },
   threadInput: { flex: 1, maxHeight: 110, borderRadius: radii.lg, backgroundColor: colors.surface, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, color: colors.text, fontFamily: fonts.body, fontSize: 14 },
   threadSend: { width: 40, height: 40, borderRadius: radii.pill, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent },
@@ -853,7 +854,7 @@ const styles = StyleSheet.create({
   profileBio: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, lineHeight: 18, marginTop: 3 },
   profileActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   followButton: { flex: 1, borderRadius: radii.md, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", minHeight: 40 },
-  followText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.bg },
+  followText: { fontFamily: fonts.bodyBold, fontSize: 13, color: colors.onAccent },
   messageButton: { flex: 1, borderRadius: radii.md, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", minHeight: 40 },
   messageButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.text },
   profileGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.xl },

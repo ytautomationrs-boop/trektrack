@@ -122,6 +122,7 @@ function IdentityCard() {
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(app.session?.displayName ?? "");
   const [avatarUrl, setAvatarUrl] = useState(app.session?.avatarUrl ?? "");
+  const [coverUrl, setCoverUrl] = useState(app.session?.coverUrl ?? "");
   const [bio, setBio] = useState(app.session?.bio ?? "");
   const [busy, setBusy] = useState(false);
 
@@ -139,14 +140,14 @@ function IdentityCard() {
     try {
       const { user } = await updateProfile({
         displayName: displayName.trim(),
-        avatarUrl: avatarUrl.trim() || null,
+        avatarUrl: avatarUrl.trim() || null, coverUrl: coverUrl.trim() || null,
         bio: bio.trim() || null,
       });
       app.setSession({
         userId: user.id,
         displayName: user.displayName,
         email: user.email,
-        avatarUrl: user.avatarUrl ?? null,
+        avatarUrl: user.avatarUrl ?? null, coverUrl: user.coverUrl ?? null,
         bio: user.bio ?? null,
         isAdmin: user.isAdmin,
       });
@@ -160,6 +161,7 @@ function IdentityCard() {
 
   return (
     <View style={styles.identityCard}>
+      {(editing ? coverUrl : app.session?.coverUrl) ? <Image source={{uri: (editing ? coverUrl : app.session?.coverUrl)!}} style={{width:"100%",height:130,borderRadius:14,marginBottom:16}} resizeMode="cover"/> : null}
       <View style={styles.avatar}>
         {app.session?.avatarUrl ? (
           <Image source={{ uri: app.session.avatarUrl }} style={styles.avatarImage} />
@@ -168,7 +170,7 @@ function IdentityCard() {
         )}
       </View>
       <Text style={styles.name}>{app.session?.displayName ?? "Guest"}</Text>
-      {!!app.session?.email && <Text style={styles.email}>{app.session.email}</Text>}
+
       {!!app.session?.bio && <Text style={styles.bioText}>{app.session.bio}</Text>}
       <Pressable style={styles.editProfileButton} onPress={() => setEditing((value) => !value)}>
         <Ionicons name="create-outline" size={14} color={colors.bg} />
@@ -181,6 +183,8 @@ function IdentityCard() {
             <Ionicons name="images-outline" size={18} color={colors.accent} />
             <Text style={styles.photoPickerText}>{avatarUrl ? "Choose a different photo" : "Choose photo from phone"}</Text>
           </Pressable>
+          <Pressable style={styles.photoPickerButton} onPress={async()=>{try{const photo=await pickPhoto("post");if(photo)setCoverUrl(photo);}catch(err:any){showAlert("Cover photo",err.message);}}}><Ionicons name="image-outline" size={18} color={colors.text}/><Text style={styles.photoPickerText}>Change profile background</Text></Pressable>
+          {!!coverUrl && <Pressable onPress={()=>setCoverUrl("")}><Text style={styles.photoPickerText}>Remove background</Text></Pressable>}
           <TextInput keyboardAppearance="dark"
             style={[styles.codeInput, styles.bioInput]}
             value={bio}
@@ -191,7 +195,7 @@ function IdentityCard() {
             maxLength={160}
           />
           <Pressable style={[styles.wideFriendButton, busy && styles.disabled]} disabled={busy} onPress={save}>
-            {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>Save profile</Text>}
+            {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.friendButtonText}>Save profile</Text>}
           </Pressable>
         </View>
       )}
@@ -355,14 +359,14 @@ export function SocialSection() {
             style={styles.codeInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Name or email"
+            placeholder="Search usernames"
             placeholderTextColor={colors.sub}
             autoCapitalize="none"
             autoCorrect={false}
             onSubmitEditing={runSearch}
           />
           <Pressable style={[styles.codeGo, (query.trim().length < 2 || busy === "search") && styles.disabled]} disabled={query.trim().length < 2 || busy === "search"} onPress={runSearch}>
-            {busy === "search" ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="search" size={18} color={colors.bg} />}
+            {busy === "search" ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="search" size={18} color={colors.onAccent} />}
           </Pressable>
         </View>
         {results.map((player) => (
@@ -489,7 +493,7 @@ function PlayerRow({
         </View>
       </Pressable>
       <Pressable style={[styles.friendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
-        {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
+        {actionBusy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
       </Pressable>
     </View>
   );
@@ -539,6 +543,7 @@ function PlayerProfileCard({
 
   return (
     <View style={styles.profileCard}>
+          {profile.player.coverUrl ? <Image source={{uri:profile.player.coverUrl}} style={{width:"100%",height:130,borderRadius:14,marginBottom:16}} resizeMode="cover"/> : null}
       <View style={styles.profileCardHeader}>
         <View style={styles.playerAvatarLarge}>
           {profile.player.avatarUrl ? (
@@ -557,7 +562,7 @@ function PlayerProfileCard({
       </View>
 
       <Pressable style={[styles.wideFriendButton, (!action.onPress || actionBusy) && styles.disabled]} disabled={!action.onPress || actionBusy} onPress={action.onPress}>
-        {actionBusy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
+        {actionBusy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.friendButtonText}>{action.label}</Text>}
       </Pressable>
 
       {state === "friends" && (
@@ -764,7 +769,7 @@ function JoinByCodeSection() {
           disabled={code.trim().length < 4 || busy}
           onPress={go}
         >
-          {busy ? <ActivityIndicator color={colors.bg} /> : <Ionicons name="arrow-forward" size={18} color={colors.bg} />}
+          {busy ? <ActivityIndicator color={colors.onAccent} /> : <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />}
         </Pressable>
       </View>
     </View>
@@ -1030,7 +1035,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
   },
-  unreadText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.bg },
+  unreadText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.onAccent },
 
   playerRow: {
     flexDirection: "row",
@@ -1063,7 +1068,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.md,
   },
-  friendButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.bg },
+  friendButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 12, color: colors.onAccent },
 
   profileCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, marginTop: spacing.lg },
   profileCardHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -1101,7 +1106,7 @@ const styles = StyleSheet.create({
   messageMine: { alignSelf: "flex-end", backgroundColor: colors.accent },
   messageTheirs: { alignSelf: "flex-start", backgroundColor: colors.surface },
   messageText: { fontFamily: fonts.body, fontSize: 13, color: colors.text, lineHeight: 18 },
-  messageMineText: { color: colors.bg },
+  messageMineText: { color: colors.onAccent },
   messageComposer: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   messageInput: {
     flex: 1,
@@ -1158,7 +1163,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   smallCta: { backgroundColor: colors.accent, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
-  smallCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
+  smallCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.onAccent },
 
   adminRow: {
     flexDirection: "row",

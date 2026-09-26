@@ -287,7 +287,7 @@ export function RaceDetailScreen() {
           </Text>
         </View>
         <Pressable style={styles.shareRaceButton} onPress={shareRace}>
-          <Ionicons name="share-outline" size={15} color={colors.bg} />
+          <Ionicons name="share-outline" size={15} color={colors.onAccent} />
           <Text style={styles.shareRaceText}>Share race</Text>
         </Pressable>
 
@@ -388,7 +388,7 @@ export function RaceDetailScreen() {
             </Text>
             <Pressable style={[styles.cta, importing && styles.ctaDisabled]} disabled={importing} onPress={() => doImport(myEntryId)}>
               {importing ? (
-                <ActivityIndicator color={colors.bg} />
+                <ActivityIndicator color={colors.onAccent} />
               ) : (
                 <Text style={styles.ctaText}>Sync data</Text>
               )}
@@ -570,7 +570,7 @@ export function RaceDetailScreen() {
             onPress={() => confirmThenEnter(race, (accept) => doEnter({ acceptLowerLeague: accept }))}
           >
             {busy ? (
-              <ActivityIndicator color={colors.bg} />
+              <ActivityIndicator color={colors.onAccent} />
             ) : (
               <Text style={styles.ctaText}>
                 {race.isLowerLeagueOption ? `Enter anyway · ${formatCents(race.entryFeeCents)}` : `Enter · ${formatCents(race.entryFeeCents)}`}
@@ -712,6 +712,7 @@ const styles = StyleSheet.create({
   metaPillText: { fontFamily: fonts.bodySemiBold, fontSize: 11, color: colors.text },
   creatorLine: { flexShrink: 1, fontFamily: fonts.body, fontSize: 12, color: colors.sub },
   shareRaceButton: {
+    minHeight:48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -721,7 +722,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     marginTop: spacing.md,
   },
-  shareRaceText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  shareRaceText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
 
   statusCard: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginTop: spacing.lg },
   importCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, gap: spacing.sm, marginTop: spacing.md },
@@ -818,7 +819,7 @@ const styles = StyleSheet.create({
   squadMeta: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginTop: 1 },
   squadJoin: { backgroundColor: colors.accent, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   squadJoinDisabled: { backgroundColor: colors.surfaceRaised },
-  squadJoinText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.bg },
+  squadJoinText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.onAccent },
   squadJoinTextDisabled: { color: colors.sub },
   newSquadCard: { backgroundColor: colors.surface, borderRadius: radii.md, padding: spacing.lg, marginTop: spacing.sm },
   input: {
@@ -831,9 +832,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 
-  cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.lg },
+  cta: { minHeight:56, justifyContent:"center", backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.lg },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 17, color: colors.onAccent },
 
   provisionalNote: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, marginBottom: spacing.md, lineHeight: 18 },
   standingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.md },

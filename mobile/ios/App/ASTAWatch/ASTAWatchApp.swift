@@ -16,10 +16,17 @@ final class WatchModel:NSObject,ObservableObject,WCSessionDelegate {
         super.init()
         epoch=UserDefaults.standard.string(forKey:"epoch") ?? ""
         if let data=UserDefaults.standard.data(forKey:"pending"),let points=try? JSONDecoder().decode([WatchPoint].self,from:data){pending=points}
+        if let cached=UserDefaults.standard.data(forKey:"gameContext"){apply(["payload":cached])}
         WCSession.default.delegate=self;WCSession.default.activate()
     }
     private func save(){UserDefaults.standard.set(try? JSONEncoder().encode(pending),forKey:"pending");UserDefaults.standard.set(epoch,forKey:"epoch")}
-    private func apply(_ data:[String:Any]){
+    private func apply(_ envelope:[String:Any]){
+        var data=envelope
+        if let payload=envelope["payload"] as? Data,let decoded=(try? JSONSerialization.jsonObject(with:payload)) as? [String:Any]{
+            data=decoded
+            if let ack=envelope["ack"]{data["ack"]=ack}
+            UserDefaults.standard.set(payload,forKey:"gameContext")
+        }
         if let message=data["error"] as? String{error=message;return}
         guard let next=data["epoch"] as? String else{return}
         if next != epoch{pending=[];epoch=next;save()}
@@ -31,7 +38,7 @@ final class WatchModel:NSObject,ObservableObject,WCSessionDelegate {
             return oldVersion>nextVersion ? old : event
         }
         if let ack=data["ack"] as? String{pending.removeAll{$0.id==ack};save()}
-        error=""
+        error=data["connectionError"] as? String ?? ""
     }
     func add(eventId:String,side:Int,value:Int){
         guard signedIn else{return}
@@ -39,6 +46,7 @@ final class WatchModel:NSObject,ObservableObject,WCSessionDelegate {
         WKInterfaceDevice.current().play(.click);flush()
     }
     func refresh(){
+        guard WCSession.default.activationState == .activated else{error="Connecting to iPhone…";return}
         guard WCSession.default.isReachable else{error="Keep your iPhone nearby. Points wait here until you reconnect.";return}
         WCSession.default.sendMessage(["action":"refresh"],replyHandler:{data in DispatchQueue.main.async{self.apply(data);if data["error"] == nil{self.flush()}}},errorHandler:{error in DispatchQueue.main.async{self.error=error.localizedDescription}})
     }
@@ -54,7 +62,7 @@ final class WatchModel:NSObject,ObservableObject,WCSessionDelegate {
     func discard(){guard !sending else{return};pending=[];save();error="";refresh()}
     func session(_ session:WCSession,activationDidCompleteWith activationState:WCSessionActivationState,error:Error?){DispatchQueue.main.async{self.apply(session.receivedApplicationContext);self.refresh()}}
     func sessionReachabilityDidChange(_ session:WCSession){if session.isReachable{DispatchQueue.main.async{self.refresh()}}}
-    func session(_ session:WCSession,didReceiveApplicationContext applicationContext:[String:Any]){DispatchQueue.main.async{self.apply(applicationContext)}}
+    func session(_ session:WCSession,didReceiveApplicationContext applicationContext:[String:Any]){DispatchQueue.main.async{self.apply(applicationContext);if session.isReachable{self.flush()}}}
 }
 @main struct ASTAWatchApp:App {
     @StateObject private var model=WatchModel()
@@ -96,6 +104,7 @@ struct GameControls:View {
     private var teams:[String]{game["teams"] as? [String] ?? ["Team A","Team B"]}
     private var choices:[[String:Any]]{event["choices"] as? [[String:Any]] ?? []}
     private var playable:Bool{game["runningSince"] is String && !(score["winner"] is Int)}
+    private func displayValue(_ side:Int)->String{let values=score["display"] as? [String] ?? [];return values.indices.contains(side) ? values[side] : "0"}
     var body:some View{
         VStack(spacing:8){
             Text(event["name"] as? String ?? "Live game").font(.caption).lineLimit(2)
@@ -104,8 +113,8 @@ struct GameControls:View {
                 ForEach(0..<2,id:\.self){side in
                     VStack(spacing:6){
                         Text(teams.indices.contains(side) ? teams[side] : "Team").font(.caption2).lineLimit(2)
-                        Text((score["display"] as? [String])?[side] ?? "0").font(.title2.bold()).monospacedDigit()
-                        if let sets=score["sets"] as? [Int],score["setSport"] as? Bool == true{Text("\(sets[side]) sets").font(.caption2)}
+                        Text(displayValue(side)).font(.title2.bold()).monospacedDigit()
+                        if let sets=score["sets"] as? [Int],score["setSport"] as? Bool == true{Text("\(sets.indices.contains(side) ? sets[side] : 0) sets").font(.caption2)}
                         ForEach(choices.indices,id:\.self){index in
                             let choice=choices[index];let value=choice["value"] as? Int ?? 1
                             Button{model.add(eventId:event["id"] as? String ?? "",side:side,value:value)}label:{VStack(spacing:2){Text("+\(value)").font(.headline);Text(choice["label"] as? String ?? "Point").font(.system(size:10))}.frame(maxWidth:.infinity,minHeight:38)}.buttonStyle(.borderedProminent).disabled(!playable)

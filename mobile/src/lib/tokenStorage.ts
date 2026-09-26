@@ -17,7 +17,7 @@ export type StoredSession = {
   userId: string;
   displayName: string;
   email: string;
-  avatarUrl: string | null;
+  avatarUrl: string | null; coverUrl?: string | null;
   bio: string | null;
   isAdmin: boolean;
 };

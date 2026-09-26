@@ -47,12 +47,14 @@ model User {
   id           String  @id @default(cuid())
   email        String  @unique
   passwordHash String
+  hasPassword Boolean @default(true)
   authVersion Int @default(0)
   phoneNumber String?
   twoFactorEnabled Boolean @default(false)
   notificationPreferences Json @default("{}")
   displayName  String
   avatarUrl    String?
+  coverUrl     String?
   bio          String?
   timezone     String  @default("UTC") // IANA tz; updated on each app foreground
 
@@ -75,6 +77,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  authIdentities AuthIdentity[]
   devices                Device[]
   healthConnections      HealthConnection[]
   stravaConnection       StravaConnection?
@@ -924,8 +927,8 @@ model Challenge {
   // Discover-equivalent browse — not an enforced constraint.
   tier             String?
 
-  creatorId String
-  creator   User   @relation("ChallengeCreator", fields: [creatorId], references: [id])
+  creatorId String?
+  creator   User?   @relation("ChallengeCreator", fields: [creatorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1635,4 +1638,24 @@ model MediaAsset {
 model SmsThrottle {
   phone String @id
   sentAt DateTime
+}
+
+model AuthIdentity {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  provider String
+  subject String
+  refreshTokenEncrypted String?
+  @@unique([provider,subject])
+  @@unique([userId,provider])
+}
+model AuthChallenge {
+  id String @id
+  nonce String
+  provider String
+  expiresAt DateTime
+  consumedAt DateTime?
+  refreshTokenEncrypted String?
+  @@index([expiresAt])
 }

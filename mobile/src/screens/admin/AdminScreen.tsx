@@ -448,7 +448,7 @@ function FundPanel() {
       />
 
       <Pressable style={[styles.cta, (busy || !amountIsValid) && styles.ctaDisabled]} disabled={busy || !amountIsValid} onPress={doGrant}>
-        {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Fund {amountCents ? formatCents(amountCents) : ""}</Text>}
+        {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.ctaText}>Fund {amountCents ? formatCents(amountCents) : ""}</Text>}
       </Pressable>
 
       {lastGrant ? <Text style={styles.successLine}>Last: {lastGrant}</Text> : null}
@@ -570,7 +570,7 @@ function PayoutsPanel() {
               disabled={busyId === w.id}
               onPress={() => confirmPaid(w)}
             >
-              {busyId === w.id ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Mark paid</Text>}
+              {busyId === w.id ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.ctaText}>Mark paid</Text>}
             </Pressable>
             <Pressable style={[styles.secondaryCta, styles.payoutCta]} disabled={busyId === w.id} onPress={() => confirmReject(w)}>
               <Text style={styles.secondaryCtaText}>Refuse</Text>
@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
   tabChip: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radii.pill, backgroundColor: colors.surface },
   tabChipActive: { backgroundColor: colors.accent },
   tabChipText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
-  tabChipTextActive: { color: colors.bg },
+  tabChipTextActive: { color: colors.onAccent },
 
   content: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
   panelHint: { fontFamily: fonts.body, fontSize: 13, color: colors.sub, lineHeight: 18 },
@@ -1015,7 +1015,7 @@ const styles = StyleSheet.create({
 
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodyBold, fontSize: 15, color: colors.onAccent },
   secondaryCta: { backgroundColor: colors.surface, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center" },
   secondaryCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
   dangerCta: { backgroundColor: colors.fail, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.sm },

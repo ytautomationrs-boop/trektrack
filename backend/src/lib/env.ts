@@ -39,8 +39,8 @@ const EnvSchema = z.object({
   // "intercept" a custom scheme the way expo-web-browser does natively.
   STRAVA_WEB_REDIRECT_URI: z.string().optional(),
   WEB_APP_URL: z.string().optional(),
-  // Comma-separated permanent bootstrap admins. These emails are treated as
-  // admins even if a production database restore loses the User.isAdmin flag.
+  // Bootstrap email list used by explicit seeding. Runtime access always
+  // requires the stored User.isAdmin flag.
   ADMIN_EMAILS: z.string().optional(),
   // Surfaced to the client via GET /config. Deliberately served at runtime
   // rather than inlined into the web bundle at build time: these are exactly

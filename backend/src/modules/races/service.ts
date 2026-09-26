@@ -1,3 +1,4 @@
+import {notifyActorActivity} from '../notifications/inbox.js';
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../../lib/prisma.js";
@@ -247,36 +248,18 @@ export async function createPrivateRaceAndEnter(params: {
   }
 }
 
-/**
- * Makes sure every (active race type × open league) has exactly one race
- * currently accepting entrants.
- *
- * One at a time on purpose. Running two FILLING races of the same type in
- * the same league splits the available entrants between them and can leave
- * both short of their exact headcount — at low volume, concentrating signups
- * into a single race is the difference between a race that runs and one that
- * sits waiting forever. A replacement is created as soon as the current one
- * locks (this job runs frequently).
- */
+/** Remove abandoned empty lobbies. Newly-created races get a short grace
+ * period so their creator can complete the separate entry transaction. */
 export async function ensureOpenRaces(now = new Date()) {
-  const schedules = await prisma.racePrizeSchedule.findMany({
-    where: { raceType: { isActive: true }, league: { isOpen: true } },
-    include: { raceType: true },
+  const removed = await prisma.$transaction(async tx => {
+    const candidates=await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "Race" WHERE status='FILLING' AND "createdAt" < ${new Date(now.getTime()-120000)} AND NOT EXISTS (SELECT 1 FROM "RaceEntry" e WHERE e."raceId"="Race".id AND e.status='ENTERED') FOR UPDATE SKIP LOCKED`;
+    for(const race of candidates) {
+      // Re-check after acquiring the same lock used by enterRace.
+      if(!await tx.raceEntry.count({where:{raceId:race.id,status:'ENTERED'}})) await tx.race.delete({where:{id:race.id}});
+    }
+    return candidates.length;
   });
-
-  const created: string[] = [];
-  for (const schedule of schedules) {
-    const existing = await prisma.race.count({
-      where: { raceTypeKey: schedule.raceTypeKey, leagueLevel: schedule.leagueLevel, status: "FILLING" },
-    });
-    if (existing > 0) continue;
-    const race = await createRace(schedule.raceTypeKey, schedule.leagueLevel, {
-      now,
-      anchorTimezone: PLATFORM_DEFAULT_TIMEZONE,
-    });
-    created.push(race.id);
-  }
-  return { created: created.length, raceIds: created };
+  return {created:0,raceIds:[] as string[],removed};
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -343,7 +326,7 @@ export type EnterRaceResult = {
 export async function enterRace(params: EnterRaceParams): Promise<EnterRaceResult> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: params.userId }, select: { timezone: true } });
 
-  return prisma.$transaction(async (tx) => {
+  const result=await prisma.$transaction(async (tx) => {
     // Serialises every concurrent entry to THIS race behind one lock, so the
     // headcount check below cannot be raced. Entries to other races proceed
     // in parallel — the lock is per-row, not per-table.
@@ -462,6 +445,9 @@ export async function enterRace(params: EnterRaceParams): Promise<EnterRaceResul
 
     return { entry, race: currentRace, lockedRace, entrantsNow, entrantsRequired };
   });
+  // Notify the organiser after commit without delaying the entrant's response.
+  if(result.race.createdByUserId && result.race.createdByUserId!==params.userId)void notifyActorActivity(result.race.createdByUserId,params.userId,'race_join',`race:${result.race.id}:join:${params.userId}`,'New race entry',`joined ${result.race.name}.`,{raceId:result.race.id});
+  return result;
 }
 
 /** 8 hex characters. Used for both race and squad invite codes. */
@@ -635,7 +621,7 @@ async function notifyRaceLocked(race: Race): Promise<void> {
       "race_locked",
       {
         title: "Your race is full",
-        body: `All ${race.entrantCount} in. It starts ${startsAt} — entries are final from now.`,
+        body: `${race.name}: all ${race.entrantCount} in. It starts ${startsAt} — entries are final from now.`,
         data: { raceId: race.id },
       }
     );
@@ -738,7 +724,9 @@ export async function cancelRaceEntry(params: { userId: string; raceId: string }
       }
     }
 
-    return { withdrawn: true, refundedCents: entry.entryFeeCents };
+    const empty = await tx.raceEntry.count({where:{raceId:race.id,status:"ENTERED"}}) === 0;
+    if(empty) await tx.race.delete({where:{id:race.id}});
+    return { withdrawn: true, refundedCents: entry.entryFeeCents, deleted: empty };
   });
 }
 

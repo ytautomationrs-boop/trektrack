@@ -1,3 +1,4 @@
+import {providerConfig,providerRoutes} from './providers.js';
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
@@ -18,7 +19,7 @@ const authUserSelect = {
   passwordHash: true,
   authVersion: true, phoneNumber: true, twoFactorEnabled: true,
   displayName: true,
-  avatarUrl: true,
+  avatarUrl: true, coverUrl: true,
   bio: true,
   walletBalanceCents: true,
   isAdmin: true,
@@ -82,7 +83,8 @@ const AUTH_RATE_LIMIT = {
 };
 
 export async function authRoutes(app: FastifyInstance) {
-  app.get("/auth/config", async()=>({smsAvailable:smsAvailable()}));
+  await providerRoutes(app);
+  app.get("/auth/config", async()=>({smsAvailable:smsAvailable(),...providerConfig()}));
   app.post("/auth/signup", { config: AUTH_RATE_LIMIT }, async (req, reply) => {
     const body = SignUpSchema.parse(req.body);
 
@@ -122,7 +124,7 @@ export async function authRoutes(app: FastifyInstance) {
             phoneNumber: body.phoneNumber, twoFactorEnabled: !!body.phoneNumber,
             displayName: body.displayName,
             timezone: body.timezone,
-            isAdmin: isBootstrapAdminEmail(body.email),
+            isAdmin: false,
           },
           select: authUserSelect,
         });
@@ -149,7 +151,7 @@ export async function authRoutes(app: FastifyInstance) {
           id: user.id,
           email: user.email,
           displayName: user.displayName,
-            avatarUrl: user.avatarUrl,
+            avatarUrl: user.avatarUrl, coverUrl: user.coverUrl,
             bio: user.bio,
             walletBalanceCents: user.walletBalanceCents,
             isAdmin,
@@ -188,7 +190,7 @@ export async function authRoutes(app: FastifyInstance) {
         id: user.id,
         email: user.email,
         displayName: user.displayName,
-        avatarUrl: user.avatarUrl,
+        avatarUrl: user.avatarUrl, coverUrl: user.coverUrl,
         bio: user.bio,
         walletBalanceCents: user.walletBalanceCents,
         isAdmin,
@@ -202,7 +204,7 @@ export async function authRoutes(app: FastifyInstance) {
   app.get("/me", { preHandler: requireAuth }, async (req, reply) => {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
+      select: { id: true, email: true, displayName: true, avatarUrl: true, coverUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
     });
     if (!user) return reply.code(404).send({ error: "not_found" });
     const isAdmin = await ensureEffectiveAdmin(user);

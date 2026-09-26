@@ -1,5 +1,5 @@
-import { notifyActivity } from "../notifications/inbox.js";
-import { gameSummary, type Game } from "../events/scoring.js";
+import { notifyActivity, notifyActorActivity } from "../notifications/inbox.js";
+import { gameSummary, scoreGame, type Game } from "../events/scoring.js";
 import { storePhoto } from "../media/service.js";
 import { prisma } from "../../lib/prisma.js";
 import { getLeagueStandings } from "../races/leagues.js";
@@ -9,7 +9,7 @@ export type FriendState = "none" | "pending_sent" | "pending_received" | "friend
 const playerSelect = {
   id: true,
   displayName: true,
-  avatarUrl: true,
+  avatarUrl: true, coverUrl: true,
   bio: true,
   createdAt: true,
 } as const;
@@ -28,11 +28,11 @@ const raceResultInclude = {
   squad: { select: { id: true, name: true, finishPosition: true } },
 } as const;
 
-function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; bio: string | null; createdAt: Date }) {
+function serializePlayer(user: { id: string; displayName: string; avatarUrl: string | null; coverUrl?: string | null; bio: string | null; createdAt: Date }) {
   return {
     id: user.id,
     displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
+    avatarUrl: user.avatarUrl, coverUrl: user.coverUrl ?? null,
     bio: user.bio,
     joinedAt: user.createdAt,
   };
@@ -214,7 +214,7 @@ export async function setSocialPostLike(viewerId: string, postId: string, liked:
     await prisma.socialPostLike.deleteMany({ where: { postId, userId: viewerId } });
   }
 
-  if(liked && post.authorId!==viewerId) void notifyActivity(post.authorId,'like',`like:${postId}:${viewerId}`,'New like','Someone liked your post.',{postId});
+  if(liked && post.authorId!==viewerId) void notifyActorActivity(post.authorId,viewerId,'like',`like:${postId}:${viewerId}`,'New like','liked your post.',{postId});
   return compact ? socialInteractionPatch(postId,viewerId) : findSerializablePost(postId, viewerId);
 }
 
@@ -225,7 +225,7 @@ export async function createSocialPostComment(viewerId: string, postId: string, 
   if (!post) throw Object.assign(new Error("Post not found."), { statusCode: 404, code: "post_not_found" });
 
   const comment=await prisma.socialPostComment.create({ data: { postId, userId: viewerId, body: text } });
-  if(post.authorId!==viewerId) void notifyActivity(post.authorId,"comment",`comment:${comment.id}`,"New comment","Someone commented on your post.",{postId});
+  if(post.authorId!==viewerId) void notifyActorActivity(post.authorId,viewerId,"comment",`comment:${comment.id}`,"New comment","commented on your post.",{postId});
   return compact ? socialInteractionPatch(postId,viewerId) : findSerializablePost(postId, viewerId);
 }
 
@@ -238,7 +238,7 @@ export async function searchPlayers(viewerId: string, query: string, limit = 20)
       id: { not: viewerId },
       OR: [
         { displayName: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
+
       ],
     },
     select: playerSelect,
@@ -299,7 +299,7 @@ export async function requestFriend(viewerId: string, playerId: string) {
 
   if (!existing) {
     await prisma.friendship.create({ data: { requesterId: viewerId, addresseeId: playerId, status: "ACCEPTED", acceptedAt: new Date() } });
-    void notifyActivity(playerId,'follow',`follow:${viewerId}`,'New follower','Someone followed you on ASTA.',{playerId:viewerId});
+    void notifyActorActivity(playerId,viewerId,'follow',`follow:${viewerId}`,'New follower','followed you on ASTA.',{playerId:viewerId});
     return { friendState: "friends" as const };
   }
 
@@ -407,7 +407,7 @@ export async function sendMessage(viewerId: string, playerId: string, body: stri
   const message = await prisma.directMessage.create({
     data: { senderId: viewerId, recipientId: playerId, body: body.trim() },
   });
-  void notifyActivity(playerId,"message",`message:${message.id}`,"New message","You have a new message on ASTA.",{playerId:viewerId});
+  void notifyActorActivity(playerId,viewerId,"message",`message:${message.id}`,"New message","sent you a message.",{playerId:viewerId});
   return { message: serializeMessage(message, viewerId) };
 }
 
@@ -494,7 +494,14 @@ export async function getPlayerProfile(viewerId: string, playerId: string) {
 export async function getProfileGallery(viewerId:string,playerId:string) {
  const [posts,games]=await Promise.all([
   prisma.$queryRaw<Array<{id:string;body:string;imageUrl:string|null;createdAt:Date}>>`SELECT id, body, "createdAt", CASE WHEN "imageUrl" LIKE 'data:%' THEN NULL ELSE "imageUrl" END AS "imageUrl" FROM "SocialPost" WHERE "authorId"=${playerId} ORDER BY "createdAt" DESC LIMIT 60`,
-  prisma.socialEvent.findMany({where:{status:'COMPLETED',AND:[{OR:[{hostUserId:playerId},{participants:{some:{userId:playerId,status:'JOINED'}}}]},{OR:[{visibility:'PUBLIC'},{hostUserId:viewerId},{participants:{some:{userId:viewerId,status:'JOINED'}}}]}]},select:{id:true,name:true,sportKey:true,game:true,startsAt:true},orderBy:{startsAt:'desc'},take:40}),
+  prisma.socialEvent.findMany({where:{status:'COMPLETED',AND:[{OR:[{hostUserId:playerId},{participants:{some:{userId:playerId,status:'JOINED'}}}]},{OR:[{visibility:'PUBLIC'},{hostUserId:viewerId},{participants:{some:{userId:viewerId,status:'JOINED'}}}]}]},select:{id:true,name:true,sportKey:true,sportName:true,game:true,startsAt:true},orderBy:{startsAt:'desc'},take:40}),
  ]);
- return {posts,games:games.map(event=>({id:event.id,name:event.name,sportKey:event.sportKey,summary:event.game?gameSummary(event.sportKey,event.game as unknown as Game):'',finishedAt:(event.game as unknown as Game)?.finishedAt ?? event.startsAt}))};
+ return {posts,games:games.map(event=>{
+  const game=event.game as unknown as Game | null;
+  const score=game?scoreGame(event.sportKey,game):null;
+  const result=score?.setSport?score.sets:score?.points;
+  const winner=score?.setSport?score.winner:result && result[0]!==result[1]?(result[0]>result[1]?0:1):null;
+  const outcome=event.sportKey==='hiking'?'Activity completed':winner!==null && game?`${game.teams[winner]} won`:score?.setSport?'Game finished':'Draw';
+  return {id:event.id,name:event.name,sportKey:event.sportKey,sportName:event.sportName,summary:game?gameSummary(event.sportKey,game):'',outcome,elapsedMs:game?.elapsedMs ?? 0,finishedAt:game?.finishedAt ?? event.startsAt};
+ })};
 }

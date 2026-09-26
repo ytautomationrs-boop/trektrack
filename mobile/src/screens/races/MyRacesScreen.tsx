@@ -299,7 +299,7 @@ function RaceRow({
             shareRace();
           }}
         >
-          <Ionicons name="share-outline" size={16} color={colors.bg} />
+          <Ionicons name="share-outline" size={16} color={colors.onAccent} />
           <Text style={styles.shareButtonText}>Share race</Text>
         </Pressable>
         {canWithdraw && (
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginTop: spacing.lg,
   },
-  emptyCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  emptyCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
 
   card: { backgroundColor: colors.surface, borderRadius: radii.lg, padding: spacing.lg, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   shareButton: { backgroundColor: colors.accent },
-  shareButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  shareButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
   withdrawButton: { borderWidth: 1, borderColor: colors.sub },
   withdrawButtonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.sub },
   disabled: { opacity: 0.5 },

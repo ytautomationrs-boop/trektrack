@@ -1,3 +1,5 @@
+import {Capacitor} from "@capacitor/core";
+import {signInProvider,acceptProviderSession,type ProviderConfig,type Provider} from "../../api/providerClient";
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ImageBackground } from "react-native";
 import { colors, fonts, radii, spacing } from "../../theme/tokens";
@@ -21,7 +23,15 @@ function resolveTimezone(): string {
 export function AuthScreen() {
   const app = useAppState();
   const [phone,setPhone]=useState(""),[code,setCode]=useState(""),[mfa,setMfa]=useState(false),[sms,setSms]=useState(false);
-  useEffect(()=>{request<{smsAvailable:boolean}>("/auth/config").then(r=>setSms(r.smsAvailable)).catch(()=>{});},[]);
+  const [providers,setProviders]=useState<ProviderConfig|null>(null),[registration,setRegistration]=useState<string|null>(null);
+  useEffect(()=>{request<ProviderConfig>("/auth/config").then(setProviders).catch(()=>{});},[]);
+  async function providerLogin(provider:Provider){
+   if(!providers)return;setSubmitting(true);setError(null);
+   try{const data=await signInProvider(provider,providers);if(data.needsUsername){setRegistration(data.registrationToken);setMode('signup');}else{app.setSession(await acceptProviderSession(data));app.advanceOnboarding('done');}}
+   catch(error:any){if(!/cancel/i.test(error.message))setError(error.message);}
+   finally{setSubmitting(false);}
+  }
+
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -35,6 +45,10 @@ export function AuthScreen() {
     setSubmitting(true);
     setError(null);
     try {
+      if(registration){
+       const data=await request<any>('/auth/provider/signup',{method:'POST',body:JSON.stringify({registrationToken:registration,displayName:displayName.trim(),inviteCode:inviteCode.trim(),timezone:resolveTimezone()})});
+       app.setSession(await acceptProviderSession(data));return;
+      }
       const normalizedEmail = email.trim().toLowerCase();
       const user =
         mode === "signup"
@@ -45,6 +59,7 @@ export function AuthScreen() {
         displayName: user.displayName,
         email: user.email,
         avatarUrl: user.avatarUrl ?? null,
+        coverUrl: user.coverUrl ?? null,
         bio: user.bio ?? null,
         isAdmin: user.isAdmin,
       });
@@ -67,10 +82,15 @@ export function AuthScreen() {
         </View>
 
         <View style={styles.form}>
+          {Capacitor.isNativePlatform() && !registration && providers && <>
+           {providers.apple?<Pressable accessibilityRole="button" style={styles.providerButton} disabled={submitting} onPress={()=>void providerLogin('apple')}><Text style={styles.providerText}>Continue with Apple</Text></Pressable>:null}
+           {providers.google && providers.googleIosClientId?<Pressable accessibilityRole="button" style={styles.providerButton} disabled={submitting} onPress={()=>void providerLogin('google')}><Text style={styles.providerText}>Continue with Google</Text></Pressable>:null}
+          </>}
+          {registration?<Text style={styles.switchModeText}>Choose your unique username to finish joining ASTA.</Text>:null}
           {mode === "signup" && (
             <TextInput keyboardAppearance="dark" style={styles.input} placeholder="Unique username" placeholderTextColor={colors.sub} value={displayName} onChangeText={setDisplayName} autoCapitalize="none" autoCorrect={false} />
           )}
-          <TextInput keyboardAppearance="dark"
+          {!registration && <><TextInput keyboardAppearance="dark"
             style={styles.input}
             placeholder="Email"
             placeholderTextColor={colors.sub}
@@ -79,7 +99,7 @@ export function AuthScreen() {
             value={email}
             onChangeText={setEmail}
           />
-          <TextInput keyboardAppearance="dark" style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} />
+          <TextInput keyboardAppearance="dark" style={styles.input} placeholder="Password" placeholderTextColor={colors.sub} secureTextEntry value={password} onChangeText={setPassword} /></>}
           {mode === "signup" && (
             <TextInput keyboardAppearance="dark"
               style={styles.input}
@@ -97,7 +117,7 @@ export function AuthScreen() {
           <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={submitting}>
             <Text style={styles.primaryButtonText}>{submitting ? "..." : mfa ? "Verify and continue" : mode === "signup" ? "Create account" : "Log in"}</Text>
           </Pressable>
-          <Pressable onPress={() => {setMode(mode === "signup" ? "login" : "signup");setCode("");setMfa(false);setError(null);setPhone("");}}>
+          <Pressable onPress={() => {setRegistration(null);setMode(mode === "signup" ? "login" : "signup");setCode("");setMfa(false);setError(null);setPhone("");}}>
             <Text style={styles.switchModeText}>{mode === "signup" ? "Already have an account? Log in" : "New here? Create an account"}</Text>
           </Pressable>
         </View>
@@ -107,6 +127,7 @@ export function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  providerButton:{minHeight:48,borderRadius:12,backgroundColor:"#ffffff",justifyContent:"center",alignItems:"center"},providerText:{fontFamily:fonts.bodySemiBold,color:"#111111",fontSize:17},
   background: { flex: 1, backgroundColor: colors.bg },
   backgroundImage: { opacity: 0.95 },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },

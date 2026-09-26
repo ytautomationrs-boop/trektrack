@@ -10,6 +10,7 @@ const UpdateProfileSchema = z.object({
     (value) => value.startsWith("data:image/") || z.string().url().safeParse(value).success,
     "Choose a valid profile photo.",
   ).nullable().optional(),
+  coverUrl: z.string().trim().max(900_000).refine(value => value.startsWith("data:image/") || z.string().url().safeParse(value).success, "Choose a valid cover photo.").nullable().optional(),
   bio: z.string().trim().max(160).nullable().optional(),
 });
 
@@ -36,9 +37,10 @@ export async function accountRoutes(app: FastifyInstance) {
       data: {
         ...(body.displayName !== undefined ? { displayName: body.displayName } : {}),
         ...(body.avatarUrl !== undefined ? { avatarUrl: await storePhoto(req.userId, body.avatarUrl) } : {}),
+        ...(body.coverUrl !== undefined ? { coverUrl: await storePhoto(req.userId, body.coverUrl) } : {}),
         ...(body.bio !== undefined ? { bio: body.bio || null } : {}),
       },
-      select: { id: true, email: true, displayName: true, avatarUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
+      select: { id: true, email: true, displayName: true, avatarUrl: true, coverUrl: true, bio: true, walletBalanceCents: true, isAdmin: true },
     });
     return reply.send({ user });
   });

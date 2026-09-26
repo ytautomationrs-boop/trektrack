@@ -16,7 +16,7 @@ export type OnboardingStep = "intro" | "done";
 
 // isAdmin gates whether Create is a live action during the pilot — see
 // screens/create/CreateRaceScreen.tsx.
-export type Session = { userId: string; displayName: string; email: string; avatarUrl: string | null; bio: string | null; isAdmin: boolean } | null;
+export type Session = { userId: string; displayName: string; email: string; avatarUrl: string | null; coverUrl?: string | null; bio: string | null; isAdmin: boolean } | null;
 
 type Listener = () => void;
 

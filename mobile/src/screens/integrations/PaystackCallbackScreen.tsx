@@ -78,5 +78,5 @@ const styles = StyleSheet.create({
   title: { fontFamily: fonts.display, fontSize: 18, color: colors.text, textAlign: "center" },
   text: { fontFamily: fonts.body, fontSize: 14, color: colors.sub, textAlign: "center", marginTop: spacing.sm },
   button: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, paddingHorizontal: spacing.xl, marginTop: spacing.lg },
-  buttonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  buttonText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
 });

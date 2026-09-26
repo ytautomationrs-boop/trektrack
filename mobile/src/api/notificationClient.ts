@@ -5,6 +5,7 @@ export const getNotifications = (options?:ReadOptions<Inbox>)=>request<Inbox>('/
 export const readNotifications=(ids:string[])=>request('/notifications/read',{method:'POST',body:JSON.stringify({ids})});
 export function openNotification(navigation:any,data:Record<string,string>) {
  if(data.eventId)navigation.navigate('Events',{screen:'EventDetail',params:{eventId:data.eventId,code:data.code}});
+ else if(data.raceId)navigation.navigate('Competitions',{screen:'RaceDetail',params:{raceId:data.raceId},initial:false});
  else if(data.playerId)navigation.navigate('Social',{screen:'SocialThread',params:{playerId:data.playerId}});
  else if(data.postId)navigation.navigate('Social',{screen:'SocialPost',params:{postId:data.postId}});
  else navigation.navigate('Social');

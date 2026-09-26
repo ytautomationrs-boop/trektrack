@@ -263,7 +263,7 @@ export function ChallengeDetailScreen() {
               disabled={busy || (challenge.visibility === "INVITE_ONLY" && inviteCodeInput.trim().length < 4)}
               onPress={handleJoin}
             >
-              {busy ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Stake {formatCents(challenge.stakeCents)} and join</Text>}
+              {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.ctaText}>Stake {formatCents(challenge.stakeCents)} and join</Text>}
             </Pressable>
           </>
         )}
@@ -409,7 +409,7 @@ function ActiveParticipantActions({
           for native users, where reading Health is genuinely less effort
           than exporting a file. */}
       <Pressable style={[styles.cta, (importing || !participantId) && styles.ctaDisabled]} disabled={importing || !participantId} onPress={handleImport}>
-        {importing ? <ActivityIndicator color={colors.bg} /> : <Text style={styles.ctaText}>Sync data</Text>}
+        {importing ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.ctaText}>Sync data</Text>}
       </Pressable>
       <Text style={styles.importHint}>
         Export it from your watch or training app — Streak reads {ACCEPTED_EXTENSIONS.join(", ")}. It counts for the day you did it.
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   },
   cta: { backgroundColor: colors.accent, borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.lg },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.bg },
+  ctaText: { fontFamily: fonts.bodySemiBold, fontSize: 14, color: colors.onAccent },
   secondaryCta: { borderRadius: radii.md, paddingVertical: spacing.md, alignItems: "center", marginTop: spacing.md, borderWidth: 1, borderColor: colors.surfaceRaised },
   secondaryCtaText: { fontFamily: fonts.bodySemiBold, fontSize: 13, color: colors.sub },
   importHint: { fontFamily: fonts.body, fontSize: 12, color: colors.sub, lineHeight: 17, marginTop: spacing.xs, marginBottom: spacing.sm },
