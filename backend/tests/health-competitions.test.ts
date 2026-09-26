@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { beforeAll,afterAll,beforeEach,it,expect,vi } from 'vitest';
+import { beforeAll,afterAll,beforeEach,afterEach,it,expect,vi } from 'vitest';
 const db=vi.hoisted(()=>({$queryRaw:vi.fn(),raceEntry:{findUnique:vi.fn(),findUniqueOrThrow:vi.fn()},healthStepSnapshot:{findUnique:vi.fn(),upsert:vi.fn()}}));
 vi.mock('../src/lib/prisma.js',()=>({prisma:{$transaction:(fn:any)=>fn(db)}}));
 vi.mock('../src/middleware/auth.js',()=>({requireAuth:async(req:any)=>{req.userId='owner';}}));
@@ -10,7 +10,8 @@ const start=new Date('2026-09-25T00:00:00.000Z'),end=new Date('2026-09-27T00:00:
 const snapshot={entryId:'e',steps:2000,windowStart:start.toISOString(),windowEnd:'2026-09-25T12:00:00.000Z',observedAt:'2026-09-25T12:00:00.000Z'};
 const entry={id:'e',userId:'owner',raceId:'r',status:'ENTERED',race:{id:'r',status:'RUNNING',metricKey:'steps',startedAt:start,endsAt:end}};
 beforeAll(()=>app.register(healthCompetitionRoutes));afterAll(()=>app.close());
-beforeEach(()=>{vi.clearAllMocks();db.raceEntry.findUnique.mockResolvedValue(entry);db.raceEntry.findUniqueOrThrow.mockResolvedValue(entry);db.healthStepSnapshot.findUnique.mockResolvedValue(null);});
+beforeEach(()=>{vi.useFakeTimers({toFake:["Date"]});vi.setSystemTime(new Date("2026-09-26T00:00:00Z"));vi.clearAllMocks();db.raceEntry.findUnique.mockResolvedValue(entry);db.raceEntry.findUniqueOrThrow.mockResolvedValue(entry);db.healthStepSnapshot.findUnique.mockResolvedValue(null);});
+afterEach(()=>vi.useRealTimers());
 const send=(body=snapshot)=>app.inject({method:'POST',url:'/health/competitions/steps',payload:body});
 it('does not expose or update another user entry',async()=>{db.raceEntry.findUnique.mockResolvedValue({...entry,userId:'other'});expect((await send()).statusCode).toBe(404);expect(db.healthStepSnapshot.upsert).not.toHaveBeenCalled();});
 it('replaces a snapshot rather than incrementing it',async()=>{expect((await send()).statusCode).toBe(200);const saved=db.healthStepSnapshot.upsert.mock.calls[0][0];expect(saved.update.steps).toBe(2000);expect(saved.create.raceEntryId).toBe('e');expect(db.$queryRaw).toHaveBeenCalledTimes(2);});
