@@ -9,7 +9,7 @@ import { colors, fonts, radii, spacing } from "../theme/tokens";
 import { CreateGateScreen } from "../screens/create/CreateGateScreen";
 import { WalletScreen } from "../screens/wallet/WalletScreen";
 import { SettingsScreen } from "../screens/profile/SettingsScreen";
-import { ActivityScreen } from "../screens/profile/ProfileScreen";
+import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { SocialScreen } from "../screens/social/SocialScreen";
 import { RacesScreen } from "../screens/races/RacesScreen";
 import { LeaguesScreen } from "../screens/races/LeaguesScreen";
@@ -68,7 +68,7 @@ function ProfileStackScreen() {
   const app = useAppState();
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false, gestureEnabled: true }}>
-      <ProfileStack.Screen name="ProfileHome" component={ActivityScreen} />
+      <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} />
       <ProfileStack.Screen name="Settings" component={SettingsScreen} />
       <ProfileStack.Screen name="MyRaces" component={MyRacesScreen} />
       <ProfileStack.Screen name="Wallet" component={WalletScreen} />
@@ -87,7 +87,7 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Competitions: "trophy-outline",
   Social: "people-outline",
   Events: "calendar-outline",
-  Profile: "pulse-outline",
+  Profile: "person-outline",
 };
 
 function withoutPreviews(state: any): any {
@@ -301,7 +301,7 @@ export function RootNavigator() {
           })}
         />
         <Tab.Screen name="Events" component={EventsStackScreen} />
-        <Tab.Screen name="Profile" component={ProfileStackScreen} options={{title:"Activity",tabBarLabel:"Activity"}} />
+        <Tab.Screen name="Profile" component={ProfileStackScreen} options={{title:"Profile",tabBarLabel:"Profile"}} />
         <Tab.Screen name="Notifications" component={NotificationsScreen} options={{tabBarButton:()=>null,tabBarItemStyle:{display:"none"}}}/>
       </Tab.Navigator>
     </NavigationContainer>
