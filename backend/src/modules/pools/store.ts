@@ -53,7 +53,10 @@ export async function createPool(userId:string,name:string,input:unknown){
 export async function joinPool(id:string,userId:string,name:string){return mutatePool(id,userId,async(p,tx,now)=>{if(join(p,userId,name,now))await debit(tx,userId,p.buyIn);});}
 export async function leavePool(id:string,userId:string){return mutatePool(id,userId,async(p,tx)=>{if(leave(p,userId))await credit(tx,userId,p.buyIn);});}
 export async function reportPool(id:string,userId:string,participantId:string,day:number,report:Report){return mutatePool(id,userId,(p,_tx,now)=>{if(p.hostId!==userId)fail('Only the host can enter simulated activity.');record(p,participantId,day,report,now);});}
-export async function advancePool(id:string,userId:string,expectedVersion:number){return mutatePool(id,userId,(p,_tx,now)=>{if(p.hostId!==userId)fail('Only the host can advance the test clock.');if(p.version!==expectedVersion)fail('Pool changed. Refresh before advancing again.');advance(p,now);});}
+export async function advancePool(id:string,userId:string,expectedVersion:number,reports?:Array<Report & {participantId:string;day:number}>){return mutatePool(id,userId,(p,_tx,now)=>{if(p.hostId!==userId)fail('Only the host can advance the test clock.');if(p.version!==expectedVersion)fail('Pool changed. Refresh before advancing again.');
+  if(reports){if(new Set(reports.map(r=>r.participantId)).size!==reports.length)fail('Send one report per player.');for(const r of reports)record(p,r.participantId,r.day,r,now);}
+  if(p.status==='ACTIVE'){const day=String(currentDay(p,now));const missing=p.players.filter(x=>x.status==='ACTIVE'&&!x.reports[day]);if(missing.length)fail('Save totals for every active player before closing the test day. Enter 0 to test a missed goal.');}
+  advance(p,now);});}
 export async function getPool(id:string,userId:string){return mutatePool(id,userId,()=>{});}
 export async function listPools(userId:string){
   await ensurePools();

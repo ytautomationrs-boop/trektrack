@@ -31,7 +31,10 @@ supplied by the app); duplicate joins/leaves do not debit/refund twice. Test
 clock advancement requires the current version. Settlement is atomic.
 
 Host test flow: Fill test players → Jump to test day 1 (23:59:59 local) → save
-each player's totals → close day and advance. The simulated clock stays frozen while totals are entered. The next test day is also shown
+each player's totals → save all totals and close day. The close request saves all
+players atomically before evaluation. Missing test entries block advancement;
+enter 0 explicitly for a missed goal. Everyone meeting or exceeding the target
+stays in, without ranking by total. The simulated clock stays frozen while totals are entered. The next test day is also shown
 at 23:59:59, so complete sleep reports can be entered. Day 7 closes/settles;
 missed days stay failed. Real users can also wait for actual daily cutoffs.
 
