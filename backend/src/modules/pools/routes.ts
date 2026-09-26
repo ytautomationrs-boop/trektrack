@@ -1,3 +1,5 @@
+import {poolAttestationRoutes} from './attestation.js';
+import {poolHealthRoutes} from './health.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/auth.js';
@@ -5,6 +7,8 @@ import { prisma } from '../../lib/prisma.js';
 import { reportSchema } from './engine.js';
 import { fillTestPlayers,advancePool,createPool,getPool,joinPool,leavePool,listPools,reportPool,tickPools } from './store.js';
 export async function poolRoutes(app:FastifyInstance){
+  await app.register(poolHealthRoutes);
+  await app.register(poolAttestationRoutes);
   app.get('/pools',{preHandler:requireAuth},async req=>listPools(req.userId));
   app.post('/pools',{preHandler:requireAuth},async(req,reply)=>{const u=await prisma.user.findUniqueOrThrow({where:{id:req.userId},select:{displayName:true}});return reply.code(201).send({pool:await createPool(req.userId,u.displayName,req.body)});});
   app.get<{Params:{id:string}}>('/pools/:id',{preHandler:requireAuth},async req=>({pool:await getPool(req.params.id,req.userId)}));

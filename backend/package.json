@@ -37,6 +37,7 @@
     "fast-xml-parser": "^5.11.1",
     "fastify": "^4.28.1",
     "jose": "^6.2.12",
+    "node-app-attest": "1.0.1",
     "node-cron": "^3.0.3",
     "pino": "^9.4.0",
     "prisma": "^5.19.1",

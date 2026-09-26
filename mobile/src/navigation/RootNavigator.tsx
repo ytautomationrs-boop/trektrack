@@ -164,9 +164,9 @@ function CreateTabButton({ onCompetition, onSocialGame, onPool }: { onCompetitio
                 <Text style={styles.chooserOptionDetail}>Play together</Text>
               </Pressable>
             </View>
-            <Pressable style={[styles.chooserOption,{marginTop:12,flex:0,flexDirection:"row",justifyContent:"center",gap:12}]} onPress={()=>choose(onPool)} accessibilityRole="button" accessibilityLabel="Open Pools test feature">
+            <Pressable style={[styles.chooserOption,{marginTop:12,flex:0,flexDirection:"row",justifyContent:"center",gap:12}]} onPress={()=>choose(onPool)} accessibilityRole="button" accessibilityLabel="Open Pools">
               <Ionicons name="layers-outline" size={27} color={colors.onAccent}/>
-              <Text style={styles.chooserOptionTitle}>Pools</Text><Text style={styles.chooserOptionDetail}>Daily goals · Test credits</Text>
+              <Text style={styles.chooserOptionTitle}>Pools</Text><Text style={styles.chooserOptionDetail}>Daily goals · Shared rewards</Text>
             </Pressable>
           </View>
         </View>

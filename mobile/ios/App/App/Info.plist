@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-<key>NSHealthShareUsageDescription</key><string>ASTA reads your automatically recorded steps to show your daily progress and update the competitions you join. Only your competition totals are synced to ASTA.</string>
+<key>NSHealthShareUsageDescription</key><string>ASTA reads your automatically recorded steps, running, cycling, swimming and sleep to track the daily goals in competitions and Pools you join. Daily totals and the sleep times needed for your selected goals sync securely to ASTA.</string>
 	<key>CAPACITOR_DEBUG</key>
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>

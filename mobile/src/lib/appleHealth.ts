@@ -1,8 +1,8 @@
 import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor/core';
-export type HealthStatus = { available: boolean; enabled: boolean; syncing: boolean; todaySteps?: number; lastSyncedAt?: string; message?: string };
+export type HealthStatus = { available: boolean; enabled: boolean; poolsEnabled?: boolean; syncing: boolean; todaySteps?: number; lastSyncedAt?: string; message?: string };
 export const AppleHealth = registerPlugin<{
  setSession(value: {token: string | null; owner: string | null}): Promise<void>;
- connect(): Promise<HealthStatus>; disconnect(): Promise<HealthStatus>; refresh(): Promise<HealthStatus>; status(): Promise<HealthStatus>;
+ connect(): Promise<HealthStatus>; connectPools(): Promise<HealthStatus>; disconnect(): Promise<HealthStatus>; connectPools(): Promise<HealthStatus>; refresh(): Promise<HealthStatus>; status(): Promise<HealthStatus>;
  addListener(name: 'changed', cb: (status: HealthStatus) => void): Promise<PluginListenerHandle>;
 }>('ASTAHealth');
 export function hasAppleHealth() { return Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios' && Capacitor.isPluginAvailable('ASTAHealth'); }

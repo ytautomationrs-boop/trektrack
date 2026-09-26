@@ -1,7 +1,9 @@
+import {ensurePools} from '../pools/store.js';
 import {prisma} from '../../lib/prisma.js';
 const blocked=(message:string)=>Object.assign(new Error(message),{statusCode:409});
 /** Never discard a wallet balance or a competition's unsettled prize claim. */
 export async function deleteAccount(userId:string,authVersion:number,beforeDelete?:()=>Promise<void>){
+ await ensurePools();
  return prisma.$transaction(async tx=>{
   await tx.$queryRaw`SELECT id FROM "User" WHERE id=${userId} FOR UPDATE`;
   const user=await tx.user.findUniqueOrThrow({where:{id:userId}});
@@ -15,6 +17,8 @@ export async function deleteAccount(userId:string,authVersion:number,beforeDelet
   ]);
   if(races||challenges)throw blocked('Leave open competitions and finish active competitions before deleting your account.');
   if(withdrawals||deposits)throw blocked('A payment is still pending. Complete or resolve it before deleting your account.');
+  const pools=await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM "PoolPrototype" WHERE state->>'currency'='ZAR' AND state->>'status'<>'COMPLETED' AND ("hostId"=${userId} OR state->'players' @> ${JSON.stringify([{id:userId}])}::jsonb) LIMIT 1`;
+  if(pools?.length)throw blocked('Finish or leave your wallet Pools before deleting your account.');
   if(beforeDelete)await beforeDelete();
   // Restricted historical relationships are explicitly removed; cascading
   // relations remove posts, photos, messages, notifications and credentials.

@@ -14,13 +14,13 @@ const requirement = z.object({
 });
 export const createPoolSchema=z.object({
   requestId:z.string().uuid().optional(), title:z.string().trim().min(3).max(60), durationDays:z.number().int().min(7).max(365),
-  capacity:z.number().int().min(2).max(50), buyIn:z.number().int().min(1).max(10000),
+  capacity:z.number().int().min(2).max(50), buyIn:z.number().int().min(1).max(1000000), currency:z.enum(['TEST','ZAR']).optional(),
   timezone:z.string().refine(t=>{try{new Intl.DateTimeFormat('en',{timeZone:t});return true;}catch{return false;}},'Invalid timezone'),
   goals:z.array(requirement).min(1).max(5),
 }).refine(v=>new Set(v.goals.map(g=>g.metric)).size===v.goals.length,'Select each activity only once');
 export type Rules=z.infer<typeof createPoolSchema>;
 export type Metric=typeof metricKeys[number];
-export type Report={values:Partial<Record<Metric,number>>;sleepStart?:string;sleepEnd?:string};
+export type Report={observedAt?:string;values:Partial<Record<Metric,number>>;sleepStart?:string;sleepEnd?:string};
 export const reportSchema=z.object({
   participantId:z.string().min(1).max(100),day:z.number().int().min(1).max(365),
   values:z.object({steps:z.number().int().min(0).max(200000).optional(),running:z.number().min(0).max(1000).optional(),cycling:z.number().min(0).max(2000).optional(),swimming:z.number().min(0).max(100).optional(),sleep:z.number().min(0).max(24).optional()}).strict(),
@@ -62,6 +62,7 @@ export function passes(p:Pool,day:number,report:Report|undefined){
     if(!(end>start)||localDateAt(end,p.timezone)!==date)return false;
     const hours=(end.getTime()-start.getTime())/3600000;
     if(start<midnight(previous,p.timezone)||hours>24||hours<g.target)return false;
+    if(p.currency==='ZAR'&&((report.values.sleep??0)<g.target||(report.values.sleep??0)>hours))return false;
     const time=(mins:number)=>`${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}:00`;
     const bedDate=g.bedtime!==undefined&&g.bedtime<(g.wakeTime??720)?date:previous;
     if(g.bedtime!==undefined&&start>fromZonedTime(bedDate+'T'+time(g.bedtime),p.timezone))return false;
@@ -85,7 +86,8 @@ export function tick(p:Pool,now:Date){
   const clock=effectiveNow(p,now);
   if(p.status==='SCHEDULED'&&clock>=new Date(p.startAt!))p.status='ACTIVE';
   if(p.status!=='ACTIVE')return;
-  for(let day=1;day<=p.durationDays&&clock>=dayEnd(p,day);day++){
+  const closes=(day:number)=>new Date(dayEnd(p,day).getTime()+(p.currency==='ZAR'?86400000:0));
+  for(let day=1;day<=p.durationDays&&clock>=closes(day);day++){
     for(const player of p.players){
       if(player.status!=='ACTIVE'||String(day) in player.days)continue;
       const passed=passes(p,day,player.reports[String(day)]);player.days[String(day)]=passed;
@@ -101,7 +103,7 @@ export function tick(p:Pool,now:Date){
       return;
     }
   }
-  if(clock>=dayEnd(p,p.durationDays)){
+  if(clock>=closes(p.durationDays)){
     const winners=p.players.filter(x=>x.status==='ACTIVE');
     const total=p.buyIn*p.players.length;
     if(winners.length){const share=Math.floor(total/winners.length),remainder=total%winners.length;winners.forEach((w,i)=>{w.status='FINISHED';w.payout=share+(i<remainder?1:0);});}
